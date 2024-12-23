@@ -1,0 +1,1205 @@
+2024-12-23 21:44:08 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:44:08 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:44:08 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:44:08 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:44:08 - Error Details: 
+2024-12-23 21:44:08 - 
+📋 Test 2: Business Registration for Each Industry
+2024-12-23 21:44:08 - 
+Testing registration for salon
+2024-12-23 21:44:09 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:44:09 - Response: {"ok":true,"message":"Registration successful","user":{"id":29,"username":"testsalon1827504061","role":"business","business":{"id":26,"userId":29,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:08.946Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:09 - 
+Testing login for salon
+2024-12-23 21:44:10 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:44:10 - Response: {"ok":true,"message":"Login successful","user":{"id":29,"username":"testsalon1827504061","role":"business","business":{"id":26,"userId":29,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:08.946Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:10 - 
+Testing authenticated endpoints for salon
+2024-12-23 21:44:10 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:44:10 - Response: {"id":29,"username":"testsalon1827504061","password":"e3c57ee508a117646c01a28f6daf00348e8a7cbb35317963222fba95aa813ddbcaf05713802616f3ebe32907485373b3a2cab3c711f968193a5292a4c9c7bf75.1e9d3ccb8ae505457a3677b10e6fceb2","email":"test243190280@example.com","role":"business","createdAt":"2024-12-23T10:44:08.875Z","business":{"id":26,"userId":29,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:08.946Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:44:10 - ✅ GET /api/businesses/26 - Status: 200 (Expected: 200)
+2024-12-23 21:44:10 - Response: {"id":26,"userId":29,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:08.946Z","updatedAt":null}
+2024-12-23 21:44:11 - ✅ GET /api/businesses/26/services - Status: 200 (Expected: 200)
+2024-12-23 21:44:11 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:11 - ✅ PUT /api/businesses/26 - Status: 200 (Expected: 200)
+2024-12-23 21:44:11 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:11 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:44:11 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:44:11 - 
+Testing registration for restaurant
+2024-12-23 21:44:12 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:44:12 - Response: {"ok":true,"message":"Registration successful","user":{"id":30,"username":"testrestaurant981012381","role":"business","business":{"id":27,"userId":30,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:11.961Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:12 - 
+Testing login for restaurant
+2024-12-23 21:44:13 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:44:13 - Response: {"ok":true,"message":"Login successful","user":{"id":30,"username":"testrestaurant981012381","role":"business","business":{"id":27,"userId":30,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:11.961Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:13 - 
+Testing authenticated endpoints for restaurant
+2024-12-23 21:44:13 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:44:13 - Response: {"id":30,"username":"testrestaurant981012381","password":"852192e270e662d776b763371c783191661508c91887b85d1807b7fba4e2168358c29c4c5cc4bf9a2011ebd0a5bb1faf8b00c8ba915c12019a57cbe00b3a7f56.8c047690bef00bd1cf33cab77658c977","email":"test1152084538@example.com","role":"business","createdAt":"2024-12-23T10:44:11.895Z","business":{"id":27,"userId":30,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:11.961Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:44:13 - ✅ GET /api/businesses/27 - Status: 200 (Expected: 200)
+2024-12-23 21:44:13 - Response: {"id":27,"userId":30,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:11.961Z","updatedAt":null}
+2024-12-23 21:44:14 - ✅ GET /api/businesses/27/menu - Status: 200 (Expected: 200)
+2024-12-23 21:44:14 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:14 - ✅ PUT /api/businesses/27 - Status: 200 (Expected: 200)
+2024-12-23 21:44:14 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:14 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:44:14 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:44:14 - 
+Testing registration for event
+2024-12-23 21:44:15 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:44:15 - Response: {"ok":true,"message":"Registration successful","user":{"id":31,"username":"testevent1488947307","role":"business","business":{"id":28,"userId":31,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:14.891Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:15 - 
+Testing login for event
+2024-12-23 21:44:16 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:44:16 - Response: {"ok":true,"message":"Login successful","user":{"id":31,"username":"testevent1488947307","role":"business","business":{"id":28,"userId":31,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:14.891Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:16 - 
+Testing authenticated endpoints for event
+2024-12-23 21:44:16 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:44:16 - Response: {"id":31,"username":"testevent1488947307","password":"12ae4f0ec824f1822fe4346f5a3c3d50579419f50c7fa6eb803af1e1b7dea5866d59e87c7815ef5792b11a1b1052175405b0f46089f931ca7ff047d3a3aa26ff.ead7d412f1ec70a697b9372276b3df31","email":"test1900369379@example.com","role":"business","createdAt":"2024-12-23T10:44:14.825Z","business":{"id":28,"userId":31,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:14.891Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:44:16 - ✅ GET /api/businesses/28 - Status: 200 (Expected: 200)
+2024-12-23 21:44:16 - Response: {"id":28,"userId":31,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:14.891Z","updatedAt":null}
+2024-12-23 21:44:17 - ✅ GET /api/businesses/28/events - Status: 200 (Expected: 200)
+2024-12-23 21:44:17 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:17 - ✅ PUT /api/businesses/28 - Status: 200 (Expected: 200)
+2024-12-23 21:44:17 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:17 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:44:17 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:44:17 - 
+Testing registration for realestate
+2024-12-23 21:44:18 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:44:18 - Response: {"ok":true,"message":"Registration successful","user":{"id":32,"username":"testrealestate838328035","role":"business","business":{"id":29,"userId":32,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:17.780Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:18 - 
+Testing login for realestate
+2024-12-23 21:44:18 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:44:18 - Response: {"ok":true,"message":"Login successful","user":{"id":32,"username":"testrealestate838328035","role":"business","business":{"id":29,"userId":32,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:17.780Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:18 - 
+Testing authenticated endpoints for realestate
+2024-12-23 21:44:19 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:44:19 - Response: {"id":32,"username":"testrealestate838328035","password":"2c71f04f894af366488a05a73fc0eebbe0414920e2dba2014d16e384e44803ec48f701cf27d8208d878cb4839237c3b6f520621a7d63ae979ae71fad378f984b.7e0edeecf824d98ec9d789e591e5a2b0","email":"test114703974@example.com","role":"business","createdAt":"2024-12-23T10:44:17.713Z","business":{"id":29,"userId":32,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:17.780Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:44:19 - ✅ GET /api/businesses/29 - Status: 200 (Expected: 200)
+2024-12-23 21:44:19 - Response: {"id":29,"userId":32,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:17.780Z","updatedAt":null}
+2024-12-23 21:44:19 - ✅ GET /api/businesses/29/properties - Status: 200 (Expected: 200)
+2024-12-23 21:44:19 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:20 - ✅ PUT /api/businesses/29 - Status: 200 (Expected: 200)
+2024-12-23 21:44:20 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:20 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:44:20 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:44:20 - 
+Testing registration for retail
+2024-12-23 21:44:21 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:44:21 - Response: {"ok":true,"message":"Registration successful","user":{"id":33,"username":"testretail1712089384","role":"business","business":{"id":30,"userId":33,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:20.697Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:21 - 
+Testing login for retail
+2024-12-23 21:44:21 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:44:21 - Response: {"ok":true,"message":"Login successful","user":{"id":33,"username":"testretail1712089384","role":"business","business":{"id":30,"userId":33,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:20.697Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:21 - 
+Testing authenticated endpoints for retail
+2024-12-23 21:44:22 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:44:22 - Response: {"id":33,"username":"testretail1712089384","password":"9104bf349a38605fb00ec35e2daaffb71a755aa28daf469fd31faea20ed6d498671631661873e14bbb28d907b4bbaaa235ae45a69743ff29e5188c7ebe909948.585697346966c7f0d8b597bff9a0b42e","email":"test846564392@example.com","role":"business","createdAt":"2024-12-23T10:44:20.629Z","business":{"id":30,"userId":33,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:20.697Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:44:22 - ✅ GET /api/businesses/30 - Status: 200 (Expected: 200)
+2024-12-23 21:44:22 - Response: {"id":30,"userId":33,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:20.697Z","updatedAt":null}
+2024-12-23 21:44:22 - ✅ GET /api/businesses/30/products - Status: 200 (Expected: 200)
+2024-12-23 21:44:22 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:23 - ✅ PUT /api/businesses/30 - Status: 200 (Expected: 200)
+2024-12-23 21:44:23 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:23 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:44:23 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:44:23 - 
+Testing registration for professional
+2024-12-23 21:44:24 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:44:24 - Response: {"ok":true,"message":"Registration successful","user":{"id":34,"username":"testprofessional2097979979","role":"business","business":{"id":31,"userId":34,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:23.588Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:24 - 
+Testing login for professional
+2024-12-23 21:44:24 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:44:24 - Response: {"ok":true,"message":"Login successful","user":{"id":34,"username":"testprofessional2097979979","role":"business","business":{"id":31,"userId":34,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:23.588Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:44:24 - 
+Testing authenticated endpoints for professional
+2024-12-23 21:44:25 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:44:25 - Response: {"id":34,"username":"testprofessional2097979979","password":"7bb97ea0064151a530fb5faa511839c0ff0f8aca94285b0a9f4711a2c09fb9cc95555567fb3eff4ffe180aad80381e81e4f26871e90c7a1a6e5252e0c1794943.a63fee33aee60cda39a9fc2ec9c4e6a0","email":"test97360743@example.com","role":"business","createdAt":"2024-12-23T10:44:23.523Z","business":{"id":31,"userId":34,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:23.588Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:44:25 - ✅ GET /api/businesses/31 - Status: 200 (Expected: 200)
+2024-12-23 21:44:25 - Response: {"id":31,"userId":34,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:44:23.588Z","updatedAt":null}
+2024-12-23 21:44:25 - ✅ GET /api/businesses/31/services - Status: 200 (Expected: 200)
+2024-12-23 21:44:25 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:26 - ✅ PUT /api/businesses/31 - Status: 200 (Expected: 200)
+2024-12-23 21:44:26 - Response: <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style data-vite-theme="" data-inject-first="">:root {
+      --background: 0 0% 100%;
+--foreground: 20 14.3% 4.1%;
+--muted: 60 4.8% 95.9%;
+--muted-foreground: 25 5.3% 44.7%;
+--popover: 0 0% 100%;
+--popover-foreground: 20 14.3% 4.1%;
+--card: 0 0% 100%;
+--card-foreground: 20 14.3% 4.1%;
+--border: 20 5.9% 90%;
+--input: 20 5.9% 90%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 60 4.8% 95.9%;
+--secondary-foreground: 24 9.8% 10%;
+--accent: 60 4.8% 95.9%;
+--accent-foreground: 24 9.8% 10%;
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 60 9.1% 97.8%;
+--ring: 20 14.3% 4.1%;
+--radius: 0.75rem;
+  }
+  .dark {
+      --background: 240 10% 3.9%;
+--foreground: 0 0% 98%;
+--muted: 240 3.7% 15.9%;
+--muted-foreground: 240 5% 64.9%;
+--popover: 240 10% 3.9%;
+--popover-foreground: 0 0% 98%;
+--card: 240 10% 3.9%;
+--card-foreground: 0 0% 98%;
+--border: 240 3.7% 15.9%;
+--input: 240 3.7% 15.9%;
+--primary: 280 85% 35%;
+--primary-foreground: 271 50% 98%;
+--secondary: 240 3.7% 15.9%;
+--secondary-foreground: 0 0% 98%;
+--accent: 240 3.7% 15.9%;
+--accent-foreground: 0 0% 98%;
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 0 0% 98%;
+--ring: 240 4.9% 83.9%;
+--radius: 0.75rem;
+  }</style>
+
+    <script type="module">
+import { createHotContext } from "/@vite/client";
+const hot = createHotContext("/__dummy__runtime-error-plugin");
+
+function sendError(error) {
+  if (!(error instanceof Error)) {
+    error = new Error("(unknown runtime error)");
+  }
+  const serialized = {
+    message: error.message,
+    stack: error.stack,
+  };
+  hot.send("runtime-error-plugin:error", serialized);
+}
+
+window.addEventListener("error", (evt) => {
+  sendError(evt.error);
+});
+
+window.addEventListener("unhandledrejection", (evt) => {
+  sendError(evt.reason);
+});
+</script>
+
+    <script type="module">
+import RefreshRuntime from "/@react-refresh"
+RefreshRuntime.injectIntoGlobalHook(window)
+window.$RefreshReg$ = () => {}
+window.$RefreshSig$ = () => (type) => type
+window.__vite_plugin_react_preamble_installed__ = true
+</script>
+
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+2024-12-23 21:44:26 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:44:26 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:44:26 - 
+✨ API Tests Completed
+2024-12-23 21:44:26 - Results saved to: C:\Users\admin\api-test-results.log
+2024-12-23 21:44:26 - 
+📌 How to use this script:
+2024-12-23 21:44:26 - 1. Update the $baseUrl variable if testing a different deployment
+2024-12-23 21:44:26 - 2. Run the script in PowerShell: .\test-api.ps1
+2024-12-23 21:44:26 - 3. Check the log file for detailed results and any errors
+2024-12-23 21:44:26 - 4. Look for ❌ symbols to quickly identify failed tests

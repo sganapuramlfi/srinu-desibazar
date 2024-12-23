@@ -6,11 +6,30 @@ type LoginData = {
   password: string;
   email?: string;
   role?: string;
+  business?: {
+    name: string;
+    industryType: string;
+    description?: string;
+  };
+};
+
+type UserResponse = {
+  id: number;
+  username: string;
+  role: string;
+  business?: {
+    id: number;
+    name: string;
+    industryType: string;
+    status: string;
+    onboardingCompleted: boolean;
+  };
+  needsOnboarding?: boolean;
 };
 
 type RequestResult = {
   ok: true;
-  user?: User;
+  user?: UserResponse;
 } | {
   ok: false;
   message: string;
@@ -45,7 +64,7 @@ async function handleRequest(
   }
 }
 
-async function fetchUser(): Promise<User | null> {
+async function fetchUser(): Promise<UserResponse | null> {
   const response = await fetch('/api/user', {
     credentials: 'include'
   });
@@ -64,7 +83,7 @@ async function fetchUser(): Promise<User | null> {
 export function useUser() {
   const queryClient = useQueryClient();
 
-  const { data: user, error, isLoading } = useQuery<User | null, Error>({
+  const { data: user, error, isLoading } = useQuery<UserResponse | null, Error>({
     queryKey: ['user'],
     queryFn: fetchUser,
     staleTime: Infinity,
@@ -73,22 +92,26 @@ export function useUser() {
 
   const loginMutation = useMutation<RequestResult, Error, LoginData>({
     mutationFn: (userData) => handleRequest('/api/login', 'POST', userData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+    onSuccess: (data) => {
+      if (data.ok && data.user) {
+        queryClient.setQueryData(['user'], data.user);
+      }
     },
   });
 
   const logoutMutation = useMutation<RequestResult, Error>({
     mutationFn: () => handleRequest('/api/logout', 'POST'),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+      queryClient.setQueryData(['user'], null);
     },
   });
 
   const registerMutation = useMutation<RequestResult, Error, LoginData>({
     mutationFn: (userData) => handleRequest('/api/register', 'POST', userData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+    onSuccess: (data) => {
+      if (data.ok && data.user) {
+        queryClient.setQueryData(['user'], data.user);
+      }
     },
   });
 

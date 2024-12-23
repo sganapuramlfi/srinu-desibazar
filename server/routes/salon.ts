@@ -126,6 +126,34 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
   }
 });
 
+// Add delete service endpoint
+router.delete("/businesses/:businessId/services/:serviceId", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const [deletedService] = await db.delete(salonServices)
+      .where(and(
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!deletedService) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    res.json({ message: "Service deleted successfully" });
+  } catch (error: any) {
+    console.error('Error deleting salon service:', error);
+    res.status(500).json({
+      message: "Failed to delete service",
+      error: error.message
+    });
+  }
+});
+
 // Staff Management
 router.get("/businesses/:businessId/staff", async (req, res) => {
   try {
@@ -189,6 +217,40 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
     });
   }
 });
+
+// Add delete staff endpoint
+router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // First delete related skills
+    await db.delete(staffSkills)
+      .where(eq(staffSkills.staffId, parseInt(req.params.staffId)));
+
+    // Then delete the staff member
+    const [deletedStaff] = await db.delete(salonStaff)
+      .where(and(
+        eq(salonStaff.id, parseInt(req.params.staffId)),
+        eq(salonStaff.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!deletedStaff) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+
+    res.json({ message: "Staff member deleted successfully" });
+  } catch (error: any) {
+    console.error('Error deleting staff member:', error);
+    res.status(500).json({
+      message: "Failed to delete staff member",
+      error: error.message
+    });
+  }
+});
+
 
 // Staff Skills Management
 router.post("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {

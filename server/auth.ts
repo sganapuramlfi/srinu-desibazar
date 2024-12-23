@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, insertUserSchema } from "@db/schema";
+import { users, businesses, userRegistrationSchema, type User as SelectUser } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -30,14 +30,14 @@ const crypto = {
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    interface User extends SelectUser {}
   }
 }
 
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.REPL_ID || "desibazar-secret",
+    secret: process.env.REPL_ID || "desibazaar-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {},
@@ -91,6 +91,20 @@ export function setupAuth(app: Express) {
         .from(users)
         .where(eq(users.id, id))
         .limit(1);
+
+      if (user.role === "business") {
+        const [business] = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.userId, user.id))
+          .limit(1);
+
+        if (business) {
+          (user as any).business = business;
+          (user as any).needsOnboarding = !business.onboardingCompleted;
+        }
+      }
+
       done(null, user);
     } catch (err) {
       done(err);
@@ -99,15 +113,16 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const result = insertUserSchema.safeParse(req.body);
+      const result = userRegistrationSchema.safeParse(req.body);
       if (!result.success) {
         return res
           .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+          .send("Invalid input: " + result.error.issues.map((i: any) => i.message).join(", "));
       }
 
-      const { username, password, email, role } = result.data;
+      const { username, password, email, role, business: businessData } = result.data;
 
+      // Check if user already exists
       const [existingUser] = await db
         .select()
         .from(users)
@@ -118,8 +133,10 @@ export function setupAuth(app: Express) {
         return res.status(400).send("Username already exists");
       }
 
+      // Hash the password
       const hashedPassword = await crypto.hash(password);
 
+      // Create the new user
       const [newUser] = await db
         .insert(users)
         .values({
@@ -130,13 +147,37 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
+      // If registering as a business, create the business record
+      let businessRecord = null;
+      if (role === "business" && businessData) {
+        const [business] = await db
+          .insert(businesses)
+          .values({
+            userId: newUser.id,
+            name: businessData.name,
+            industryType: businessData.industryType,
+            description: businessData.description,
+            status: "pending",
+            onboardingCompleted: false,
+          })
+          .returning();
+        businessRecord = business;
+      }
+
+      // Log the user in after registration
       req.login(newUser, (err) => {
         if (err) {
           return next(err);
         }
         return res.json({
           message: "Registration successful",
-          user: { id: newUser.id, username: newUser.username, role: newUser.role },
+          user: {
+            id: newUser.id,
+            username: newUser.username,
+            role: newUser.role,
+            business: businessRecord,
+            needsOnboarding: businessRecord ? true : false,
+          },
         });
       });
     } catch (error) {
@@ -145,14 +186,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    const result = insertUserSchema.safeParse(req.body);
-    if (!result.success) {
-      return res
-        .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
-    }
-
-    passport.authenticate("local", (err: any, user: Express.User, info: IVerifyOptions) => {
+    passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
       if (err) {
         return next(err);
       }
@@ -161,16 +195,37 @@ export function setupAuth(app: Express) {
         return res.status(400).send(info.message ?? "Login failed");
       }
 
-      req.logIn(user, (err) => {
-        if (err) {
-          return next(err);
+      try {
+        // If business user, fetch business details
+        let businessRecord = null;
+        if (user.role === "business") {
+          const [business] = await db
+            .select()
+            .from(businesses)
+            .where(eq(businesses.userId, user.id))
+            .limit(1);
+          businessRecord = business;
         }
 
-        return res.json({
-          message: "Login successful",
-          user: { id: user.id, username: user.username, role: user.role },
+        req.logIn(user, (err) => {
+          if (err) {
+            return next(err);
+          }
+
+          return res.json({
+            message: "Login successful",
+            user: {
+              id: user.id,
+              username: user.username,
+              role: user.role,
+              business: businessRecord,
+              needsOnboarding: businessRecord ? !businessRecord.onboardingCompleted : false,
+            },
+          });
         });
-      });
+      } catch (error) {
+        next(error);
+      }
     })(req, res, next);
   });
 

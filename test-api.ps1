@@ -1,0 +1,156 @@
+# API Testing Script for DesiBazaar
+$baseUrl = "https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev"
+$logFile = "api-test-results.log"
+
+function Write-Log {
+    param($Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp - $Message" | Tee-Object -FilePath $logFile -Append
+}
+
+function Test-Endpoint {
+    param(
+        $Method,
+        $Endpoint,
+        $Body,
+        $SessionCookie,
+        $ExpectedStatus = 200
+    )
+
+    $headers = @{
+        "Content-Type" = "application/json"
+    }
+
+    if ($SessionCookie) {
+        $headers["Cookie"] = $SessionCookie
+    }
+
+    $params = @{
+        Method = $Method
+        Uri = "$baseUrl$Endpoint"
+        Headers = $headers
+        UseBasicParsing = $true
+    }
+
+    if ($Body) {
+        $params["Body"] = $Body | ConvertTo-Json
+    }
+
+    try {
+        $response = Invoke-WebRequest @params
+        $statusMatch = $response.StatusCode -eq $ExpectedStatus
+        $symbol = if ($statusMatch) { "✅" } else { "⚠️" }
+        Write-Log "$symbol $Method $Endpoint - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
+        Write-Log "Response: $($response.Content)"
+        return $response
+    }
+    catch {
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        $errorMessage = $_.Exception.Message
+        Write-Log "❌ $Method $Endpoint - Error: $statusCode - $errorMessage"
+        if ($_.Exception.Response) {
+            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $errorBody = $reader.ReadToEnd()
+            Write-Log "Error Details: $errorBody"
+        }
+        return $null
+    }
+}
+
+# Clear previous log file
+if (Test-Path $logFile) {
+    Remove-Item $logFile
+}
+
+Write-Log "🔍 Starting API Tests for DesiBazaar"
+Write-Log "Base URL: $baseUrl"
+
+# Test 1: Check if server is up
+Write-Log "`n📋 Test 1: Server Health Check"
+Test-Endpoint -Method "GET" -Endpoint "/api/user" -ExpectedStatus 401  # Expect 401 when not logged in
+
+# Test 2: Test business registration for each industry type
+$industries = @(
+    @{type="salon"; name="Test Salon"},
+    @{type="restaurant"; name="Test Restaurant"},
+    @{type="event"; name="Test Event Management"},
+    @{type="realestate"; name="Test Real Estate"},
+    @{type="retail"; name="Test Retail Store"},
+    @{type="professional"; name="Test Professional Services"}
+)
+
+Write-Log "`n📋 Test 2: Business Registration for Each Industry"
+foreach ($industry in $industries) {
+    Write-Log "`nTesting registration for $($industry.type)"
+    $businessUser = @{
+        username = "test$($industry.type)$(Get-Random)"
+        password = "test123456"
+        email = "test$(Get-Random)@example.com"
+        role = "business"
+        business = @{
+            name = $industry.name
+            industryType = $industry.type
+            description = "Test $($industry.type) business"
+        }
+    }
+    $registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
+
+    if ($registerResponse) {
+        # Test login with registered user
+        Write-Log "`nTesting login for $($industry.type)"
+        $loginData = @{
+            username = $businessUser.username
+            password = $businessUser.password
+        }
+        $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
+
+        if ($loginResponse) {
+            $sessionCookie = $loginResponse.Headers["Set-Cookie"]
+            $userData = $loginResponse.Content | ConvertFrom-Json
+
+            # Test authenticated endpoints
+            Write-Log "`nTesting authenticated endpoints for $($industry.type)"
+            Test-Endpoint -Method "GET" -Endpoint "/api/user" -SessionCookie $sessionCookie
+
+            if ($userData.user.business.id) {
+                # Test business dashboard access
+                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)" -SessionCookie $sessionCookie
+
+                # Test industry-specific endpoints
+                switch ($industry.type) {
+                    "salon" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services" -SessionCookie $sessionCookie
+                    }
+                    "restaurant" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/menu" -SessionCookie $sessionCookie
+                    }
+                    "event" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/events" -SessionCookie $sessionCookie
+                    }
+                    "realestate" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/properties" -SessionCookie $sessionCookie
+                    }
+                    "retail" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/products" -SessionCookie $sessionCookie
+                    }
+                    "professional" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services" -SessionCookie $sessionCookie
+                    }
+                }
+            }
+
+            # Test logout
+            Test-Endpoint -Method "POST" -Endpoint "/api/logout" -SessionCookie $sessionCookie
+        }
+    }
+}
+
+Write-Log "`n✨ API Tests Completed"
+Write-Log "Results saved to: $((Get-Item $logFile).FullName)"
+
+# Display instructions
+Write-Log "`n📌 How to use this script:"
+Write-Log "1. Update the `$baseUrl variable if testing a different deployment"
+Write-Log "2. Run the script in PowerShell: .\test-api.ps1"
+Write-Log "3. Check the log file for detailed results and any errors"
+Write-Log "4. Look for ❌ symbols to quickly identify failed tests"

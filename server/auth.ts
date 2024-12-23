@@ -52,15 +52,10 @@ export function setupAuth(app: Express) {
     }),
   };
 
-  // Production settings
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
     sessionSettings.cookie!.secure = true;
   }
-
-  app.use(session(sessionSettings));
-  app.use(passport.initialize());
-  app.use(passport.session());
 
   // Add CORS middleware with credentials support
   app.use((req, res, next) => {
@@ -70,7 +65,6 @@ export function setupAuth(app: Express) {
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
 
-    // Handle preflight
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
       return;
@@ -78,10 +72,20 @@ export function setupAuth(app: Express) {
     next();
   });
 
+  // Initialize session middleware
+  app.use(session(sessionSettings));
+  app.use(passport.initialize());
+  app.use(passport.session());
+
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
         console.log(`Attempting login for user: ${username}`);
+
+        if (!username || !password) {
+          console.log('Missing credentials');
+          return done(null, false, { message: "Missing credentials" });
+        }
 
         const [user] = await db
           .select()
@@ -95,6 +99,8 @@ export function setupAuth(app: Express) {
         }
 
         const isMatch = await crypto.compare(password, user.password);
+        console.log(`Password comparison result for ${username}:`, isMatch);
+
         if (!isMatch) {
           console.log(`Password mismatch for user: ${username}`);
           return done(null, false, { message: "Incorrect password." });
@@ -237,7 +243,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    console.log('Login request:', { username: req.body.username });
+    console.log('Login request body:', req.body);
 
     passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
       if (err) {
@@ -325,4 +331,6 @@ export function setupAuth(app: Express) {
       message: "Not logged in"
     });
   });
+
+  return app;
 }

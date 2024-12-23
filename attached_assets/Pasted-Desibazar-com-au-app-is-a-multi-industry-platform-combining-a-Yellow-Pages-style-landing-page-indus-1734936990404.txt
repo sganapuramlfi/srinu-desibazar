@@ -1,0 +1,124 @@
+Desibazar.com.au app is a multi-industry platform combining a Yellow Pages-style landing page, industry-specific dashboards, and modular architecture to support diverse business operations. Below is a concise, unified vision covering all industries, workflows, and tools.
+
+Landing Page as the Yellow Pages Hub
+
+The Landing Page serves as the front-facing discovery hub with: header, footer,navar across the app
+Hero Section: Dynamic tagline, search bar, and key call-to-action (CTA) buttons.
+Category Showcase: Industries like Salon, Restaurant, Event Management, Real Estate, Retail, and Professional Services displayed in grids or carousels.
+Smart Search Bar: Filters by Location, Industry, Availability, and Promotions.
+Ad Boxes and Banners: Businesses can display promotions dynamically.
+Featured Listings: Highlighting trending businesses across categories.
+Purpose: Attract visitors, showcase businesses, and drive bookings through seamless navigation.
+
+Industry-Specific Onboarding & Tools
+
+When a Business User registers, they select their industry type and get access to custom dashboards and tools tailored to their business workflows.
+🏢 1. Salon & Spa
+
+Tools: Roster Management, Slot Automation, Service Management, Analytics, Ad Management.
+Focus: Efficient slot and staff scheduling for haircuts, spa treatments, and more.
+🍽️ 2. Restaurant & Cafés
+
+Tools: Table Reservations, Menu Management, Booking Dashboard, Promotions Tool.
+Focus: Manage seating, reservations, and real-time availability seamlessly.
+🎟️ 3. Event Management
+
+Tools: Event Scheduling, Ticket Management, Venue Planner, Analytics.
+Focus: Sell tickets, plan event schedules, and monitor bookings.
+🏠 4. Real Estate
+
+Tools: Property Listings, Viewing Schedules, Lead Inquiry Management, Analytics.
+Focus: Showcase properties, schedule viewings, and manage customer inquiries.
+🛒 5. Retail Stores
+
+Tools: Inventory Management, Promotions Setup, Booking for Appointments, Analytics.
+Focus: Manage stock, promote products, and handle customer appointments.
+👔 6. Professional Services
+
+Tools: Appointment Scheduling, Service Management, Quote Generation, Messaging System.
+Focus: Manage client appointments, share service quotes, and track schedules.
+Industry-Specific Separation: Each dashboard should display only relevant tools.
+Role-Based Access: Enforce access control for Admins, Business Users, and Customers.
+Dynamic Onboarding Forms: Tailor onboarding based on the selected industry.
+3. Storefront Pages: Dedicated Business Profiles
+
+Purpose: Serve as a mini-website for businesses accessible from Landing Page search results or ads.
+Key Features:
+    Business Profile Details: Logo, Hours, Contact Info, Services.
+    Service Listings: Industry-specific services (e.g., Haircuts for Salons, Menus for Restaurants).
+    Employee Availability: For salons and appointment-based services.
+    Booking CTA: Direct booking button per service/event/property.
+    Customer Reviews: User-generated feedback and ratings.
+Ad Box Integration: Promotions displayed dynamically.
+Ensure dynamic rendering of storefront content based on industry type.
+CTAs must trigger backend workflows correctly (e.g., Booking, Messaging).
+4. Adbox and Promotions Management
+
+Businesses can create Ad Campaigns via their dashboard:
+    Add carousel images, CTA buttons, and Ad placement details.
+    Schedule ad visibility (e.g., Weekend Specials).
+Ads appear dynamically on Landing Page banners, Search Results, and Storefronts.
+Approval Workflow: Admin reviews ads before publishing.
+Instruction for AI Agent:
+
+Enable scheduling, tracking, and analytics for each ad campaign.
+Ensure real-time syncing of ad data across storefronts and landing pages.
+5. Resource Management and Scheduling
+
+Salon: Manage employee rosters, slot availability, and shift overlaps.
+Restaurant: Table availability and dynamic seating slots.
+Event Management: Ticket types, seat allocation, and event timelines.
+Real Estate: Property viewing schedules and agent availability.
+Professional Services: Appointment slots and consultation schedules.
+Retail: Inventory tracking and appointment-based product previews.
+Implement auto-slot generation based on working hours, breaks, and assigned resources.
+Prevent overlapping slots or double bookings.
+
+Booking and Order Management
+
+Customers can Book Services, Reserve Tables, Purchase Tickets, or Schedule Appointments directly from storefronts.
+Real-Time Updates: Bookings reflect instantly in both Business Dashboards and Customer Accounts.
+Notifications: Automated alerts sent via email and in-app notifications.
+
+Use role-based workflows to manage booking status (Pending, Confirmed, Cancelled).
+Ensure integration with payment gateways for financial transactions.
+
+Analytics and Reporting
+
+Business dashboards include Analytics Tools to show:
+Booking Metrics
+Ad Campaign Performance
+Revenue Insights
+Customer Engagement
+Reports can be exported as PDFs or CSVs.
+Enable role-specific dashboards for Admin, Business, and Customers.
+Ensure real-time analytics calculations based on live data.
+
+Shared and Modular Backend API Design
+
+Shared APIs: Authentication, Notifications, Messaging, Search, Booking.
+Industry-Specific APIs: Separate logic for Salon (/api/salon/slots) and Restaurant (/api/restaurant/menu).
+RBAC (Role-Based Access Control): Enforce access restrictions.
+
+Instruction
+
+Ensure clean separation between shared and industry-specific APIs.
+Enable dynamic endpoints for industry-specific workflows.
+9. Modular Database Design
+
+Shared Tables: Users, Ads, Bookings, Notifications, Messages.
+Industry-Specific Tables:
+    salon_services
+    restaurant_tables
+    event_tickets
+    realestate_properties
+Dynamic Industry Linking: Use an industry_type column in the business table.
+Avoid cross-industry data conflicts.
+Keep the schema scalable for new industries.
+Treat the Landing Page as a Discovery Hub (Yellow Pages).
+Ensure Industry Dashboards are Modular and Separated.
+Build Shared APIs for Common Functionalities and Industry-Specific APIs for Unique Tools.
+Design a Modular Database Schema that supports growth.
+Enable Dynamic Command Linking across landing, storefronts, and dashboards.
+
+By following these clear directives, your AI Agent can create an app that is structured, scalable, and user-friendly, with industry-specific tools seamlessly integrated into a unified platform. usee deep purple,magneta colors,hover effect, corsoul,multi image support

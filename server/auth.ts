@@ -40,7 +40,12 @@ export function setupAuth(app: Express) {
     secret: process.env.REPL_ID || "desibazaar-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: {},
+    cookie: {
+      secure: false, // Set to true only in production with HTTPS
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
     store: new MemoryStore({
       checkPeriod: 86400000,
     }),
@@ -48,14 +53,27 @@ export function setupAuth(app: Express) {
 
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
-    sessionSettings.cookie = {
-      secure: true,
-    };
+    sessionSettings.cookie!.secure = true;
   }
 
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Add CORS middleware with credentials support
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
+  });
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -117,7 +135,10 @@ export function setupAuth(app: Express) {
       if (!result.success) {
         return res
           .status(400)
-          .send("Invalid input: " + result.error.issues.map((i: any) => i.message).join(", "));
+          .json({
+            ok: false,
+            message: "Invalid input: " + result.error.issues.map((i: any) => i.message).join(", ")
+          });
       }
 
       const { username, password, email, role, business: businessData } = result.data;
@@ -130,7 +151,7 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        return res.status(400).json({ ok: false, message: "Username already exists" });
       }
 
       // Hash the password
@@ -170,6 +191,7 @@ export function setupAuth(app: Express) {
           return next(err);
         }
         return res.json({
+          ok: true,
           message: "Registration successful",
           user: {
             id: newUser.id,
@@ -192,7 +214,10 @@ export function setupAuth(app: Express) {
       }
 
       if (!user) {
-        return res.status(400).send(info.message ?? "Login failed");
+        return res.status(400).json({
+          ok: false,
+          message: info.message ?? "Login failed"
+        });
       }
 
       try {
@@ -213,6 +238,7 @@ export function setupAuth(app: Express) {
           }
 
           return res.json({
+            ok: true,
             message: "Login successful",
             user: {
               id: user.id,
@@ -232,10 +258,16 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).send("Logout failed");
+        return res.status(500).json({
+          ok: false,
+          message: "Logout failed"
+        });
       }
 
-      res.json({ message: "Logout successful" });
+      res.json({
+        ok: true,
+        message: "Logout successful"
+      });
     });
   });
 
@@ -244,6 +276,9 @@ export function setupAuth(app: Express) {
       return res.json(req.user);
     }
 
-    res.status(401).send("Not logged in");
+    res.status(401).json({
+      ok: false,
+      message: "Not logged in"
+    });
   });
 }

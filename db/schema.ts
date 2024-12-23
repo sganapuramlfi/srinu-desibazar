@@ -111,20 +111,18 @@ export const shiftTemplates = pgTable("shift_templates", {
   businessId: integer("business_id").references(() => businesses.id),
   name: text("name").notNull(),
   description: text("description"),
-  startTime: text("start_time").notNull(), // HH:mm format
-  endTime: text("end_time").notNull(), // HH:mm format
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
   breaks: json("breaks").$type<Array<{
-    startTime: string; // HH:mm format
-    endTime: string; // HH:mm format
-    duration: number; // in minutes
+    startTime: string;
+    endTime: string;
+    duration: number;
     type: "lunch" | "short_break" | "other";
   }>>(),
-  daysOfWeek: json("days_of_week").$type<Array<"monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday">>(),
-  isActive: boolean("is_active").default(true),
-  capacity: integer("capacity").default(1), // Number of staff that can be assigned
   type: text("type", {
     enum: ["regular", "overtime", "holiday", "leave"]
   }).default("regular"),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
@@ -245,7 +243,7 @@ export const insertStaffScheduleSchema = createInsertSchema(staffSchedules);
 export const selectStaffScheduleSchema = createSelectSchema(staffSchedules);
 
 // Create zod schemas for the new template functionality
-export const shiftTemplateSchema = z.object({
+export const shiftTemplateFormSchema = z.object({
   name: z.string().min(1, "Template name is required"),
   description: z.string().optional(),
   startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
@@ -255,11 +253,9 @@ export const shiftTemplateSchema = z.object({
     endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
     duration: z.number().min(1, "Break duration must be at least 1 minute"),
     type: z.enum(["lunch", "short_break", "other"]),
-  })).optional(),
-  daysOfWeek: z.array(z.enum(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])),
-  isActive: z.boolean().default(true),
-  capacity: z.number().min(1, "Capacity must be at least 1"),
+  })).default([]),
   type: z.enum(["regular", "overtime", "holiday", "leave"]).default("regular"),
+  isActive: z.boolean().default(true),
 });
 
 

@@ -33,11 +33,16 @@ import { useUser } from "../hooks/use-user";
 import { useToast } from "../hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
-const authSchema = z.object({
+const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  email: z.string().email("Invalid email address").optional(),
-  role: z.enum(["business", "customer"]).optional(),
+  email: z.string().email("Invalid email address"),
+  role: z.enum(["business", "customer"]),
   business: z.object({
     name: z.string().min(2, "Business name must be at least 2 characters"),
     industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
@@ -45,7 +50,8 @@ const authSchema = z.object({
   }).optional(),
 });
 
-type AuthFormData = z.infer<typeof authSchema>;
+type LoginFormData = z.infer<typeof loginSchema>;
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 const INDUSTRY_TYPES = [
   { value: "salon", label: "Salon & Spa" },
@@ -58,14 +64,22 @@ const INDUSTRY_TYPES = [
 
 export default function AuthPage() {
   const [, navigate] = useLocation();
-  const { login, register } = useUser();
+  const { login, register: registerUser } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBusinessFields, setShowBusinessFields] = useState(false);
 
-  const form = useForm<AuthFormData>({
-    resolver: zodResolver(authSchema),
+  const loginForm = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  const registerForm = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
       username: "",
       password: "",
@@ -75,31 +89,17 @@ export default function AuthPage() {
   });
 
   // Watch for role changes to show/hide business fields
-  const role = form.watch("role");
+  const role = registerForm.watch("role");
   useEffect(() => {
     setShowBusinessFields(role === "business");
   }, [role]);
 
-  const onSubmit = async (data: AuthFormData, isLogin: boolean) => {
+  const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = isLogin
-        ? await login({
-            username: data.username,
-            password: data.password,
-          })
-        : await register({
-            username: data.username,
-            password: data.password,
-            email: data.email,
-            role: data.role,
-            business: data.role === "business" ? {
-              name: data.business?.name || "",
-              industryType: data.business?.industryType || "salon",
-              description: data.business?.description,
-            } : undefined,
-          });
+      console.log("Login attempt with:", data);
+      const result = await login(data);
 
       if (!result.ok) {
         setError(result.message);
@@ -112,14 +112,53 @@ export default function AuthPage() {
       }
 
       toast({
-        title: isLogin ? "Login successful" : "Registration successful",
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+
+      if (result.user?.role === "business" && result.user.business?.id) {
+        navigate(`/dashboard/${result.user.business.id}`);
+      } else {
+        navigate("/");
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || "Login failed";
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (data: RegisterFormData) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      console.log("Registration attempt with:", data);
+      const result = await registerUser(data);
+
+      if (!result.ok) {
+        setError(result.message);
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Registration successful",
         description: "Welcome to DesiBazaar!",
       });
 
-      // Redirect based on role and registration status
       if (result.user?.role === "business") {
         if (result.user.business?.id) {
-          if (!isLogin && result.user.needsOnboarding) {
+          if (result.user.needsOnboarding) {
             navigate(`/onboarding/${result.user.business.id}`);
           } else {
             navigate(`/dashboard/${result.user.business.id}`);
@@ -129,7 +168,7 @@ export default function AuthPage() {
         navigate("/");
       }
     } catch (error: any) {
-      const errorMessage = error.message || "An error occurred";
+      const errorMessage = error.message || "Registration failed";
       setError(errorMessage);
       toast({
         title: "Error",
@@ -163,11 +202,11 @@ export default function AuthPage() {
               </Alert>
             )}
 
-            <Form {...form}>
-              <TabsContent value="login">
-                <form onSubmit={form.handleSubmit((data) => onSubmit(data, true))} className="space-y-4">
+            <TabsContent value="login">
+              <Form {...loginForm}>
+                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                   <FormField
-                    control={form.control}
+                    control={loginForm.control}
                     name="username"
                     render={({ field }) => (
                       <FormItem>
@@ -180,7 +219,7 @@ export default function AuthPage() {
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={loginForm.control}
                     name="password"
                     render={({ field }) => (
                       <FormItem>
@@ -203,12 +242,14 @@ export default function AuthPage() {
                     )}
                   </Button>
                 </form>
-              </TabsContent>
+              </Form>
+            </TabsContent>
 
-              <TabsContent value="register">
-                <form onSubmit={form.handleSubmit((data) => onSubmit(data, false))} className="space-y-4">
+            <TabsContent value="register">
+              <Form {...registerForm}>
+                <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
                   <FormField
-                    control={form.control}
+                    control={registerForm.control}
                     name="username"
                     render={({ field }) => (
                       <FormItem>
@@ -221,7 +262,7 @@ export default function AuthPage() {
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={registerForm.control}
                     name="email"
                     render={({ field }) => (
                       <FormItem>
@@ -234,7 +275,7 @@ export default function AuthPage() {
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={registerForm.control}
                     name="password"
                     render={({ field }) => (
                       <FormItem>
@@ -247,7 +288,7 @@ export default function AuthPage() {
                     )}
                   />
                   <FormField
-                    control={form.control}
+                    control={registerForm.control}
                     name="role"
                     render={({ field }) => (
                       <FormItem>
@@ -274,7 +315,7 @@ export default function AuthPage() {
                   {showBusinessFields && (
                     <>
                       <FormField
-                        control={form.control}
+                        control={registerForm.control}
                         name="business.name"
                         render={({ field }) => (
                           <FormItem>
@@ -287,7 +328,7 @@ export default function AuthPage() {
                         )}
                       />
                       <FormField
-                        control={form.control}
+                        control={registerForm.control}
                         name="business.industryType"
                         render={({ field }) => (
                           <FormItem>
@@ -327,8 +368,8 @@ export default function AuthPage() {
                     )}
                   </Button>
                 </form>
-              </TabsContent>
-            </Form>
+              </Form>
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>

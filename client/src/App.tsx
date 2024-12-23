@@ -8,6 +8,7 @@ import BusinessDashboard from "./pages/BusinessDashboard";
 import StorefrontPage from "./pages/StorefrontPage";
 
 function App() {
+  // Keep hooks at the top level
   const { user, isLoading } = useUser();
 
   if (isLoading) {
@@ -20,19 +21,22 @@ function App() {
 
   return (
     <Switch>
+      {/* Auth route outside Layout */}
       <Route path="/auth">
-        {user ? (
-          user.role === "business" && user.business ? (
-            // If business user is logged in, redirect to their dashboard
-            window.location.replace(`/dashboard/${user.business.id}`)
-          ) : (
-            // If non-business user is logged in, redirect to home
-            window.location.replace("/")
-          )
-        ) : (
-          <AuthPage />
-        )}
+        {() => {
+          if (user) {
+            if (user.role === "business" && user.business) {
+              window.location.replace(`/dashboard/${user.business.id}`);
+              return null;
+            }
+            window.location.replace("/");
+            return null;
+          }
+          return <AuthPage />;
+        }}
       </Route>
+
+      {/* All other routes inside Layout */}
       <Route>
         <Layout>
           <Switch>
@@ -40,7 +44,8 @@ function App() {
             <Route path="/dashboard/:businessId">
               {(params) => {
                 if (!user || user.role !== "business") {
-                  return <AuthPage />;
+                  window.location.replace("/auth");
+                  return null;
                 }
                 return <BusinessDashboard businessId={parseInt(params.businessId)} />;
               }}

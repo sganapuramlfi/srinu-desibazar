@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { User } from "@db/schema";
+import { useToast } from "./use-toast";
 
 type LoginData = {
   username: string;
@@ -100,6 +100,7 @@ async function fetchUser(): Promise<UserResponse | null> {
 
 export function useUser() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: user, error, isLoading } = useQuery<UserResponse | null, Error>({
     queryKey: ['user'],
@@ -113,6 +114,10 @@ export function useUser() {
     onSuccess: (data) => {
       if (data.ok && data.user) {
         queryClient.setQueryData(['user'], data.user);
+        toast({
+          title: "Success",
+          description: "Logged in successfully"
+        });
       }
     },
   });
@@ -121,6 +126,10 @@ export function useUser() {
     mutationFn: () => handleRequest('/api/logout', 'POST'),
     onSuccess: () => {
       queryClient.setQueryData(['user'], null);
+      toast({
+        title: "Success",
+        description: "Logged out successfully"
+      });
     },
   });
 
@@ -129,6 +138,10 @@ export function useUser() {
     onSuccess: (data) => {
       if (data.ok && data.user) {
         queryClient.setQueryData(['user'], data.user);
+        toast({
+          title: "Success",
+          description: "Registration successful"
+        });
       }
     },
   });

@@ -41,16 +41,17 @@ export function setupAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Set to true only in production with HTTPS
+      secure: false, // We'll set this to true only in production
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     },
     store: new MemoryStore({
-      checkPeriod: 86400000,
+      checkPeriod: 86400000, // 24 hours
     }),
   };
 
+  // Production settings
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
     sessionSettings.cookie!.secure = true;
@@ -78,6 +79,9 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        // Debug log
+        console.log(`Attempting login for user: ${username}`);
+
         const [user] = await db
           .select()
           .from(users)
@@ -85,30 +89,43 @@ export function setupAuth(app: Express) {
           .limit(1);
 
         if (!user) {
+          console.log(`User not found: ${username}`);
           return done(null, false, { message: "Incorrect username." });
         }
+
         const isMatch = await crypto.compare(password, user.password);
         if (!isMatch) {
+          console.log(`Password mismatch for user: ${username}`);
           return done(null, false, { message: "Incorrect password." });
         }
+
+        console.log(`Successful login for user: ${username}`);
         return done(null, user);
       } catch (err) {
+        console.error('Login error:', err);
         return done(err);
       }
     })
   );
 
   passport.serializeUser((user, done) => {
+    console.log(`Serializing user: ${user.id}`);
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
+      console.log(`Deserializing user: ${id}`);
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.id, id))
         .limit(1);
+
+      if (!user) {
+        console.log(`User not found during deserialization: ${id}`);
+        return done(null, false);
+      }
 
       if (user.role === "business") {
         const [business] = await db
@@ -123,16 +140,20 @@ export function setupAuth(app: Express) {
         }
       }
 
+      console.log(`Successfully deserialized user: ${id}`);
       done(null, user);
     } catch (err) {
+      console.error('Deserialization error:', err);
       done(err);
     }
   });
 
   app.post("/api/register", async (req, res, next) => {
     try {
+      console.log('Registration request:', req.body);
       const result = userRegistrationSchema.safeParse(req.body);
       if (!result.success) {
+        console.log('Registration validation failed:', result.error.issues);
         return res
           .status(400)
           .json({
@@ -151,6 +172,7 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
+        console.log(`Username already exists: ${username}`);
         return res.status(400).json({ ok: false, message: "Username already exists" });
       }
 
@@ -168,6 +190,8 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
+      console.log(`Created new user: ${newUser.id}`);
+
       // If registering as a business, create the business record
       let businessRecord = null;
       if (role === "business" && businessData) {
@@ -183,13 +207,16 @@ export function setupAuth(app: Express) {
           })
           .returning();
         businessRecord = business;
+        console.log(`Created business record: ${business.id}`);
       }
 
       // Log the user in after registration
       req.login(newUser, (err) => {
         if (err) {
+          console.error('Login after registration failed:', err);
           return next(err);
         }
+        console.log(`Logged in after registration: ${newUser.id}`);
         return res.json({
           ok: true,
           message: "Registration successful",
@@ -203,17 +230,22 @@ export function setupAuth(app: Express) {
         });
       });
     } catch (error) {
+      console.error('Registration error:', error);
       next(error);
     }
   });
 
   app.post("/api/login", (req, res, next) => {
+    console.log('Login request:', { username: req.body.username });
+
     passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
       if (err) {
+        console.error('Login error:', err);
         return next(err);
       }
 
       if (!user) {
+        console.log('Login failed:', info.message);
         return res.status(400).json({
           ok: false,
           message: info.message ?? "Login failed"
@@ -234,9 +266,11 @@ export function setupAuth(app: Express) {
 
         req.logIn(user, (err) => {
           if (err) {
+            console.error('Session creation failed:', err);
             return next(err);
           }
 
+          console.log(`Login successful: ${user.id}`);
           return res.json({
             ok: true,
             message: "Login successful",
@@ -250,20 +284,24 @@ export function setupAuth(app: Express) {
           });
         });
       } catch (error) {
+        console.error('Login process error:', error);
         next(error);
       }
     })(req, res, next);
   });
 
   app.post("/api/logout", (req, res) => {
+    console.log(`Logout request for user: ${req.user?.id}`);
     req.logout((err) => {
       if (err) {
+        console.error('Logout error:', err);
         return res.status(500).json({
           ok: false,
           message: "Logout failed"
         });
       }
 
+      console.log('Logout successful');
       res.json({
         ok: true,
         message: "Logout successful"
@@ -272,6 +310,11 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
+    console.log('User session check:', { 
+      isAuthenticated: req.isAuthenticated(),
+      userId: req.user?.id
+    });
+
     if (req.isAuthenticated()) {
       return res.json(req.user);
     }

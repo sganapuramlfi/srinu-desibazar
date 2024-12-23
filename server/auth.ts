@@ -38,16 +38,17 @@ export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "desibazaar-secret",
-    resave: false,
-    saveUninitialized: false,
+    resave: true,
+    saveUninitialized: true,
     cookie: {
-      secure: false, // We'll set this to true only in production
+      secure: false,
       httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      path: '/'
     },
     store: new MemoryStore({
-      checkPeriod: 86400000, // 24 hours
+      checkPeriod: 86400000 // 24 hours
     }),
   };
 
@@ -63,23 +64,23 @@ export function setupAuth(app: Express) {
 
   // Add CORS middleware with credentials support
   app.use((req, res, next) => {
+    const origin = req.headers.origin || '*';
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
 
-    // Handle preflight requests
+    // Handle preflight
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
-    } else {
-      next();
+      return;
     }
+    next();
   });
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        // Debug log
         console.log(`Attempting login for user: ${username}`);
 
         const [user] = await db

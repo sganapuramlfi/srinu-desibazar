@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, json, foreignKey, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { relations } from "drizzle-orm";
+import { relations, type InferModel } from "drizzle-orm";
 import { z } from "zod";
 
 // Shared Tables
@@ -22,8 +22,8 @@ export const businesses = pgTable("businesses", {
   industryType: text("industry_type", {
     enum: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
   }).notNull(),
-  status: text("status", { 
-    enum: ["pending", "active", "suspended"] 
+  status: text("status", {
+    enum: ["pending", "active", "suspended"]
   }).default("pending"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
   contactInfo: json("contact_info").$type<{
@@ -44,46 +44,16 @@ export const businesses = pgTable("businesses", {
   updatedAt: timestamp("updated_at"),
 });
 
-export const advertisements = pgTable("advertisements", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  title: text("title").notNull(),
-  description: text("description"),
-  imageUrls: json("image_urls").$type<string[]>(),
-  status: text("status", { enum: ["pending", "approved", "rejected"] }).default("pending"),
-  startDate: timestamp("start_date"),
-  endDate: timestamp("end_date"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const bookings = pgTable("bookings", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  customerId: integer("customer_id").references(() => users.id),
-  serviceId: integer("service_id"),
-  status: text("status", { enum: ["pending", "confirmed", "cancelled"] }).default("pending"),
-  dateTime: timestamp("date_time").notNull(),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const reviews = pgTable("reviews", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  customerId: integer("customer_id").references(() => users.id),
-  rating: integer("rating").notNull(),
-  comment: text("comment"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Industry-specific Tables
+// Salon-specific Tables
 export const salonServices = pgTable("salon_services", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
   name: text("name").notNull(),
   description: text("description"),
-  duration: integer("duration").notNull(),
+  duration: integer("duration").notNull(), // in minutes
   price: decimal("price").notNull(),
+  category: text("category").notNull(), // e.g., 'hair', 'spa', 'nails'
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -91,90 +61,159 @@ export const salonStaff = pgTable("salon_staff", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
   name: text("name").notNull(),
+  email: text("email").unique().notNull(),
+  phone: text("phone"),
   specialization: text("specialization"),
+  status: text("status", { enum: ["active", "inactive", "on_leave"] }).default("active"),
   schedule: json("schedule").$type<{
     [key: string]: { start: string; end: string };
   }>(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const restaurantTables = pgTable("restaurant_tables", {
+export const staffSkills = pgTable("staff_skills", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  number: integer("number").notNull(),
-  capacity: integer("capacity").notNull(),
-  status: text("status", { enum: ["available", "occupied", "reserved"] }).default("available"),
+  staffId: integer("staff_id").references(() => salonStaff.id),
+  serviceId: integer("service_id").references(() => salonServices.id),
+  proficiencyLevel: text("proficiency_level", {
+    enum: ["trainee", "junior", "senior", "expert"]
+  }).default("junior"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const restaurantMenu = pgTable("restaurant_menu", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  price: decimal("price").notNull(),
-  category: text("category").notNull(),
-  imageUrl: text("image_url"),
-});
-
-export const events = pgTable("events", {
+export const shiftTemplates = pgTable("shift_templates", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
   name: text("name").notNull(),
-  description: text("description"),
-  venue: text("venue").notNull(),
+  startTime: text("start_time").notNull(), // HH:mm format
+  endTime: text("end_time").notNull(), // HH:mm format
+  breakStartTime: text("break_start_time"), // HH:mm format
+  breakDuration: integer("break_duration"), // in minutes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const staffShifts = pgTable("staff_shifts", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").references(() => salonStaff.id),
+  templateId: integer("template_id").references(() => shiftTemplates.id),
   date: timestamp("date").notNull(),
-  capacity: integer("capacity").notNull(),
-  ticketPrice: decimal("ticket_price").notNull(),
-  imageUrl: text("image_url"),
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  status: text("status", {
+    enum: ["scheduled", "in_progress", "completed", "cancelled"]
+  }).default("scheduled"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const properties = pgTable("properties", {
+export const serviceSlots = pgTable("service_slots", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
-  title: text("title").notNull(),
-  description: text("description"),
-  type: text("type", { enum: ["house", "apartment", "commercial", "land"] }).notNull(),
-  price: decimal("price").notNull(),
-  bedrooms: integer("bedrooms"),
-  bathrooms: integer("bathrooms"),
-  area: decimal("area"),
-  address: text("address").notNull(),
-  imageUrls: json("image_urls").$type<string[]>(),
-  status: text("status", { enum: ["available", "sold", "rented"] }).default("available"),
+  serviceId: integer("service_id").references(() => salonServices.id),
+  staffId: integer("staff_id").references(() => salonStaff.id),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  status: text("status", {
+    enum: ["available", "booked", "blocked"]
+  }).default("available"),
+  isManual: boolean("is_manual").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const retailProducts = pgTable("retail_products", {
+export const salonBookings = pgTable("salon_bookings", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  price: decimal("price").notNull(),
-  stock: integer("stock").notNull(),
-  category: text("category").notNull(),
-  imageUrls: json("image_urls").$type<string[]>(),
-});
-
-export const professionalServices = pgTable("professional_services", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  duration: integer("duration").notNull(),
-  price: decimal("price").notNull(),
-  category: text("category").notNull(),
+  customerId: integer("customer_id").references(() => users.id),
+  slotId: integer("slot_id").references(() => serviceSlots.id),
+  serviceId: integer("service_id").references(() => salonServices.id),
+  staffId: integer("staff_id").references(() => salonStaff.id),
+  status: text("status", {
+    enum: ["pending", "confirmed", "completed", "cancelled"]
+  }).default("pending"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Relations
-export const businessRelations = relations(businesses, ({ many, one }) => ({
+export const businessRelations = relations(businesses, ({ one, many }) => ({
   owner: one(users, {
     fields: [businesses.userId],
     references: [users.id],
   }),
-  advertisements: many(advertisements),
-  bookings: many(bookings),
-  reviews: many(reviews),
+  services: many(salonServices),
+  staff: many(salonStaff),
 }));
 
-// Enhanced Schemas with Industry-specific Validation
+export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [salonServices.businessId],
+    references: [businesses.id],
+  }),
+  skills: many(staffSkills),
+  slots: many(serviceSlots),
+  bookings: many(salonBookings),
+}));
+
+export const salonStaffRelations = relations(salonStaff, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [salonStaff.businessId],
+    references: [businesses.id],
+  }),
+  skills: many(staffSkills),
+  shifts: many(staffShifts),
+  slots: many(serviceSlots),
+  bookings: many(salonBookings),
+}));
+
+export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
+  staff: one(salonStaff, {
+    fields: [staffSkills.staffId],
+    references: [salonStaff.id],
+  }),
+  service: one(salonServices, {
+    fields: [staffSkills.serviceId],
+    references: [salonServices.id],
+  }),
+}));
+
+export const serviceSlotRelations = relations(serviceSlots, ({ one }) => ({
+  business: one(businesses, {
+    fields: [serviceSlots.businessId],
+    references: [businesses.id],
+  }),
+  service: one(salonServices, {
+    fields: [serviceSlots.serviceId],
+    references: [salonServices.id],
+  }),
+  staff: one(salonStaff, {
+    fields: [serviceSlots.staffId],
+    references: [salonStaff.id],
+  }),
+}));
+
+export const salonBookingRelations = relations(salonBookings, ({ one }) => ({
+  business: one(businesses, {
+    fields: [salonBookings.businessId],
+    references: [businesses.id],
+  }),
+  customer: one(users, {
+    fields: [salonBookings.customerId],
+    references: [users.id],
+  }),
+  slot: one(serviceSlots, {
+    fields: [salonBookings.slotId],
+    references: [serviceSlots.id],
+  }),
+  service: one(salonServices, {
+    fields: [salonBookings.serviceId],
+    references: [salonServices.id],
+  }),
+  staff: one(salonStaff, {
+    fields: [salonBookings.staffId],
+    references: [salonStaff.id],
+  }),
+}));
+
+// Schemas
 export const businessInsertSchema = createInsertSchema(businesses).extend({
   industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
   contactInfo: z.object({
@@ -200,10 +239,32 @@ export const userRegistrationSchema = createInsertSchema(users).extend({
   }).optional(),
 });
 
-// Type exports
+export const insertSalonServiceSchema = createInsertSchema(salonServices);
+export const insertSalonStaffSchema = createInsertSchema(salonStaff);
+export const insertStaffSkillSchema = createInsertSchema(staffSkills);
+export const insertShiftTemplateSchema = createInsertSchema(shiftTemplates);
+export const insertStaffShiftSchema = createInsertSchema(staffShifts);
+export const insertServiceSlotSchema = createInsertSchema(serviceSlots);
+export const insertSalonBookingSchema = createInsertSchema(salonBookings);
+
+// Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Business = typeof businesses.$inferSelect;
 export type InsertBusiness = typeof businesses.$inferInsert;
 export type BusinessRegistration = z.infer<typeof businessInsertSchema>;
 export type UserRegistration = z.infer<typeof userRegistrationSchema>;
+export type SalonService = typeof salonServices.$inferSelect;
+export type InsertSalonService = typeof salonServices.$inferInsert;
+export type SalonStaff = typeof salonStaff.$inferSelect;
+export type InsertSalonStaff = typeof salonStaff.$inferInsert;
+export type StaffSkill = typeof staffSkills.$inferSelect;
+export type InsertStaffSkill = typeof staffSkills.$inferInsert;
+export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
+export type InsertShiftTemplate = typeof shiftTemplates.$inferInsert;
+export type StaffShift = typeof staffShifts.$inferSelect;
+export type InsertStaffShift = typeof staffShifts.$inferInsert;
+export type ServiceSlot = typeof serviceSlots.$inferSelect;
+export type InsertServiceSlot = typeof serviceSlots.$inferInsert;
+export type SalonBooking = typeof salonBookings.$inferSelect;
+export type InsertSalonBooking = typeof salonBookings.$inferInsert;

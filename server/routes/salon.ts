@@ -1,0 +1,193 @@
+import { Router } from "express";
+import { db } from "@db";
+import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
+import { eq } from "drizzle-orm";
+
+const router = Router();
+
+// Service Management
+router.get("/businesses/:businessId/services", async (req, res) => {
+  try {
+    const services = await db.query.salonServices.findMany({
+      where: eq(salonServices.businessId, parseInt(req.params.businessId)),
+      with: {
+        skills: {
+          with: {
+            staff: true
+          }
+        }
+      }
+    });
+    res.json(services);
+  } catch (error: any) {
+    console.error('Error fetching salon services:', error);
+    res.status(500).json({
+      message: "Failed to fetch services",
+      error: error.message
+    });
+  }
+});
+
+router.post("/businesses/:businessId/services", async (req, res) => {
+  try {
+    const result = insertSalonServiceSchema.safeParse({
+      ...req.body,
+      businessId: parseInt(req.params.businessId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const service = await db.insert(salonServices)
+      .values(result.data)
+      .returning();
+
+    res.status(201).json(service[0]);
+  } catch (error: any) {
+    console.error('Error creating salon service:', error);
+    res.status(500).json({
+      message: "Failed to create service",
+      error: error.message
+    });
+  }
+});
+
+router.get("/businesses/:businessId/services/:serviceId", async (req, res) => {
+  try {
+    const [service] = await db.select()
+      .from(salonServices)
+      .where(eq(salonServices.id, parseInt(req.params.serviceId)))
+      .limit(1);
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    res.json(service);
+  } catch (error: any) {
+    console.error('Error fetching salon service:', error);
+    res.status(500).json({
+      message: "Failed to fetch service",
+      error: error.message
+    });
+  }
+});
+
+router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
+  try {
+    const result = insertSalonServiceSchema.partial().safeParse({
+      ...req.body,
+      businessId: parseInt(req.params.businessId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [service] = await db.update(salonServices)
+      .set(result.data)
+      .where(eq(salonServices.id, parseInt(req.params.serviceId)))
+      .returning();
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    res.json(service);
+  } catch (error: any) {
+    console.error('Error updating salon service:', error);
+    res.status(500).json({
+      message: "Failed to update service",
+      error: error.message
+    });
+  }
+});
+
+// Staff Management
+router.get("/businesses/:businessId/staff", async (req, res) => {
+  try {
+    const staff = await db.query.salonStaff.findMany({
+      where: eq(salonStaff.businessId, parseInt(req.params.businessId)),
+      with: {
+        skills: {
+          with: {
+            service: true
+          }
+        }
+      }
+    });
+    res.json(staff);
+  } catch (error: any) {
+    console.error('Error fetching salon staff:', error);
+    res.status(500).json({
+      message: "Failed to fetch staff",
+      error: error.message
+    });
+  }
+});
+
+router.post("/businesses/:businessId/staff", async (req, res) => {
+  try {
+    const result = insertSalonStaffSchema.safeParse({
+      ...req.body,
+      businessId: parseInt(req.params.businessId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const staff = await db.insert(salonStaff)
+      .values(result.data)
+      .returning();
+
+    res.status(201).json(staff[0]);
+  } catch (error: any) {
+    console.error('Error creating salon staff:', error);
+    res.status(500).json({
+      message: "Failed to create staff",
+      error: error.message
+    });
+  }
+});
+
+// Staff Skills Management
+router.post("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
+  try {
+    const result = insertStaffSkillSchema.safeParse({
+      ...req.body,
+      staffId: parseInt(req.params.staffId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const skill = await db.insert(staffSkills)
+      .values(result.data)
+      .returning();
+
+    res.status(201).json(skill[0]);
+  } catch (error: any) {
+    console.error('Error adding staff skill:', error);
+    res.status(500).json({
+      message: "Failed to add skill",
+      error: error.message
+    });
+  }
+});
+
+export default router;

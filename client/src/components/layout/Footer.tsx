@@ -5,20 +5,23 @@ export function Footer() {
   return (
     <footer className="w-full border-t bg-background">
       <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-          <div className="text-center md:text-left">
-            <Link href="/" className="inline-flex items-center space-x-2">
+        {/* Main Footer Content */}
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-4 justify-items-center">
+          {/* Brand Section */}
+          <div className="text-center w-full max-w-xs">
+            <Link href="/" className="inline-flex items-center justify-center w-full space-x-2">
               <Store className="h-6 w-6 text-primary" />
               <span className="font-bold">DesiBazaar</span>
             </Link>
-            <p className="mt-4 text-sm text-muted-foreground">
+            <p className="mt-4 text-sm text-muted-foreground text-center">
               Your one-stop platform for discovering and booking local businesses and services.
             </p>
           </div>
 
-          <div className="text-center md:text-left">
-            <h3 className="text-sm font-semibold">Categories</h3>
-            <ul className="mt-4 space-y-2 text-sm">
+          {/* Categories Section */}
+          <div className="text-center w-full max-w-xs">
+            <h3 className="text-sm font-semibold mb-4">Categories</h3>
+            <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/?type=salon" className="text-muted-foreground hover:text-primary">
                   Salon & Spa
@@ -52,9 +55,10 @@ export function Footer() {
             </ul>
           </div>
 
-          <div className="text-center md:text-left">
-            <h3 className="text-sm font-semibold">Resources</h3>
-            <ul className="mt-4 space-y-2 text-sm">
+          {/* Resources Section */}
+          <div className="text-center w-full max-w-xs">
+            <h3 className="text-sm font-semibold mb-4">Resources</h3>
+            <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/auth" className="text-muted-foreground hover:text-primary">
                   List Your Business
@@ -73,9 +77,10 @@ export function Footer() {
             </ul>
           </div>
 
-          <div className="text-center md:text-left">
-            <h3 className="text-sm font-semibold">Legal</h3>
-            <ul className="mt-4 space-y-2 text-sm">
+          {/* Legal Section */}
+          <div className="text-center w-full max-w-xs">
+            <h3 className="text-sm font-semibold mb-4">Legal</h3>
+            <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/privacy" className="text-muted-foreground hover:text-primary">
                   Privacy Policy
@@ -90,8 +95,11 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} DesiBazaar. All rights reserved.
+        {/* Copyright Section */}
+        <div className="mt-8 border-t pt-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} DesiBazaar. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>

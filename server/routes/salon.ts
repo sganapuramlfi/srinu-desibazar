@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@db";
 import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
 import { eq, and } from "drizzle-orm";
+import { shiftTemplates, staffSchedules, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
 
 const router = Router();
 
@@ -126,7 +127,6 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
   }
 });
 
-// Add delete service endpoint
 router.delete("/businesses/:businessId/services/:serviceId", async (req, res) => {
   try {
     if (!req.user) {
@@ -218,7 +218,6 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
   }
 });
 
-// Add delete staff endpoint
 router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
   try {
     if (!req.user) {
@@ -252,29 +251,36 @@ router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
 });
 
 
-// Staff Skills Management
-router.post("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
+// Shift Template Management
+router.get("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Verify staff belongs to the business
-    const [staff] = await db.select()
-      .from(salonStaff)
-      .where(and(
-        eq(salonStaff.id, parseInt(req.params.staffId)),
-        eq(salonStaff.businessId, parseInt(req.params.businessId))
-      ))
-      .limit(1);
+    const templates = await db.select()
+      .from(shiftTemplates)
+      .where(eq(shiftTemplates.businessId, parseInt(req.params.businessId)));
 
-    if (!staff) {
-      return res.status(404).json({ message: "Staff not found" });
+    res.json(templates);
+  } catch (error: any) {
+    console.error('Error fetching shift templates:', error);
+    res.status(500).json({
+      message: "Failed to fetch templates",
+      error: error.message
+    });
+  }
+});
+
+router.post("/businesses/:businessId/shift-templates", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const result = insertStaffSkillSchema.safeParse({
+    const result = insertShiftTemplateSchema.safeParse({
       ...req.body,
-      staffId: parseInt(req.params.staffId)
+      businessId: parseInt(req.params.businessId)
     });
 
     if (!result.success) {
@@ -284,15 +290,123 @@ router.post("/businesses/:businessId/staff/:staffId/skills", async (req, res) =>
       });
     }
 
-    const [skill] = await db.insert(staffSkills)
+    const [template] = await db.insert(shiftTemplates)
       .values(result.data)
       .returning();
 
-    res.status(201).json(skill);
+    res.status(201).json(template);
   } catch (error: any) {
-    console.error('Error adding staff skill:', error);
+    console.error('Error creating shift template:', error);
     res.status(500).json({
-      message: "Failed to add skill",
+      message: "Failed to create template",
+      error: error.message
+    });
+  }
+});
+
+router.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = insertShiftTemplateSchema.partial().safeParse({
+      ...req.body,
+      businessId: parseInt(req.params.businessId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [template] = await db.update(shiftTemplates)
+      .set({
+        ...result.data,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(shiftTemplates.id, parseInt(req.params.templateId)),
+        eq(shiftTemplates.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!template) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+
+    res.json(template);
+  } catch (error: any) {
+    console.error('Error updating shift template:', error);
+    res.status(500).json({
+      message: "Failed to update template",
+      error: error.message
+    });
+  }
+});
+
+router.delete("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // First delete related schedules
+    await db.delete(staffSchedules)
+      .where(eq(staffSchedules.templateId, parseInt(req.params.templateId)));
+
+    // Then delete the template
+    const [deletedTemplate] = await db.delete(shiftTemplates)
+      .where(and(
+        eq(shiftTemplates.id, parseInt(req.params.templateId)),
+        eq(shiftTemplates.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!deletedTemplate) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+
+    res.json({ message: "Template deleted successfully" });
+  } catch (error: any) {
+    console.error('Error deleting shift template:', error);
+    res.status(500).json({
+      message: "Failed to delete template",
+      error: error.message
+    });
+  }
+});
+
+// Staff Schedule Management
+router.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = insertStaffScheduleSchema.safeParse({
+      ...req.body,
+      staffId: parseInt(req.params.staffId),
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [schedule] = await db.insert(staffSchedules)
+      .values(result.data)
+      .returning();
+
+    res.status(201).json(schedule);
+  } catch (error: any) {
+    console.error('Error creating staff schedule:', error);
+    res.status(500).json({
+      message: "Failed to create schedule",
       error: error.message
     });
   }

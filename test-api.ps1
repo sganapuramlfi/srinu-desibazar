@@ -13,17 +13,18 @@ function Test-Endpoint {
         $Method,
         $Endpoint,
         $Body,
-        $SessionCookie,
         $ExpectedStatus = 200
     )
+
+    $session = $script:WebSession
+    if (-not $session) {
+        $script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $session = $script:WebSession
+    }
 
     $headers = @{
         "Content-Type" = "application/json"
         "Accept" = "application/json"
-    }
-
-    if ($SessionCookie) {
-        $headers["Cookie"] = $SessionCookie
     }
 
     $params = @{
@@ -31,7 +32,7 @@ function Test-Endpoint {
         Uri = "$baseUrl$Endpoint"
         Headers = $headers
         UseBasicParsing = $true
-        WebSession = $script:WebSession
+        WebSession = $session
     }
 
     if ($Body) {
@@ -44,12 +45,6 @@ function Test-Endpoint {
         $symbol = if ($statusMatch) { "✅" } else { "⚠️" }
         Write-Log "$symbol $Method $Endpoint - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
         Write-Log "Response: $($response.Content)"
-
-        # Update WebSession if available
-        if ($response.Headers["Set-Cookie"]) {
-            Write-Log "Session cookie received: $($response.Headers["Set-Cookie"])"
-            $script:WebSession = $response
-        }
 
         return $response
     }
@@ -74,9 +69,12 @@ if (Test-Path $logFile) {
 Write-Log "🔍 Starting API Tests for DesiBazaar"
 Write-Log "Base URL: $baseUrl"
 
+# Create a new WebSession
+$script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
 # Test 1: Check if server is up
 Write-Log "`n📋 Test 1: Server Health Check"
-Test-Endpoint -Method "GET" -Endpoint "/api/user" -ExpectedStatus 401  # Expect 401 when not logged in
+Test-Endpoint -Method "GET" -Endpoint "/api/user" -ExpectedStatus 401
 
 # Test 2: Test business registration for each industry type
 $industries = @(
@@ -91,6 +89,10 @@ $industries = @(
 Write-Log "`n📋 Test 2: Business Registration for Each Industry"
 foreach ($industry in $industries) {
     Write-Log "`nTesting registration for $($industry.type)"
+
+    # Reset WebSession for each test case
+    $script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
     $businessUser = @{
         username = "test$($industry.type)$(Get-Random)"
         password = "test123456"
@@ -102,9 +104,11 @@ foreach ($industry in $industries) {
             description = "Test $($industry.type) business"
         }
     }
-    $registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
 
+    $registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
     if ($registerResponse) {
+        $registerData = $registerResponse.Content | ConvertFrom-Json
+
         # Test login with registered user
         Write-Log "`nTesting login for $($industry.type)"
         $loginData = @{
@@ -114,35 +118,37 @@ foreach ($industry in $industries) {
         $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
 
         if ($loginResponse) {
-            $userData = $loginResponse.Content | ConvertFrom-Json
+            $loginData = $loginResponse.Content | ConvertFrom-Json
 
             # Test authenticated endpoints
             Write-Log "`nTesting authenticated endpoints for $($industry.type)"
-            Test-Endpoint -Method "GET" -Endpoint "/api/user"
+            $userResponse = Test-Endpoint -Method "GET" -Endpoint "/api/user"
 
-            if ($userData.user.business.id) {
+            if ($loginData.user.business.id) {
+                $businessId = $loginData.user.business.id
+
                 # Test business dashboard access
-                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)"
+                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId"
 
                 # Test industry-specific endpoints
                 switch ($industry.type) {
                     "salon" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services"
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services"
                     }
                     "restaurant" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/menu"
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/menu"
                     }
                     "event" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/events"
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/events"
                     }
                     "realestate" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/properties"
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/properties"
                     }
                     "retail" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/products"
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/products"
                     }
                     "professional" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services"
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services"
                     }
                 }
 
@@ -151,7 +157,7 @@ foreach ($industry in $industries) {
                     name = "$($industry.name) Updated"
                     description = "Updated description for $($industry.type) business"
                 }
-                Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$($userData.user.business.id)" -Body $updateData
+                Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$businessId" -Body $updateData
             }
 
             # Test logout

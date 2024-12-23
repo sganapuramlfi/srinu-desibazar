@@ -1,0 +1,316 @@
+PS C:\Users\admin> # API Testing Script for DesiBazaar
+$baseUrl = "https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev"
+$logFile = "api-test-results.log"
+
+function Write-Log {
+    param($Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp - $Message" | Tee-Object -FilePath $logFile -Append
+}
+
+function Test-Endpoint {
+    param(
+        $Method,
+        $Endpoint,
+        $Body,
+        $SessionCookie,
+        $ExpectedStatus = 200
+    )
+
+    $headers = @{
+        "Content-Type" = "application/json"
+        "Accept" = "application/json"
+    }
+
+    if ($SessionCookie) {
+        $headers["Cookie"] = $SessionCookie
+    }
+
+    $params = @{
+        Method = $Method
+        Uri = "$baseUrl$Endpoint"
+        Headers = $headers
+        UseBasicParsing = $true
+        WebSession = $script:WebSession
+    }
+
+    if ($Body) {
+        $params["Body"] = ($Body | ConvertTo-Json)
+    }
+
+    try {
+        $response = Invoke-WebRequest @params
+        $statusMatch = $response.StatusCode -eq $ExpectedStatus
+        $symbol = if ($statusMatch) { "✅" } else { "⚠️" }
+        Write-Log "$symbol $Method $Endpoint - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
+        Write-Log "Response: $($response.Content)"
+
+        # Update WebSession if available
+        if ($response.Headers["Set-Cookie"]) {
+            Write-Log "Session cookie received: $($response.Headers["Set-Cookie"])"
+            $script:WebSession = $response
+        }
+
+        return $response
+    }
+    catch {
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        $errorMessage = $_.Exception.Message
+        Write-Log "❌ $Method $Endpoint - Error: $statusCode - $errorMessage"
+        if ($_.Exception.Response) {
+            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $errorBody = $reader.ReadToEnd()
+            Write-Log "Error Details: $errorBody"
+        }
+        return $null
+    }
+}
+
+# Clear previous log file
+if (Test-Path $logFile) {
+    Remove-Item $logFile
+}
+
+Write-Log "🔍 Starting API Tests for DesiBazaar"
+Write-Log "Base URL: $baseUrl"
+
+# Test 1: Check if server is up
+Write-Log "`n📋 Test 1: Server Health Check"
+Test-Endpoint -Method "GET" -Endpoint "/api/user" -ExpectedStatus 401  # Expect 401 when not logged in
+
+# Test 2: Test business registration for each industry type
+$industries = @(
+    @{type="salon"; name="Test Salon"},
+    @{type="restaurant"; name="Test Restaurant"},
+    @{type="event"; name="Test Event Management"},
+    @{type="realestate"; name="Test Real Estate"},
+    @{type="retail"; name="Test Retail Store"},
+    @{type="professional"; name="Test Professional Services"}
+)
+
+Write-Log "`n📋 Test 2: Business Registration for Each Industry"
+foreach ($industry in $industries) {
+    Write-Log "`nTesting registration for $($industry.type)"
+    $businessUser = @{
+        username = "test$($industry.type)$(Get-Random)"
+        password = "test123456"
+        email = "test$(Get-Random)@example.com"
+        role = "business"
+        business = @{
+            name = $industry.name
+            industryType = $industry.type
+            description = "Test $($industry.type) business"
+        }
+    }
+    $registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
+
+    if ($registerResponse) {
+        # Test login with registered user
+        Write-Log "`nTesting login for $($industry.type)"
+        $loginData = @{
+            username = $businessUser.username
+            password = $businessUser.password
+        }
+        $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
+
+        if ($loginResponse) {
+            $userData = $loginResponse.Content | ConvertFrom-Json
+
+            # Test authenticated endpoints
+            Write-Log "`nTesting authenticated endpoints for $($industry.type)"
+            Test-Endpoint -Method "GET" -Endpoint "/api/user"
+
+            if ($userData.user.business.id) {
+                # Test business dashboard access
+                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)"
+
+                # Test industry-specific endpoints
+                switch ($industry.type) {
+                    "salon" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services"
+                    }
+                    "restaurant" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/menu"
+                    }
+                    "event" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/events"
+                    }
+                    "realestate" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/properties"
+                    }
+                    "retail" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/products"
+                    }
+                    "professional" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services"
+                    }
+                }
+
+                # Test business profile update
+                $updateData = @{
+                    name = "$($industry.name) Updated"
+                    description = "Updated description for $($industry.type) business"
+                }
+                Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$($userData.user.business.id)" -Body $updateData
+            }
+
+            # Test logout
+            Test-Endpoint -Method "POST" -Endpoint "/api/logout"
+        }
+    }
+}
+
+Write-Log "`n✨ API Tests Completed"
+Write-Log "Results saved to: $((Get-Item $logFile).FullName)"
+
+# Display instructions
+Write-Log "`n📌 How to use this script:"
+Write-Log "1. Update the `$baseUrl variable if testing a different deployment"
+Write-Log "2. Run the script in PowerShell: .\test-api.ps1"
+Write-Log "3. Check the log file for detailed results and any errors"
+Write-Log "4. Look for ❌ symbols to quickly identify failed tests"
+2024-12-23 21:41:44 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:41:44 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:41:44 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:41:44 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:41:44 - Error Details: 
+2024-12-23 21:41:44 - 
+📋 Test 2: Business Registration for Each Industry
+2024-12-23 21:41:44 - 
+Testing registration for salon
+2024-12-23 21:41:45 - 
+Testing login for salon
+ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:117 char:50
++             $userData = $loginResponse.Content | ConvertFrom-Json
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+2024-12-23 21:41:46 - 
+Testing authenticated endpoints for salon
+2024-12-23 21:41:46 - ❌ GET /api/user - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsalon1
+457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted
+":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Commands.
+BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - ❌ POST /api/logout - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsal
+on1457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Comman
+ds.BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - 
+Testing registration for restaurant
+2024-12-23 21:41:46 - 
+Testing login for restaurant
+ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:117 char:50
++             $userData = $loginResponse.Content | ConvertFrom-Json
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+2024-12-23 21:41:46 - 
+Testing authenticated endpoints for restaurant
+2024-12-23 21:41:46 - ❌ GET /api/user - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsalon1
+457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted
+":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Commands.
+BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - ❌ POST /api/logout - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsal
+on1457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Comman
+ds.BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - 
+Testing registration for event
+2024-12-23 21:41:46 - 
+Testing login for event
+ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:117 char:50
++             $userData = $loginResponse.Content | ConvertFrom-Json
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+2024-12-23 21:41:46 - 
+Testing authenticated endpoints for event
+2024-12-23 21:41:46 - ❌ GET /api/user - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsalon1
+457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted
+":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Commands.
+BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - ❌ POST /api/logout - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsal
+on1457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Comman
+ds.BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - 
+Testing registration for realestate
+2024-12-23 21:41:46 - 
+Testing login for realestate
+ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:117 char:50
++             $userData = $loginResponse.Content | ConvertFrom-Json
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+2024-12-23 21:41:46 - 
+Testing authenticated endpoints for realestate
+2024-12-23 21:41:46 - ❌ GET /api/user - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsalon1
+457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted
+":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Commands.
+BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - ❌ POST /api/logout - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsal
+on1457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Comman
+ds.BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - 
+Testing registration for retail
+2024-12-23 21:41:46 - 
+Testing login for retail
+ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:117 char:50
++             $userData = $loginResponse.Content | ConvertFrom-Json
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+2024-12-23 21:41:46 - 
+Testing authenticated endpoints for retail
+2024-12-23 21:41:46 - ❌ GET /api/user - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsalon1
+457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted
+":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Commands.
+BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - ❌ POST /api/logout - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsal
+on1457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Comman
+ds.BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - 
+Testing registration for professional
+2024-12-23 21:41:46 - 
+Testing login for professional
+ConvertFrom-Json : Cannot bind argument to parameter 'InputObject' because it is null.
+At line:117 char:50
++             $userData = $loginResponse.Content | ConvertFrom-Json
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [ConvertFrom-Json], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+2024-12-23 21:41:46 - 
+Testing authenticated endpoints for professional
+2024-12-23 21:41:46 - ❌ GET /api/user - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsalon1
+457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted
+":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Commands.
+BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - ❌ POST /api/logout - Error:  - Cannot bind parameter 'WebSession'. Cannot convert the "{"ok":true,"message":"Registration successful","user":{"id":28,"username":"testsal
+on1457047008","role":"business","business":{"id":25,"userId":28,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:41:45.269Z","updatedAt":null},"needsOnboarding":true}}" value of type "Microsoft.PowerShell.Comman
+ds.BasicHtmlWebResponseObject" to type "Microsoft.PowerShell.Commands.WebRequestSession".
+2024-12-23 21:41:46 - 
+✨ API Tests Completed
+2024-12-23 21:41:46 - Results saved to: C:\Users\admin\api-test-results.log
+2024-12-23 21:41:46 - 
+📌 How to use this script:
+2024-12-23 21:41:46 - 1. Update the $baseUrl variable if testing a different deployment
+2024-12-23 21:41:46 - 2. Run the script in PowerShell: .\test-api.ps1
+2024-12-23 21:41:46 - 3. Check the log file for detailed results and any errors
+2024-12-23 21:41:46 - 4. Look for ❌ symbols to quickly identify failed tests
+
+PS C:\Users\admin> 

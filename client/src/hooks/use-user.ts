@@ -43,7 +43,10 @@ async function handleRequest(
   try {
     const response = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: body ? JSON.stringify(body) : undefined,
       credentials: "include",
     });
@@ -53,8 +56,13 @@ async function handleRequest(
         return { ok: false, message: response.statusText };
       }
 
-      const message = await response.text();
-      return { ok: false, message };
+      const errorText = await response.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        return { ok: false, message: errorJson.message || errorText };
+      } catch {
+        return { ok: false, message: errorText };
+      }
     }
 
     const data = await response.json();
@@ -66,7 +74,10 @@ async function handleRequest(
 
 async function fetchUser(): Promise<UserResponse | null> {
   const response = await fetch('/api/user', {
-    credentials: 'include'
+    credentials: 'include',
+    headers: {
+      "Accept": "application/json"
+    }
   });
 
   if (!response.ok) {
@@ -74,7 +85,13 @@ async function fetchUser(): Promise<UserResponse | null> {
       return null;
     }
 
-    throw new Error(`${response.status}: ${await response.text()}`);
+    const errorText = await response.text();
+    try {
+      const errorJson = JSON.parse(errorText);
+      throw new Error(errorJson.message || errorText);
+    } catch {
+      throw new Error(errorText);
+    }
   }
 
   return response.json();

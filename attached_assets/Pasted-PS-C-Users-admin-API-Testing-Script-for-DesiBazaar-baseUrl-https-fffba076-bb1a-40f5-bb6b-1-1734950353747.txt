@@ -1,0 +1,179 @@
+PS C:\Users\admin> # API Testing Script for DesiBazaar
+$baseUrl = "https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev"
+$logFile = "api-test-results.log"
+
+function Write-Log {
+    param($Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp - $Message" | Tee-Object -FilePath $logFile -Append
+}
+
+function Test-Endpoint {
+    param(
+        $Method,
+        $Endpoint,
+        $Body,
+        $SessionCookie
+    )
+    
+    $headers = @{
+        "Content-Type" = "application/json"
+    }
+    
+    if ($SessionCookie) {
+        $headers["Cookie"] = $SessionCookie
+    }
+    
+    $params = @{
+        Method = $Method
+        Uri = "$baseUrl$Endpoint"
+        Headers = $headers
+        UseBasicParsing = $true
+    }
+    
+    if ($Body) {
+        $params["Body"] = $Body | ConvertTo-Json
+    }
+    
+    try {
+        $response = Invoke-WebRequest @params
+        Write-Log "✅ $Method $Endpoint - Status: $($response.StatusCode)"
+        Write-Log "Response: $($response.Content)"
+        return $response
+    }
+    catch {
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        $errorMessage = $_.Exception.Message
+        Write-Log "❌ $Method $Endpoint - Error: $statusCode - $errorMessage"
+        if ($_.Exception.Response) {
+            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $errorBody = $reader.ReadToEnd()
+            Write-Log "Error Details: $errorBody"
+        }
+        return $null
+    }
+}
+
+# Clear previous log file
+if (Test-Path $logFile) {
+    Remove-Item $logFile
+}
+
+Write-Log "🔍 Starting API Tests for DesiBazaar"
+Write-Log "Base URL: $baseUrl"
+
+# Test 1: Check if server is up
+Write-Log "`n📋 Test 1: Server Health Check"
+Test-Endpoint -Method "GET" -Endpoint "/api/user"
+
+# Test 2: Register a business user
+Write-Log "`n📋 Test 2: Business User Registration"
+$businessUser = @{
+    username = "testbusiness$(Get-Random)"
+    password = "test123456"
+    email = "test$(Get-Random)@example.com"
+    role = "business"
+    business = @{
+        name = "Test Salon"
+        industryType = "salon"
+        description = "Test business"
+    }
+}
+$registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
+
+# Test 3: Login with created user
+Write-Log "`n📋 Test 3: User Login"
+if ($registerResponse) {
+    $loginData = @{
+        username = $businessUser.username
+        password = $businessUser.password
+    }
+    $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
+    
+    if ($loginResponse) {
+        $sessionCookie = $loginResponse.Headers["Set-Cookie"]
+        
+        # Test 4: Get user profile with session
+        Write-Log "`n📋 Test 4: Get User Profile"
+        Test-Endpoint -Method "GET" -Endpoint "/api/user" -SessionCookie $sessionCookie
+        
+        # Test 5: Access business dashboard
+        Write-Log "`n📋 Test 5: Access Business Dashboard"
+        $userData = $loginResponse.Content | ConvertFrom-Json
+        if ($userData.user.business.id) {
+            Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)" -SessionCookie $sessionCookie
+        }
+        
+        # Test 6: Logout
+        Write-Log "`n📋 Test 6: User Logout"
+        Test-Endpoint -Method "POST" -Endpoint "/api/logout" -SessionCookie $sessionCookie
+    }
+}
+
+Write-Log "`n✨ API Tests Completed"
+Write-Log "Results saved to: $((Get-Item $logFile).FullName)"
+2024-12-23 21:38:53 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:38:53 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:38:53 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:38:53 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:38:53 - Error Details: 
+2024-12-23 21:38:53 - 
+📋 Test 2: Business User Registration
+2024-12-23 21:38:54 - 
+📋 Test 3: User Login
+2024-12-23 21:38:54 - 
+📋 Test 4: Get User Profile
+2024-12-23 21:38:54 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:38:54 - Error Details: 
+2024-12-23 21:38:54 - 
+📋 Test 5: Access Business Dashboard
+2024-12-23 21:38:54 - ✅ GET /api/businesses/24 - Status: 200
+2024-12-23 21:38:54 - Response: {"id":24,"userId":27,"name":"Test Salon","description":"Test business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"conta
+ctInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:38:53.446Z","updatedAt":null}
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":24,"userId":27,"name":"Test Salon","description":"Test 
+                    business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"setting...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 264
+
+2024-12-23 21:38:54 - 
+📋 Test 6: User Logout
+2024-12-23 21:38:55 - ✅ POST /api/logout - Status: 200
+2024-12-23 21:38:55 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:38:55 - 
+✨ API Tests Completed
+2024-12-23 21:38:55 - Results saved to: C:\Users\admin\api-test-results.log

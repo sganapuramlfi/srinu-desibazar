@@ -19,6 +19,7 @@ function Test-Endpoint {
 
     $headers = @{
         "Content-Type" = "application/json"
+        "Accept" = "application/json"
     }
 
     if ($SessionCookie) {
@@ -30,10 +31,11 @@ function Test-Endpoint {
         Uri = "$baseUrl$Endpoint"
         Headers = $headers
         UseBasicParsing = $true
+        WebSession = $script:WebSession
     }
 
     if ($Body) {
-        $params["Body"] = $Body | ConvertTo-Json
+        $params["Body"] = ($Body | ConvertTo-Json)
     }
 
     try {
@@ -42,6 +44,13 @@ function Test-Endpoint {
         $symbol = if ($statusMatch) { "✅" } else { "⚠️" }
         Write-Log "$symbol $Method $Endpoint - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
         Write-Log "Response: $($response.Content)"
+
+        # Update WebSession if available
+        if ($response.Headers["Set-Cookie"]) {
+            Write-Log "Session cookie received: $($response.Headers["Set-Cookie"])"
+            $script:WebSession = $response
+        }
+
         return $response
     }
     catch {
@@ -105,42 +114,48 @@ foreach ($industry in $industries) {
         $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
 
         if ($loginResponse) {
-            $sessionCookie = $loginResponse.Headers["Set-Cookie"]
             $userData = $loginResponse.Content | ConvertFrom-Json
 
             # Test authenticated endpoints
             Write-Log "`nTesting authenticated endpoints for $($industry.type)"
-            Test-Endpoint -Method "GET" -Endpoint "/api/user" -SessionCookie $sessionCookie
+            Test-Endpoint -Method "GET" -Endpoint "/api/user"
 
             if ($userData.user.business.id) {
                 # Test business dashboard access
-                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)" -SessionCookie $sessionCookie
+                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)"
 
                 # Test industry-specific endpoints
                 switch ($industry.type) {
                     "salon" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services" -SessionCookie $sessionCookie
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services"
                     }
                     "restaurant" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/menu" -SessionCookie $sessionCookie
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/menu"
                     }
                     "event" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/events" -SessionCookie $sessionCookie
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/events"
                     }
                     "realestate" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/properties" -SessionCookie $sessionCookie
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/properties"
                     }
                     "retail" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/products" -SessionCookie $sessionCookie
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/products"
                     }
                     "professional" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services" -SessionCookie $sessionCookie
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$($userData.user.business.id)/services"
                     }
                 }
+
+                # Test business profile update
+                $updateData = @{
+                    name = "$($industry.name) Updated"
+                    description = "Updated description for $($industry.type) business"
+                }
+                Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$($userData.user.business.id)" -Body $updateData
             }
 
             # Test logout
-            Test-Endpoint -Method "POST" -Endpoint "/api/logout" -SessionCookie $sessionCookie
+            Test-Endpoint -Method "POST" -Endpoint "/api/logout"
         }
     }
 }

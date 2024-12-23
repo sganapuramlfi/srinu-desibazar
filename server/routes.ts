@@ -4,22 +4,17 @@ import { setupAuth } from "./auth";
 import { db } from "@db";
 import {
   businesses,
-  advertisements,
-  bookings,
-  reviews,
+  users,
   salonServices,
-  salonStaff,
-  restaurantTables,
-  restaurantMenu,
-  events,
-  properties,
-  retailProducts,
-  professionalServices,
 } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import salonRouter from "./routes/salon";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+
+  // Register salon-specific routes
+  app.use("/api", salonRouter);
 
   // Business Routes
   app.get("/api/businesses/:id", async (req, res) => {
@@ -54,134 +49,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "Business not found" });
       }
 
-      let services = [];
+      let servicesList = [];
       if (business.industryType === "salon") {
-        services = await db
+        servicesList = await db
           .select()
           .from(salonServices)
           .where(eq(salonServices.businessId, businessId));
-      } else if (business.industryType === "professional") {
-        services = await db
-          .select()
-          .from(professionalServices)
-          .where(eq(professionalServices.businessId, businessId));
       }
 
-      res.json(services);
+      res.json(servicesList);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch services" });
-    }
-  });
-
-  app.get("/api/businesses/:businessId/menu", async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-      if (business.industryType !== "restaurant") {
-        return res.status(400).json({ error: "Business is not a restaurant" });
-      }
-
-      const menuItems = await db
-        .select()
-        .from(restaurantMenu)
-        .where(eq(restaurantMenu.businessId, businessId));
-
-      res.json(menuItems);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch menu" });
-    }
-  });
-
-  app.get("/api/businesses/:businessId/events", async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-      if (business.industryType !== "event") {
-        return res.status(400).json({ error: "Business is not an event management company" });
-      }
-
-      const eventsList = await db
-        .select()
-        .from(events)
-        .where(eq(events.businessId, businessId));
-
-      res.json(eventsList);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch events" });
-    }
-  });
-
-  app.get("/api/businesses/:businessId/properties", async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-      if (business.industryType !== "realestate") {
-        return res.status(400).json({ error: "Business is not a real estate company" });
-      }
-
-      const propertyList = await db
-        .select()
-        .from(properties)
-        .where(eq(properties.businessId, businessId));
-
-      res.json(propertyList);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch properties" });
-    }
-  });
-
-  app.get("/api/businesses/:businessId/products", async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-      if (business.industryType !== "retail") {
-        return res.status(400).json({ error: "Business is not a retail store" });
-      }
-
-      const products = await db
-        .select()
-        .from(retailProducts)
-        .where(eq(retailProducts.businessId, businessId));
-
-      res.json(products);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch products" });
     }
   });
 
@@ -218,64 +96,9 @@ export function registerRoutes(app: Express): Server {
         .returning();
 
       res.json(updatedBusiness);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating business:', error);
       res.status(500).json({ error: "Failed to update business", details: error.message });
-    }
-  });
-
-
-  // Advertisement Routes
-  app.post("/api/advertisements", async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).send("Unauthorized");
-      }
-
-      const [ad] = await db
-        .insert(advertisements)
-        .values(req.body)
-        .returning();
-
-      res.json(ad);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create advertisement" });
-    }
-  });
-
-  // Booking Routes
-  app.post("/api/bookings", async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).send("Unauthorized");
-      }
-
-      const [booking] = await db
-        .insert(bookings)
-        .values({ ...req.body, customerId: req.user.id })
-        .returning();
-
-      res.json(booking);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create booking" });
-    }
-  });
-
-  // Review Routes
-  app.post("/api/reviews", async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).send("Unauthorized");
-      }
-
-      const [review] = await db
-        .insert(reviews)
-        .values({ ...req.body, customerId: req.user.id })
-        .returning();
-
-      res.json(review);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create review" });
     }
   });
 
@@ -298,14 +121,12 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/businesses", async (req, res) => {
     try {
-      const { industryType, search } = req.query;
+      const { industryType } = req.query;
       let query = db.select().from(businesses);
 
       if (industryType) {
         query = query.where(eq(businesses.industryType, industryType as string));
       }
-
-      // TODO: Implement search functionality
 
       const result = await query;
       res.json(result);

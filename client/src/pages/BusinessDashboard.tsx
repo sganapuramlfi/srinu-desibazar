@@ -124,44 +124,24 @@ interface ShiftTemplate {
 
 
 export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
+  // State hooks - keep all hooks at the top level
   const [, navigate] = useLocation();
   const { user } = useUser();
   const { business, isLoading, error } = useBusiness(businessId);
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [isAddingTemplate, setIsAddingTemplate] = useState(false);
   const [isEditingService, setIsEditingService] = useState<SalonService | null>(null);
   const [isEditingStaff, setIsEditingStaff] = useState<SalonStaff | null>(null);
+  const [isEditingTemplate, setIsEditingTemplate] = useState<ShiftTemplate | null>(null);
   const [serviceToDelete, setServiceToDelete] = useState<SalonService | null>(null);
   const [staffToDelete, setStaffToDelete] = useState<SalonStaff | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<ShiftTemplate | null>(null);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Add state for shift templates
-  const [isAddingTemplate, setIsAddingTemplate] = useState(false);
-  const [isEditingTemplate, setIsEditingTemplate] = useState<ShiftTemplate | null>(null);
-  const [templateToDelete, setTemplateToDelete] = useState<ShiftTemplate | null>(null);
-
-
-  // Query hooks for services and staff
-  const { data: services, isLoading: isLoadingServices } = useQuery({
-    queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && business?.industryType === "salon",
-    queryFn: () =>
-      fetch(`/api/businesses/${businessId}/services`, { credentials: "include" })
-        .then((res) => res.json())
-        .catch((err) => {throw new Error("Failed to load services");}),
-  });
-
-  const { data: staff, isLoading: isLoadingStaff } = useQuery({
-    queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && business?.industryType === "salon",
-    queryFn: () =>
-      fetch(`/api/businesses/${businessId}/staff`, { credentials: "include" })
-        .then((res) => res.json())
-        .catch((err) => {throw new Error("Failed to load staff");}),
-  });
-
-  // Form hooks
+  // Form hooks - initialize all forms at top level
   const serviceForm = useForm({
     resolver: zodResolver(serviceFormSchema),
     defaultValues: {
@@ -182,13 +162,9 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       phone: "",
       specialization: "",
       status: "active" as const,
-      schedule: {
-        monday: { start: "09:00", end: "17:00" },
-      },
     },
   });
 
-  // Add form for shift templates
   const shiftTemplateForm = useForm({
     resolver: zodResolver(shiftTemplateFormSchema),
     defaultValues: {
@@ -203,6 +179,71 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       isActive: true,
     },
   });
+
+  // Query hooks
+  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
+    queryKey: [`/api/businesses/${businessId}/services`],
+    enabled: !!businessId && business?.industryType === "salon",
+  });
+
+  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
+    queryKey: [`/api/businesses/${businessId}/staff`],
+    enabled: !!businessId && business?.industryType === "salon",
+  });
+
+  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
+    queryKey: [`/api/businesses/${businessId}/shift-templates`],
+    enabled: !!businessId && business?.industryType === "salon",
+    queryFn: async () => {
+      const res = await fetch(`/api/businesses/${businessId}/shift-templates`, { 
+        credentials: "include" 
+      });
+      if (!res.ok) throw new Error("Failed to load shift templates");
+      return res.json();
+    },
+  });
+
+  // Effect hooks
+  useEffect(() => {
+    if (isEditingService) {
+      serviceForm.reset({
+        name: isEditingService.name,
+        description: isEditingService.description || "",
+        duration: isEditingService.duration,
+        price: isEditingService.price.toString(),
+        category: isEditingService.category,
+        isActive: isEditingService.isActive,
+      });
+    }
+  }, [isEditingService, serviceForm]);
+
+  useEffect(() => {
+    if (isEditingStaff) {
+      staffForm.reset({
+        name: isEditingStaff.name,
+        email: isEditingStaff.email,
+        phone: isEditingStaff.phone || "",
+        specialization: isEditingStaff.specialization || "",
+        status: isEditingStaff.status,
+      });
+    }
+  }, [isEditingStaff, staffForm]);
+
+  useEffect(() => {
+    if (isEditingTemplate) {
+      shiftTemplateForm.reset({
+        name: isEditingTemplate.name,
+        description: isEditingTemplate.description || "",
+        startTime: isEditingTemplate.startTime,
+        endTime: isEditingTemplate.endTime,
+        breaks: isEditingTemplate.breaks || [],
+        daysOfWeek: isEditingTemplate.daysOfWeek || [],
+        capacity: isEditingTemplate.capacity,
+        type: isEditingTemplate.type,
+        isActive: isEditingTemplate.isActive,
+      });
+    }
+  }, [isEditingTemplate, shiftTemplateForm]);
 
   // Mutations
   const addServiceMutation = useMutation({
@@ -360,16 +401,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Add query for shift templates
-  const { data: templates, isLoading: isLoadingTemplates } = useQuery({
-    queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId && business?.industryType === "salon",
-    queryFn: () =>
-      fetch(`/api/businesses/${businessId}/shift-templates`, { credentials: "include" })
-        .then((res) => res.json())
-        .catch((err) => { throw new Error("Failed to load shift templates") }),
-  });
-
   // Add mutations for shift templates
   const addTemplateMutation = useMutation({
     mutationFn: async (data: z.infer<typeof shiftTemplateFormSchema>) => {
@@ -455,50 +486,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   });
 
   // Move useEffect hooks to component level
-  useEffect(() => {
-    if (isEditingService) {
-      serviceForm.reset({
-        name: isEditingService.name,
-        description: isEditingService.description || "",
-        duration: isEditingService.duration,
-        price: isEditingService.price.toString(),
-        category: isEditingService.category,
-        isActive: isEditingService.isActive,
-      });
-    }
-  }, [isEditingService, serviceForm]);
-
-  useEffect(() => {
-    if (isEditingStaff) {
-      staffForm.reset({
-        name: isEditingStaff.name,
-        email: isEditingStaff.email,
-        phone: isEditingStaff.phone,
-        specialization: isEditingStaff.specialization,
-        status: isEditingStaff.status,
-        schedule: isEditingStaff.schedule || {
-          monday: { start: "09:00", end: "17:00" },
-        },
-      });
-    }
-  }, [isEditingStaff, staffForm]);
-
-  // Add useEffect for shift template form
-  useEffect(() => {
-    if (isEditingTemplate) {
-      shiftTemplateForm.reset({
-        name: isEditingTemplate.name,
-        description: isEditingTemplate.description || "",
-        startTime: isEditingTemplate.startTime,
-        endTime: isEditingTemplate.endTime,
-        breaks: isEditingTemplate.breaks || [],
-        daysOfWeek: isEditingTemplate.daysOfWeek || [],
-        capacity: isEditingTemplate.capacity,
-        type: isEditingTemplate.type,
-        isActive: isEditingTemplate.isActive,
-      });
-    }
-  }, [isEditingTemplate, shiftTemplateForm]);
+  
 
   // Early returns for loading and error states
   if (isLoading) {
@@ -1524,12 +1512,14 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                   <div className="col-span-full flex justify-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                ) : templates?.length === 0 ? (
+                ) : !templates || templates.length === 0 ? (
                   <div className="col-span-full text-center py-8 text-muted-foreground">
                     No shift templates added yet. Add your first template to get started.
                   </div>
                 ) : (
-                  templates?.map(renderShiftTemplateCard)
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {templates.map((template) => renderShiftTemplateCard(template))}
+                  </div>
                 )}
               </div>
             </TabsContent>
@@ -1630,7 +1620,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="container mx-auto py-6">
       <div className="border-b">
         <div className="flex h-16 items-center px-4">
           <Store className="h-6 w-6 text-primary mr-2" />

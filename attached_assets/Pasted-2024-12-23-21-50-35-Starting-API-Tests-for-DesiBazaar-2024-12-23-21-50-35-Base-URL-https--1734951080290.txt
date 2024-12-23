@@ -1,0 +1,137 @@
+2024-12-23 21:50:35 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:50:35 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:50:35 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:50:36 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:50:36 - Error Details: 
+2024-12-23 21:50:36 - 
+📋 Test 2: Business Registration for Each Industry
+2024-12-23 21:50:36 - 
+Testing registration for salon
+2024-12-23 21:50:37 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:50:37 - Response: {"ok":true,"message":"Registration successful","user":{"id":41,"username":"testsalon1927559617","role":"business","business":{"id":38,"userId":41,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:36.751Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:37 - 
+Testing login for salon
+2024-12-23 21:50:38 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:50:38 - Response: {"ok":true,"message":"Login successful","user":{"id":41,"username":"testsalon1927559617","role":"business","business":{"id":38,"userId":41,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:36.751Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:38 - 
+Testing authenticated endpoints for salon
+2024-12-23 21:50:38 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:50:38 - Response: {"id":41,"username":"testsalon1927559617","password":"ea32d6550404594b2f096e1d89249b8b445104d872e35789391791aebdd7086358812d4c8c86f31652ce084dc3f4f0428ec588fdb4015865dcf7a5b148393b42.2f7f3d089831224a8e6a45a216b25065","email":"test1738486101@example.com","role":"business","createdAt":"2024-12-23T10:50:36.684Z","business":{"id":38,"userId":41,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:36.751Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:50:38 - ✅ GET /api/businesses/38 - Status: 200 (Expected: 200)
+2024-12-23 21:50:38 - Response: {"id":38,"userId":41,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:36.751Z","updatedAt":null}
+2024-12-23 21:50:39 - ✅ GET /api/businesses/38/services - Status: 200 (Expected: 200)
+2024-12-23 21:50:39 - Response: []
+2024-12-23 21:50:39 - ✅ PUT /api/businesses/38 - Status: 200 (Expected: 200)
+2024-12-23 21:50:39 - Response: {"id":38,"userId":41,"name":"Test Salon Updated","description":"Updated description for salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:36.751Z","updatedAt":"2024-12-23T10:50:39.267Z"}
+2024-12-23 21:50:40 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:50:40 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:50:40 - 
+Testing registration for restaurant
+2024-12-23 21:50:40 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:50:40 - Response: {"ok":true,"message":"Registration successful","user":{"id":42,"username":"testrestaurant1288034063","role":"business","business":{"id":39,"userId":42,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:40.252Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:40 - 
+Testing login for restaurant
+2024-12-23 21:50:41 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:50:41 - Response: {"ok":true,"message":"Login successful","user":{"id":42,"username":"testrestaurant1288034063","role":"business","business":{"id":39,"userId":42,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:40.252Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:41 - 
+Testing authenticated endpoints for restaurant
+2024-12-23 21:50:41 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:50:41 - Response: {"id":42,"username":"testrestaurant1288034063","password":"c0f0334d64496bc42c4f3f36db679916b8a96213e3c6d351cb9e5f73b516bcf3d30563e6185f8aeab4ee5a587e6a55f7daff0c3510cbb077f13216eaebf749e6.a04ac443b41648bbd90700c7231fce6a","email":"test615914628@example.com","role":"business","createdAt":"2024-12-23T10:50:40.186Z","business":{"id":39,"userId":42,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:40.252Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:50:42 - ✅ GET /api/businesses/39 - Status: 200 (Expected: 200)
+2024-12-23 21:50:42 - Response: {"id":39,"userId":42,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:40.252Z","updatedAt":null}
+2024-12-23 21:50:42 - ✅ GET /api/businesses/39/menu - Status: 200 (Expected: 200)
+2024-12-23 21:50:42 - Response: []
+2024-12-23 21:50:43 - ✅ PUT /api/businesses/39 - Status: 200 (Expected: 200)
+2024-12-23 21:50:43 - Response: {"id":39,"userId":42,"name":"Test Restaurant Updated","description":"Updated description for restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:40.252Z","updatedAt":"2024-12-23T10:50:42.714Z"}
+2024-12-23 21:50:43 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:50:43 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:50:43 - 
+Testing registration for event
+2024-12-23 21:50:44 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:50:44 - Response: {"ok":true,"message":"Registration successful","user":{"id":43,"username":"testevent945745949","role":"business","business":{"id":40,"userId":43,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:43.687Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:44 - 
+Testing login for event
+2024-12-23 21:50:44 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:50:44 - Response: {"ok":true,"message":"Login successful","user":{"id":43,"username":"testevent945745949","role":"business","business":{"id":40,"userId":43,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:43.687Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:44 - 
+Testing authenticated endpoints for event
+2024-12-23 21:50:45 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:50:45 - Response: {"id":43,"username":"testevent945745949","password":"2195459eb082050b38bb9aaf17099af168789f0616f2ef91cf01826bf5c054a04799d3a60510d6417b958a8d0fc7e069d0597d25d2d897013762d7a53541a3f3.8bf8b9ad3245cf715388fcc487b7c666","email":"test1029073377@example.com","role":"business","createdAt":"2024-12-23T10:50:43.621Z","business":{"id":40,"userId":43,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:43.687Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:50:45 - ✅ GET /api/businesses/40 - Status: 200 (Expected: 200)
+2024-12-23 21:50:45 - Response: {"id":40,"userId":43,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:43.687Z","updatedAt":null}
+2024-12-23 21:50:46 - ✅ GET /api/businesses/40/events - Status: 200 (Expected: 200)
+2024-12-23 21:50:46 - Response: []
+2024-12-23 21:50:46 - ✅ PUT /api/businesses/40 - Status: 200 (Expected: 200)
+2024-12-23 21:50:46 - Response: {"id":40,"userId":43,"name":"Test Event Management Updated","description":"Updated description for event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:43.687Z","updatedAt":"2024-12-23T10:50:46.128Z"}
+2024-12-23 21:50:47 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:50:47 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:50:47 - 
+Testing registration for realestate
+2024-12-23 21:50:47 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:50:47 - Response: {"ok":true,"message":"Registration successful","user":{"id":44,"username":"testrealestate2090777444","role":"business","business":{"id":41,"userId":44,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:47.111Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:47 - 
+Testing login for realestate
+2024-12-23 21:50:48 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:50:48 - Response: {"ok":true,"message":"Login successful","user":{"id":44,"username":"testrealestate2090777444","role":"business","business":{"id":41,"userId":44,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:47.111Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:48 - 
+Testing authenticated endpoints for realestate
+2024-12-23 21:50:48 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:50:48 - Response: {"id":44,"username":"testrealestate2090777444","password":"679df5dc1eaf6dae185289eb5ead2b61ab556bf217baa8ed77a77c16a92e1bc81ab9b67f19402660343b89dbe3b32040ad1dc7318c6f3553800f3424b43877ba.658a7d7e4bd7a0205c68bfbc44123d6c","email":"test1977893838@example.com","role":"business","createdAt":"2024-12-23T10:50:47.045Z","business":{"id":41,"userId":44,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:47.111Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:50:49 - ✅ GET /api/businesses/41 - Status: 200 (Expected: 200)
+2024-12-23 21:50:49 - Response: {"id":41,"userId":44,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:47.111Z","updatedAt":null}
+2024-12-23 21:50:49 - ✅ GET /api/businesses/41/properties - Status: 200 (Expected: 200)
+2024-12-23 21:50:49 - Response: []
+2024-12-23 21:50:50 - ✅ PUT /api/businesses/41 - Status: 200 (Expected: 200)
+2024-12-23 21:50:50 - Response: {"id":41,"userId":44,"name":"Test Real Estate Updated","description":"Updated description for realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:47.111Z","updatedAt":"2024-12-23T10:50:49.546Z"}
+2024-12-23 21:50:50 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:50:50 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:50:50 - 
+Testing registration for retail
+2024-12-23 21:50:51 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:50:51 - Response: {"ok":true,"message":"Registration successful","user":{"id":45,"username":"testretail1044072159","role":"business","business":{"id":42,"userId":45,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:50.525Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:51 - 
+Testing login for retail
+2024-12-23 21:50:51 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:50:51 - Response: {"ok":true,"message":"Login successful","user":{"id":45,"username":"testretail1044072159","role":"business","business":{"id":42,"userId":45,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:50.525Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:51 - 
+Testing authenticated endpoints for retail
+2024-12-23 21:50:52 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:50:52 - Response: {"id":45,"username":"testretail1044072159","password":"7d253002414c2a3dd698da9cbf6e5d14694ec94155d859a404d974a07b9e0dac27b06b1e2e4b6675f06892c718cfceb577c3a2b33bd731e4511bdcc77e0d4bc5.217e3d6bbe1c9552adc79eba01c5ffca","email":"test348562173@example.com","role":"business","createdAt":"2024-12-23T10:50:50.458Z","business":{"id":42,"userId":45,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:50.525Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:50:52 - ✅ GET /api/businesses/42 - Status: 200 (Expected: 200)
+2024-12-23 21:50:52 - Response: {"id":42,"userId":45,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:50.525Z","updatedAt":null}
+2024-12-23 21:50:52 - ✅ GET /api/businesses/42/products - Status: 200 (Expected: 200)
+2024-12-23 21:50:52 - Response: []
+2024-12-23 21:50:53 - ✅ PUT /api/businesses/42 - Status: 200 (Expected: 200)
+2024-12-23 21:50:53 - Response: {"id":42,"userId":45,"name":"Test Retail Store Updated","description":"Updated description for retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:50.525Z","updatedAt":"2024-12-23T10:50:52.963Z"}
+2024-12-23 21:50:53 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:50:53 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:50:53 - 
+Testing registration for professional
+2024-12-23 21:50:54 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:50:54 - Response: {"ok":true,"message":"Registration successful","user":{"id":46,"username":"testprofessional1288073697","role":"business","business":{"id":43,"userId":46,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:53.953Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:54 - 
+Testing login for professional
+2024-12-23 21:50:55 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:50:55 - Response: {"ok":true,"message":"Login successful","user":{"id":46,"username":"testprofessional1288073697","role":"business","business":{"id":43,"userId":46,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:53.953Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:50:55 - 
+Testing authenticated endpoints for professional
+2024-12-23 21:50:55 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:50:55 - Response: {"id":46,"username":"testprofessional1288073697","password":"e11da811730baa445733e91d4ff26350b67ede25b23c7b4dd0611cdf295d4208705d72d23753e67f873b59b72f453b450f05360c0206de93e14b629ce7eb0ea7.af48ce8db244f7d05e4c88d92d5dc725","email":"test2133324778@example.com","role":"business","createdAt":"2024-12-23T10:50:53.887Z","business":{"id":43,"userId":46,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:53.953Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:50:55 - ✅ GET /api/businesses/43 - Status: 200 (Expected: 200)
+2024-12-23 21:50:55 - Response: {"id":43,"userId":46,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:53.953Z","updatedAt":null}
+2024-12-23 21:50:56 - ✅ GET /api/businesses/43/services - Status: 200 (Expected: 200)
+2024-12-23 21:50:56 - Response: []
+2024-12-23 21:50:57 - ✅ PUT /api/businesses/43 - Status: 200 (Expected: 200)
+2024-12-23 21:50:57 - Response: {"id":43,"userId":46,"name":"Test Professional Services Updated","description":"Updated description for professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:50:53.953Z","updatedAt":"2024-12-23T10:50:56.398Z"}
+2024-12-23 21:50:57 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:50:57 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:50:57 - 
+✨ API Tests Completed
+2024-12-23 21:50:57 - Results saved to: C:\Users\admin\api-test-results.log
+2024-12-23 21:50:57 - 
+📌 How to use this script:
+2024-12-23 21:50:57 - 1. Update the $baseUrl variable if testing a different deployment
+2024-12-23 21:50:57 - 2. Run the script in PowerShell: .\test-api.ps1
+2024-12-23 21:50:57 - 3. Check the log file for detailed results and any errors
+2024-12-23 21:50:57 - 4. Look for ❌ symbols to quickly identify failed tests

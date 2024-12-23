@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,15 +36,30 @@ const authSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email address").optional(),
   role: z.enum(["business", "customer"]).optional(),
+  business: z.object({
+    name: z.string().min(2, "Business name must be at least 2 characters"),
+    industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
+    description: z.string().optional(),
+  }).optional(),
 });
 
 type AuthFormData = z.infer<typeof authSchema>;
+
+const INDUSTRY_TYPES = [
+  { value: "salon", label: "Salon & Spa" },
+  { value: "restaurant", label: "Restaurant & Cafés" },
+  { value: "event", label: "Event Management" },
+  { value: "realestate", label: "Real Estate" },
+  { value: "retail", label: "Retail Stores" },
+  { value: "professional", label: "Professional Services" },
+];
 
 export default function AuthPage() {
   const [, navigate] = useLocation();
   const { login, register } = useUser();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [showBusinessFields, setShowBusinessFields] = useState(false);
 
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
@@ -55,6 +70,12 @@ export default function AuthPage() {
       role: "customer",
     },
   });
+
+  // Watch for role changes to show/hide business fields
+  const role = form.watch("role");
+  useEffect(() => {
+    setShowBusinessFields(role === "business");
+  }, [role]);
 
   const onSubmit = async (data: AuthFormData, isLogin: boolean) => {
     setIsLoading(true);
@@ -69,11 +90,16 @@ export default function AuthPage() {
 
       toast({
         title: isLogin ? "Login successful" : "Registration successful",
-        description: "Welcome to Desibazar!",
+        description: "Welcome to DesiBazaar!",
       });
 
+      // Redirect based on role and registration status
       if (result.user?.role === "business") {
-        navigate("/dashboard");
+        if (!isLogin && result.user.needsOnboarding) {
+          navigate(`/onboarding/${result.user.id}`);
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         navigate("/");
       }
@@ -89,10 +115,10 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4 py-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-primary">Welcome to Desibazar</CardTitle>
+          <CardTitle className="text-2xl text-primary">Welcome to DesiBazaar</CardTitle>
           <CardDescription>
             Login or create an account to continue
           </CardDescription>
@@ -207,6 +233,52 @@ export default function AuthPage() {
                         </FormItem>
                       )}
                     />
+
+                    {showBusinessFields && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="business.name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Business Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="business.industryType"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Business Type</FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select your industry" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {INDUSTRY_TYPES.map((type) => (
+                                    <SelectItem key={type.value} value={type.value}>
+                                      {type.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+
                     <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? "Creating account..." : "Create Account"}
                     </Button>

@@ -30,6 +30,7 @@ type UserResponse = {
 type RequestResult = {
   ok: true;
   user?: UserResponse;
+  message?: string;
 } | {
   ok: false;
   message: string;
@@ -66,7 +67,7 @@ async function handleRequest(
     }
 
     const data = await response.json();
-    return { ok: true, user: data.user };
+    return { ok: true, user: data.user, message: data.message };
   } catch (e: any) {
     return { ok: false, message: e.toString() };
   }

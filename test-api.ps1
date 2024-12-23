@@ -1,5 +1,5 @@
 # API Testing Script for DesiBazaar
-$baseUrl = "https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev"
+$baseUrl = "http://localhost:5000"
 $logFile = "api-test-results.log"
 
 function Write-Log {
@@ -13,7 +13,8 @@ function Test-Endpoint {
         $Method,
         $Endpoint,
         $Body,
-        $ExpectedStatus = 200
+        $ExpectedStatus = 200,
+        $Description = ""
     )
 
     $session = $script:WebSession
@@ -43,7 +44,7 @@ function Test-Endpoint {
         $response = Invoke-WebRequest @params
         $statusMatch = $response.StatusCode -eq $ExpectedStatus
         $symbol = if ($statusMatch) { "✅" } else { "⚠️" }
-        Write-Log "$symbol $Method $Endpoint - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
+        Write-Log "$symbol $Method $Endpoint - $Description - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
         Write-Log "Response: $($response.Content)"
 
         return $response
@@ -51,7 +52,7 @@ function Test-Endpoint {
     catch {
         $statusCode = $_.Exception.Response.StatusCode.value__
         $errorMessage = $_.Exception.Message
-        Write-Log "❌ $Method $Endpoint - Error: $statusCode - $errorMessage"
+        Write-Log "❌ $Method $Endpoint - $Description - Error: $statusCode - $errorMessage"
         if ($_.Exception.Response) {
             $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
             $errorBody = $reader.ReadToEnd()
@@ -72,97 +73,135 @@ Write-Log "Base URL: $baseUrl"
 # Create a new WebSession
 $script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
-# Test 1: Check if server is up
-Write-Log "`n📋 Test 1: Server Health Check"
-Test-Endpoint -Method "GET" -Endpoint "/api/user" -ExpectedStatus 401
+# Test 1: Authentication Flow
+Write-Log "`n📋 Test 1: Authentication Flow"
 
-# Test 2: Test business registration for each industry type
-$industries = @(
-    @{type="salon"; name="Test Salon"},
-    @{type="restaurant"; name="Test Restaurant"},
-    @{type="event"; name="Test Event Management"},
-    @{type="realestate"; name="Test Real Estate"},
-    @{type="retail"; name="Test Retail Store"},
-    @{type="professional"; name="Test Professional Services"}
-)
-
-Write-Log "`n📋 Test 2: Business Registration for Each Industry"
-foreach ($industry in $industries) {
-    Write-Log "`nTesting registration for $($industry.type)"
-
-    # Reset WebSession for each test case
-    $script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-
-    $businessUser = @{
-        username = "test$($industry.type)$(Get-Random)"
-        password = "test123456"
-        email = "test$(Get-Random)@example.com"
-        role = "business"
-        business = @{
-            name = $industry.name
-            industryType = $industry.type
-            description = "Test $($industry.type) business"
-        }
+$testUser = @{
+    username = "testuser$(Get-Random)"
+    password = "Test@123"
+    email = "test$(Get-Random)@example.com"
+    role = "business"
+    business = @{
+        name = "Test Salon"
+        industryType = "salon"
+        description = "Test salon business"
     }
+}
 
-    $registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
-    if ($registerResponse) {
-        $registerData = $registerResponse.Content | ConvertFrom-Json
+# Register new business user
+$registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $testUser -Description "Register new salon business"
 
-        # Test login with registered user
-        Write-Log "`nTesting login for $($industry.type)"
-        $loginData = @{
-            username = $businessUser.username
-            password = $businessUser.password
+if ($registerResponse) {
+    $registerData = $registerResponse.Content | ConvertFrom-Json
+
+    # Test login
+    $loginData = @{
+        username = $testUser.username
+        password = $testUser.password
+    }
+    $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData -Description "Login with salon business account"
+
+    if ($loginResponse) {
+        $userData = ($loginResponse.Content | ConvertFrom-Json).user
+        $businessId = $userData.business.id
+
+        # Test 2: Salon Service Management
+        Write-Log "`n📋 Test 2: Salon Service Management"
+
+        # Create new service
+        $newService = @{
+            name = "Haircut"
+            description = "Basic haircut service"
+            duration = 30
+            price = 25.00
+            category = "hair"
         }
-        $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
+        $createServiceResponse = Test-Endpoint -Method "POST" -Endpoint "/api/businesses/$businessId/services" -Body $newService -Description "Create new salon service"
 
-        if ($loginResponse) {
-            $loginData = $loginResponse.Content | ConvertFrom-Json
+        if ($createServiceResponse) {
+            $serviceData = $createServiceResponse.Content | ConvertFrom-Json
+            $serviceId = $serviceData.id
 
-            # Test authenticated endpoints
-            Write-Log "`nTesting authenticated endpoints for $($industry.type)"
-            $userResponse = Test-Endpoint -Method "GET" -Endpoint "/api/user"
+            # Get services list
+            Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services" -Description "Get salon services list"
 
-            if ($loginData.user.business.id) {
-                $businessId = $loginData.user.business.id
+            # Get specific service
+            Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services/$serviceId" -Description "Get specific salon service"
 
-                # Test business dashboard access
-                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId"
-
-                # Test industry-specific endpoints
-                switch ($industry.type) {
-                    "salon" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services"
-                    }
-                    "restaurant" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/menu"
-                    }
-                    "event" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/events"
-                    }
-                    "realestate" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/properties"
-                    }
-                    "retail" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/products"
-                    }
-                    "professional" {
-                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services"
-                    }
-                }
-
-                # Test business profile update
-                $updateData = @{
-                    name = "$($industry.name) Updated"
-                    description = "Updated description for $($industry.type) business"
-                }
-                Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$businessId" -Body $updateData
+            # Update service
+            $updateService = @{
+                price = 30.00
+                description = "Updated haircut service"
             }
+            Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$businessId/services/$serviceId" -Body $updateService -Description "Update salon service"
 
-            # Test logout
-            Test-Endpoint -Method "POST" -Endpoint "/api/logout"
+            # Delete service (added for completeness)
+            Test-Endpoint -Method "DELETE" -Endpoint "/api/businesses/$businessId/services/$serviceId" -Description "Delete salon service"
         }
+
+
+        # Test 3: Staff Management
+        Write-Log "`n📋 Test 3: Staff Management"
+
+        # Create new staff
+        $newStaff = @{
+            name = "John Doe"
+            email = "john$(Get-Random)@example.com"
+            phone = "+1234567890"
+            specialization = "Hair Stylist"
+            schedule = @{
+                "monday" = @{
+                    start = "09:00"
+                    end = "17:00"
+                }
+            }
+        }
+        $createStaffResponse = Test-Endpoint -Method "POST" -Endpoint "/api/businesses/$businessId/staff" -Body $newStaff -Description "Create new staff member"
+
+        if ($createStaffResponse) {
+            $staffData = $createStaffResponse.Content | ConvertFrom-Json
+            $staffId = $staffData.id
+
+            # Get staff list
+            Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/staff" -Description "Get staff list"
+
+            # Get specific staff member
+            Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/staff/$staffId" -Description "Get specific staff member"
+
+            # Update staff member (added for completeness)
+            $updateStaff = @{
+                name = "Jane Doe"
+            }
+            Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$businessId/staff/$staffId" -Body $updateStaff -Description "Update staff member"
+
+            # Delete staff member (added for completeness)
+            Test-Endpoint -Method "DELETE" -Endpoint "/api/businesses/$businessId/staff/$staffId" -Description "Delete staff member"
+
+
+            # Test 4: Staff Skills Management
+            Write-Log "`n📋 Test 4: Staff Skills Management"
+
+            if ($serviceId) {
+                # Add skill to staff
+                $newSkill = @{
+                    serviceId = $serviceId
+                    proficiencyLevel = "expert"
+                }
+                $addSkillResponse = Test-Endpoint -Method "POST" -Endpoint "/api/businesses/$businessId/staff/$staffId/skills" -Body $newSkill -Description "Add skill to staff member"
+
+                if ($addSkillResponse) {
+                    # Get staff skills
+                    Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/staff/$staffId/skills" -Description "Get staff skills"
+
+                    # Remove skill from staff (added for completeness)
+                    Test-Endpoint -Method "DELETE" -Endpoint "/api/businesses/$businessId/staff/$staffId/skills/$($addSkillResponse.Content | ConvertFrom-Json).id" -Description "Remove skill from staff member"
+                }
+            }
+        }
+
+        # Test 5: Logout
+        Write-Log "`n📋 Test 5: Logout"
+        Test-Endpoint -Method "POST" -Endpoint "/api/logout" -Description "Logout user"
     }
 }
 

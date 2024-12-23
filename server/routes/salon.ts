@@ -1,23 +1,21 @@
 import { Router } from "express";
 import { db } from "@db";
 import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
 // Service Management
 router.get("/businesses/:businessId/services", async (req, res) => {
   try {
-    const services = await db.query.salonServices.findMany({
-      where: eq(salonServices.businessId, parseInt(req.params.businessId)),
-      with: {
-        skills: {
-          with: {
-            staff: true
-          }
-        }
-      }
-    });
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const services = await db.select()
+      .from(salonServices)
+      .where(eq(salonServices.businessId, parseInt(req.params.businessId)));
+
     res.json(services);
   } catch (error: any) {
     console.error('Error fetching salon services:', error);
@@ -30,6 +28,10 @@ router.get("/businesses/:businessId/services", async (req, res) => {
 
 router.post("/businesses/:businessId/services", async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const result = insertSalonServiceSchema.safeParse({
       ...req.body,
       businessId: parseInt(req.params.businessId)
@@ -42,11 +44,11 @@ router.post("/businesses/:businessId/services", async (req, res) => {
       });
     }
 
-    const service = await db.insert(salonServices)
+    const [service] = await db.insert(salonServices)
       .values(result.data)
       .returning();
 
-    res.status(201).json(service[0]);
+    res.status(201).json(service);
   } catch (error: any) {
     console.error('Error creating salon service:', error);
     res.status(500).json({
@@ -58,9 +60,16 @@ router.post("/businesses/:businessId/services", async (req, res) => {
 
 router.get("/businesses/:businessId/services/:serviceId", async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const [service] = await db.select()
       .from(salonServices)
-      .where(eq(salonServices.id, parseInt(req.params.serviceId)))
+      .where(and(
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
+      ))
       .limit(1);
 
     if (!service) {
@@ -79,6 +88,10 @@ router.get("/businesses/:businessId/services/:serviceId", async (req, res) => {
 
 router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const result = insertSalonServiceSchema.partial().safeParse({
       ...req.body,
       businessId: parseInt(req.params.businessId)
@@ -93,7 +106,10 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
 
     const [service] = await db.update(salonServices)
       .set(result.data)
-      .where(eq(salonServices.id, parseInt(req.params.serviceId)))
+      .where(and(
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
+      ))
       .returning();
 
     if (!service) {
@@ -113,17 +129,26 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
 // Staff Management
 router.get("/businesses/:businessId/staff", async (req, res) => {
   try {
-    const staff = await db.query.salonStaff.findMany({
-      where: eq(salonStaff.businessId, parseInt(req.params.businessId)),
-      with: {
-        skills: {
-          with: {
-            service: true
-          }
-        }
-      }
-    });
-    res.json(staff);
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const staff = await db.select()
+      .from(salonStaff)
+      .where(eq(salonStaff.businessId, parseInt(req.params.businessId)));
+
+    const staffWithSkills = await Promise.all(staff.map(async (staffMember) => {
+      const skills = await db.select()
+        .from(staffSkills)
+        .where(eq(staffSkills.staffId, staffMember.id));
+
+      return {
+        ...staffMember,
+        skills,
+      };
+    }));
+
+    res.json(staffWithSkills);
   } catch (error: any) {
     console.error('Error fetching salon staff:', error);
     res.status(500).json({
@@ -135,6 +160,10 @@ router.get("/businesses/:businessId/staff", async (req, res) => {
 
 router.post("/businesses/:businessId/staff", async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const result = insertSalonStaffSchema.safeParse({
       ...req.body,
       businessId: parseInt(req.params.businessId)
@@ -147,11 +176,11 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
       });
     }
 
-    const staff = await db.insert(salonStaff)
+    const [staff] = await db.insert(salonStaff)
       .values(result.data)
       .returning();
 
-    res.status(201).json(staff[0]);
+    res.status(201).json(staff);
   } catch (error: any) {
     console.error('Error creating salon staff:', error);
     res.status(500).json({
@@ -164,6 +193,23 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
 // Staff Skills Management
 router.post("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Verify staff belongs to the business
+    const [staff] = await db.select()
+      .from(salonStaff)
+      .where(and(
+        eq(salonStaff.id, parseInt(req.params.staffId)),
+        eq(salonStaff.businessId, parseInt(req.params.businessId))
+      ))
+      .limit(1);
+
+    if (!staff) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+
     const result = insertStaffSkillSchema.safeParse({
       ...req.body,
       staffId: parseInt(req.params.staffId)
@@ -176,11 +222,11 @@ router.post("/businesses/:businessId/staff/:staffId/skills", async (req, res) =>
       });
     }
 
-    const skill = await db.insert(staffSkills)
+    const [skill] = await db.insert(staffSkills)
       .values(result.data)
       .returning();
 
-    res.status(201).json(skill[0]);
+    res.status(201).json(skill);
   } catch (error: any) {
     console.error('Error adding staff skill:', error);
     res.status(500).json({

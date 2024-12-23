@@ -212,14 +212,15 @@ export function registerRoutes(app: Express): Server {
         .set({
           name: req.body.name,
           description: req.body.description,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         })
         .where(eq(businesses.id, businessId))
         .returning();
 
       res.json(updatedBusiness);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update business" });
+      console.error('Error updating business:', error);
+      res.status(500).json({ error: "Failed to update business", details: error.message });
     }
   });
 

@@ -1,0 +1,137 @@
+2024-12-23 21:48:14 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:48:14 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:48:14 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:48:14 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:48:14 - Error Details: 
+2024-12-23 21:48:14 - 
+📋 Test 2: Business Registration for Each Industry
+2024-12-23 21:48:14 - 
+Testing registration for salon
+2024-12-23 21:48:15 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:48:15 - Response: {"ok":true,"message":"Registration successful","user":{"id":35,"username":"testsalon48686841","role":"business","business":{"id":32,"userId":35,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:15.075Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:15 - 
+Testing login for salon
+2024-12-23 21:48:16 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:48:16 - Response: {"ok":true,"message":"Login successful","user":{"id":35,"username":"testsalon48686841","role":"business","business":{"id":32,"userId":35,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:15.075Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:16 - 
+Testing authenticated endpoints for salon
+2024-12-23 21:48:16 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:48:16 - Response: {"id":35,"username":"testsalon48686841","password":"ef048126dc07199c0d1772c387d298ff908d921bd5015072e29ca68e469bc1856de249371e8bf773ce08303667915514a0759be4e83ccfda19f18cc031c5d7ce.e822a19e3919538a41ac3e26fd3f97c5","email":"test1256478252@example.com","role":"business","createdAt":"2024-12-23T10:48:15.007Z","business":{"id":32,"userId":35,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:15.075Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:48:16 - ✅ GET /api/businesses/32 - Status: 200 (Expected: 200)
+2024-12-23 21:48:16 - Response: {"id":32,"userId":35,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:15.075Z","updatedAt":null}
+2024-12-23 21:48:17 - ✅ GET /api/businesses/32/services - Status: 200 (Expected: 200)
+2024-12-23 21:48:17 - Response: []
+2024-12-23 21:48:18 - ❌ PUT /api/businesses/32 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:18 - Error Details: 
+2024-12-23 21:48:18 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:18 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:48:18 - 
+Testing registration for restaurant
+2024-12-23 21:48:18 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:48:18 - Response: {"ok":true,"message":"Registration successful","user":{"id":36,"username":"testrestaurant940509536","role":"business","business":{"id":33,"userId":36,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:18.297Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:18 - 
+Testing login for restaurant
+2024-12-23 21:48:19 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:48:19 - Response: {"ok":true,"message":"Login successful","user":{"id":36,"username":"testrestaurant940509536","role":"business","business":{"id":33,"userId":36,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:18.297Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:19 - 
+Testing authenticated endpoints for restaurant
+2024-12-23 21:48:19 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:48:19 - Response: {"id":36,"username":"testrestaurant940509536","password":"58fdcfc88d097477829188d744ee4943a76c1dfc39339537b0c95eeac680744fce2403aedfc77af45da5f2295f8383156f8111353b796f3d02fecd5b894d4ba6.900d1a771ff3d609ed1c3ce20b2d786f","email":"test320137998@example.com","role":"business","createdAt":"2024-12-23T10:48:18.230Z","business":{"id":33,"userId":36,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:18.297Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:48:20 - ✅ GET /api/businesses/33 - Status: 200 (Expected: 200)
+2024-12-23 21:48:20 - Response: {"id":33,"userId":36,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:18.297Z","updatedAt":null}
+2024-12-23 21:48:20 - ✅ GET /api/businesses/33/menu - Status: 200 (Expected: 200)
+2024-12-23 21:48:20 - Response: []
+2024-12-23 21:48:21 - ❌ PUT /api/businesses/33 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:21 - Error Details: 
+2024-12-23 21:48:21 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:21 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:48:21 - 
+Testing registration for event
+2024-12-23 21:48:21 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:48:21 - Response: {"ok":true,"message":"Registration successful","user":{"id":37,"username":"testevent788987812","role":"business","business":{"id":34,"userId":37,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:21.365Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:21 - 
+Testing login for event
+2024-12-23 21:48:22 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:48:22 - Response: {"ok":true,"message":"Login successful","user":{"id":37,"username":"testevent788987812","role":"business","business":{"id":34,"userId":37,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:21.365Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:22 - 
+Testing authenticated endpoints for event
+2024-12-23 21:48:22 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:48:22 - Response: {"id":37,"username":"testevent788987812","password":"9e1e5b3057f4ce508bc52e8c98d5f9f2f41c61f7cff86b7c5e0f93bc9c4ce685167c42a70bddd2fbc3fc73ce80b1b7e2f1bd4fb672ef6f609ca9edc2078da0c7.e491ea10fcdc3daa995cded761996c41","email":"test450531855@example.com","role":"business","createdAt":"2024-12-23T10:48:21.298Z","business":{"id":34,"userId":37,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:21.365Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:48:23 - ✅ GET /api/businesses/34 - Status: 200 (Expected: 200)
+2024-12-23 21:48:23 - Response: {"id":34,"userId":37,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:21.365Z","updatedAt":null}
+2024-12-23 21:48:23 - ✅ GET /api/businesses/34/events - Status: 200 (Expected: 200)
+2024-12-23 21:48:23 - Response: []
+2024-12-23 21:48:24 - ❌ PUT /api/businesses/34 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:24 - Error Details: 
+2024-12-23 21:48:24 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:24 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:48:24 - 
+Testing registration for realestate
+2024-12-23 21:48:25 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:48:25 - Response: {"ok":true,"message":"Registration successful","user":{"id":38,"username":"testrealestate103010445","role":"business","business":{"id":35,"userId":38,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:24.437Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:25 - 
+Testing login for realestate
+2024-12-23 21:48:25 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:48:25 - Response: {"ok":true,"message":"Login successful","user":{"id":38,"username":"testrealestate103010445","role":"business","business":{"id":35,"userId":38,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:24.437Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:25 - 
+Testing authenticated endpoints for realestate
+2024-12-23 21:48:25 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:48:25 - Response: {"id":38,"username":"testrealestate103010445","password":"a786bbfb95584d9c63391ddacd21e8f606cb8158e34c91a9405bb906a2df3003dba297d9a4697b45b6e8e73ae558bb7bb0d17aaf3469506d5bc4711f593adca6.7f05d2e5df8a73335cefbff1be14ee7d","email":"test1788565516@example.com","role":"business","createdAt":"2024-12-23T10:48:24.371Z","business":{"id":35,"userId":38,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:24.437Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:48:26 - ✅ GET /api/businesses/35 - Status: 200 (Expected: 200)
+2024-12-23 21:48:26 - Response: {"id":35,"userId":38,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:24.437Z","updatedAt":null}
+2024-12-23 21:48:26 - ✅ GET /api/businesses/35/properties - Status: 200 (Expected: 200)
+2024-12-23 21:48:26 - Response: []
+2024-12-23 21:48:27 - ❌ PUT /api/businesses/35 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:27 - Error Details: 
+2024-12-23 21:48:27 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:27 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:48:27 - 
+Testing registration for retail
+2024-12-23 21:48:28 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:48:28 - Response: {"ok":true,"message":"Registration successful","user":{"id":39,"username":"testretail538244963","role":"business","business":{"id":36,"userId":39,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:27.500Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:28 - 
+Testing login for retail
+2024-12-23 21:48:28 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:48:28 - Response: {"ok":true,"message":"Login successful","user":{"id":39,"username":"testretail538244963","role":"business","business":{"id":36,"userId":39,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:27.500Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:28 - 
+Testing authenticated endpoints for retail
+2024-12-23 21:48:28 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:48:28 - Response: {"id":39,"username":"testretail538244963","password":"4ea7a3fc7b9699f946144be5c660c7c3e2787c5603cae44eac91b4c2c508dd770582e3f136ab975dab8cf7fe6729b0d8d21169a478c542b016a31465c97091ee.cab2bdf3d4230eea00ce208282e9db14","email":"test1406400090@example.com","role":"business","createdAt":"2024-12-23T10:48:27.432Z","business":{"id":36,"userId":39,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:27.500Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:48:29 - ✅ GET /api/businesses/36 - Status: 200 (Expected: 200)
+2024-12-23 21:48:29 - Response: {"id":36,"userId":39,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:27.500Z","updatedAt":null}
+2024-12-23 21:48:29 - ✅ GET /api/businesses/36/products - Status: 200 (Expected: 200)
+2024-12-23 21:48:29 - Response: []
+2024-12-23 21:48:30 - ❌ PUT /api/businesses/36 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:30 - Error Details: 
+2024-12-23 21:48:30 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:30 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:48:30 - 
+Testing registration for professional
+2024-12-23 21:48:31 - ✅ POST /api/register - Status: 200 (Expected: 200)
+2024-12-23 21:48:31 - Response: {"ok":true,"message":"Registration successful","user":{"id":40,"username":"testprofessional1120988994","role":"business","business":{"id":37,"userId":40,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:30.567Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:31 - 
+Testing login for professional
+2024-12-23 21:48:31 - ✅ POST /api/login - Status: 200 (Expected: 200)
+2024-12-23 21:48:31 - Response: {"ok":true,"message":"Login successful","user":{"id":40,"username":"testprofessional1120988994","role":"business","business":{"id":37,"userId":40,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:30.567Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:48:31 - 
+Testing authenticated endpoints for professional
+2024-12-23 21:48:32 - ✅ GET /api/user - Status: 200 (Expected: 200)
+2024-12-23 21:48:32 - Response: {"id":40,"username":"testprofessional1120988994","password":"6669d80879825438b83eb75c3371dcf46a5936947ce01dbf819711315ee197fdefdf39982067daa33c7a30ee664af2133d556a29ea551faf6b903fd3a1c0cbc3.821c4fd1bf0e6131927a312c7d28d6a4","email":"test1824922094@example.com","role":"business","createdAt":"2024-12-23T10:48:30.500Z","business":{"id":37,"userId":40,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:30.567Z","updatedAt":null},"needsOnboarding":true}
+2024-12-23 21:48:32 - ✅ GET /api/businesses/37 - Status: 200 (Expected: 200)
+2024-12-23 21:48:32 - Response: {"id":37,"userId":40,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:30.567Z","updatedAt":null}
+2024-12-23 21:48:32 - ✅ GET /api/businesses/37/services - Status: 200 (Expected: 200)
+2024-12-23 21:48:32 - Response: []
+2024-12-23 21:48:33 - ❌ PUT /api/businesses/37 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:33 - Error Details: 
+2024-12-23 21:48:33 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:33 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:48:33 - 
+✨ API Tests Completed
+2024-12-23 21:48:33 - Results saved to: C:\Users\admin\api-test-results.log
+2024-12-23 21:48:33 - 
+📌 How to use this script:
+2024-12-23 21:48:33 - 1. Update the $baseUrl variable if testing a different deployment
+2024-12-23 21:48:33 - 2. Run the script in PowerShell: .\test-api.ps1
+2024-12-23 21:48:33 - 3. Check the log file for detailed results and any errors
+2024-12-23 21:48:33 - 4. Look for ❌ symbols to quickly identify failed tests

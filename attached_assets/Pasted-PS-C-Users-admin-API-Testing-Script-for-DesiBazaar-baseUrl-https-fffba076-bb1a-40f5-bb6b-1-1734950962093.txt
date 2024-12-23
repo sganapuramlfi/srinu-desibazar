@@ -1,0 +1,616 @@
+PS C:\Users\admin> # API Testing Script for DesiBazaar
+$baseUrl = "https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev"
+$logFile = "api-test-results.log"
+
+function Write-Log {
+    param($Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$timestamp - $Message" | Tee-Object -FilePath $logFile -Append
+}
+
+function Test-Endpoint {
+    param(
+        $Method,
+        $Endpoint,
+        $Body,
+        $ExpectedStatus = 200
+    )
+
+    $session = $script:WebSession
+    if (-not $session) {
+        $script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+        $session = $script:WebSession
+    }
+
+    $headers = @{
+        "Content-Type" = "application/json"
+        "Accept" = "application/json"
+    }
+
+    $params = @{
+        Method = $Method
+        Uri = "$baseUrl$Endpoint"
+        Headers = $headers
+        UseBasicParsing = $true
+        WebSession = $session
+    }
+
+    if ($Body) {
+        $params["Body"] = ($Body | ConvertTo-Json)
+    }
+
+    try {
+        $response = Invoke-WebRequest @params
+        $statusMatch = $response.StatusCode -eq $ExpectedStatus
+        $symbol = if ($statusMatch) { "✅" } else { "⚠️" }
+        Write-Log "$symbol $Method $Endpoint - Status: $($response.StatusCode) (Expected: $ExpectedStatus)"
+        Write-Log "Response: $($response.Content)"
+
+        return $response
+    }
+    catch {
+        $statusCode = $_.Exception.Response.StatusCode.value__
+        $errorMessage = $_.Exception.Message
+        Write-Log "❌ $Method $Endpoint - Error: $statusCode - $errorMessage"
+        if ($_.Exception.Response) {
+            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $errorBody = $reader.ReadToEnd()
+            Write-Log "Error Details: $errorBody"
+        }
+        return $null
+    }
+}
+
+# Clear previous log file
+if (Test-Path $logFile) {
+    Remove-Item $logFile
+}
+
+Write-Log "🔍 Starting API Tests for DesiBazaar"
+Write-Log "Base URL: $baseUrl"
+
+# Create a new WebSession
+$script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+# Test 1: Check if server is up
+Write-Log "`n📋 Test 1: Server Health Check"
+Test-Endpoint -Method "GET" -Endpoint "/api/user" -ExpectedStatus 401
+
+# Test 2: Test business registration for each industry type
+$industries = @(
+    @{type="salon"; name="Test Salon"},
+    @{type="restaurant"; name="Test Restaurant"},
+    @{type="event"; name="Test Event Management"},
+    @{type="realestate"; name="Test Real Estate"},
+    @{type="retail"; name="Test Retail Store"},
+    @{type="professional"; name="Test Professional Services"}
+)
+
+Write-Log "`n📋 Test 2: Business Registration for Each Industry"
+foreach ($industry in $industries) {
+    Write-Log "`nTesting registration for $($industry.type)"
+
+    # Reset WebSession for each test case
+    $script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+    $businessUser = @{
+        username = "test$($industry.type)$(Get-Random)"
+        password = "test123456"
+        email = "test$(Get-Random)@example.com"
+        role = "business"
+        business = @{
+            name = $industry.name
+            industryType = $industry.type
+            description = "Test $($industry.type) business"
+        }
+    }
+
+    $registerResponse = Test-Endpoint -Method "POST" -Endpoint "/api/register" -Body $businessUser
+    if ($registerResponse) {
+        $registerData = $registerResponse.Content | ConvertFrom-Json
+
+        # Test login with registered user
+        Write-Log "`nTesting login for $($industry.type)"
+        $loginData = @{
+            username = $businessUser.username
+            password = $businessUser.password
+        }
+        $loginResponse = Test-Endpoint -Method "POST" -Endpoint "/api/login" -Body $loginData
+
+        if ($loginResponse) {
+            $loginData = $loginResponse.Content | ConvertFrom-Json
+
+            # Test authenticated endpoints
+            Write-Log "`nTesting authenticated endpoints for $($industry.type)"
+            $userResponse = Test-Endpoint -Method "GET" -Endpoint "/api/user"
+
+            if ($loginData.user.business.id) {
+                $businessId = $loginData.user.business.id
+
+                # Test business dashboard access
+                Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId"
+
+                # Test industry-specific endpoints
+                switch ($industry.type) {
+                    "salon" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services"
+                    }
+                    "restaurant" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/menu"
+                    }
+                    "event" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/events"
+                    }
+                    "realestate" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/properties"
+                    }
+                    "retail" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/products"
+                    }
+                    "professional" {
+                        Test-Endpoint -Method "GET" -Endpoint "/api/businesses/$businessId/services"
+                    }
+                }
+
+                # Test business profile update
+                $updateData = @{
+                    name = "$($industry.name) Updated"
+                    description = "Updated description for $($industry.type) business"
+                }
+                Test-Endpoint -Method "PUT" -Endpoint "/api/businesses/$businessId" -Body $updateData
+            }
+
+            # Test logout
+            Test-Endpoint -Method "POST" -Endpoint "/api/logout"
+        }
+    }
+}
+
+Write-Log "`n✨ API Tests Completed"
+Write-Log "Results saved to: $((Get-Item $logFile).FullName)"
+
+# Display instructions
+Write-Log "`n📌 How to use this script:"
+Write-Log "1. Update the `$baseUrl variable if testing a different deployment"
+Write-Log "2. Run the script in PowerShell: .\test-api.ps1"
+Write-Log "3. Check the log file for detailed results and any errors"
+Write-Log "4. Look for ❌ symbols to quickly identify failed tests"
+2024-12-23 21:48:14 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:48:14 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:48:14 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:48:14 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:48:14 - Error Details: 
+2024-12-23 21:48:14 - 
+📋 Test 2: Business Registration for Each Industry
+2024-12-23 21:48:14 - 
+Testing registration for salon
+2024-12-23 21:48:15 - 
+Testing login for salon
+2024-12-23 21:48:16 - 
+Testing authenticated endpoints for salon
+2024-12-23 21:48:16 - ✅ GET /api/businesses/32 - Status: 200 (Expected: 200)
+2024-12-23 21:48:16 - Response: {"id":32,"userId":35,"name":"Test Salon","description":"Test salon business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,
+"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:15.075Z","updatedAt":null}
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":32,"userId":35,"name":"Test Salon","description":"Test salon 
+                    business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"s...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 270
+
+2024-12-23 21:48:17 - ✅ GET /api/businesses/32/services - Status: 200 (Expected: 200)
+2024-12-23 21:48:17 - Response: []
+StatusCode        : 200
+StatusDescription : OK
+Content           : []
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 2
+
+2024-12-23 21:48:18 - ❌ PUT /api/businesses/32 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:18 - Error Details: 
+2024-12-23 21:48:18 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:18 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:48:18 - 
+Testing registration for restaurant
+2024-12-23 21:48:18 - 
+Testing login for restaurant
+2024-12-23 21:48:19 - 
+Testing authenticated endpoints for restaurant
+2024-12-23 21:48:20 - ✅ GET /api/businesses/33 - Status: 200 (Expected: 200)
+2024-12-23 21:48:20 - Response: {"id":33,"userId":36,"name":"Test Restaurant","description":"Test restaurant business","logo":null,"industryType":"restaurant","status":"pending","onboardingCo
+mpleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:18.297Z","updatedAt":null}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":33,"userId":36,"name":"Test Restaurant","description":"Test restaurant 
+                    business","logo":null,"industryType":"restaurant","status":"pending","onboardingCompleted":false,"contactInfo":null,"workin...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 285
+
+2024-12-23 21:48:20 - ✅ GET /api/businesses/33/menu - Status: 200 (Expected: 200)
+2024-12-23 21:48:20 - Response: []
+StatusCode        : 200
+StatusDescription : OK
+Content           : []
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 2
+
+2024-12-23 21:48:21 - ❌ PUT /api/businesses/33 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:21 - Error Details: 
+2024-12-23 21:48:21 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:21 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:48:21 - 
+Testing registration for event
+2024-12-23 21:48:21 - 
+Testing login for event
+2024-12-23 21:48:22 - 
+Testing authenticated endpoints for event
+2024-12-23 21:48:23 - ✅ GET /api/businesses/34 - Status: 200 (Expected: 200)
+2024-12-23 21:48:23 - Response: {"id":34,"userId":37,"name":"Test Event Management","description":"Test event business","logo":null,"industryType":"event","status":"pending","onboardingComple
+ted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:21.365Z","updatedAt":null}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":34,"userId":37,"name":"Test Event Management","description":"Test event 
+                    business","logo":null,"industryType":"event","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHou...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 281
+
+2024-12-23 21:48:23 - ✅ GET /api/businesses/34/events - Status: 200 (Expected: 200)
+2024-12-23 21:48:23 - Response: []
+StatusCode        : 200
+StatusDescription : OK
+Content           : []
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 2
+
+2024-12-23 21:48:24 - ❌ PUT /api/businesses/34 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:24 - Error Details: 
+2024-12-23 21:48:24 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:24 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:48:24 - 
+Testing registration for realestate
+2024-12-23 21:48:25 - 
+Testing login for realestate
+2024-12-23 21:48:25 - 
+Testing authenticated endpoints for realestate
+2024-12-23 21:48:26 - ✅ GET /api/businesses/35 - Status: 200 (Expected: 200)
+2024-12-23 21:48:26 - Response: {"id":35,"userId":38,"name":"Test Real Estate","description":"Test realestate business","logo":null,"industryType":"realestate","status":"pending","onboardingC
+ompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:24.437Z","updatedAt":null}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":35,"userId":38,"name":"Test Real Estate","description":"Test realestate 
+                    business","logo":null,"industryType":"realestate","status":"pending","onboardingCompleted":false,"contactInfo":null,"worki...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 286
+
+2024-12-23 21:48:26 - ✅ GET /api/businesses/35/properties - Status: 200 (Expected: 200)
+2024-12-23 21:48:26 - Response: []
+StatusCode        : 200
+StatusDescription : OK
+Content           : []
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 2
+
+2024-12-23 21:48:27 - ❌ PUT /api/businesses/35 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:27 - Error Details: 
+2024-12-23 21:48:27 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:27 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:48:27 - 
+Testing registration for retail
+2024-12-23 21:48:28 - 
+Testing login for retail
+2024-12-23 21:48:28 - 
+Testing authenticated endpoints for retail
+2024-12-23 21:48:29 - ✅ GET /api/businesses/36 - Status: 200 (Expected: 200)
+2024-12-23 21:48:29 - Response: {"id":36,"userId":39,"name":"Test Retail Store","description":"Test retail business","logo":null,"industryType":"retail","status":"pending","onboardingComplete
+d":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:27.500Z","updatedAt":null}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":36,"userId":39,"name":"Test Retail Store","description":"Test retail 
+                    business","logo":null,"industryType":"retail","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 279
+
+2024-12-23 21:48:29 - ✅ GET /api/businesses/36/products - Status: 200 (Expected: 200)
+2024-12-23 21:48:29 - Response: []
+StatusCode        : 200
+StatusDescription : OK
+Content           : []
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 2
+
+2024-12-23 21:48:30 - ❌ PUT /api/businesses/36 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:30 - Error Details: 
+2024-12-23 21:48:30 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:30 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:48:30 - 
+Testing registration for professional
+2024-12-23 21:48:31 - 
+Testing login for professional
+2024-12-23 21:48:31 - 
+Testing authenticated endpoints for professional
+2024-12-23 21:48:32 - ✅ GET /api/businesses/37 - Status: 200 (Expected: 200)
+2024-12-23 21:48:32 - Response: {"id":37,"userId":40,"name":"Test Professional Services","description":"Test professional business","logo":null,"industryType":"professional","status":"pending
+","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:48:30.567Z","updatedAt":null}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"id":37,"userId":40,"name":"Test Professional Services","description":"Test professional 
+                    business","logo":null,"industryType":"professional","status":"pending","onboardingCompleted":false,"contactInf...
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 300
+
+2024-12-23 21:48:32 - ✅ GET /api/businesses/37/services - Status: 200 (Expected: 200)
+2024-12-23 21:48:32 - Response: []
+StatusCode        : 200
+StatusDescription : OK
+Content           : []
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 2
+
+2024-12-23 21:48:33 - ❌ PUT /api/businesses/37 - Error: 500 - The remote server returned an error: (500) Internal Server Error.
+2024-12-23 21:48:33 - Error Details: 
+2024-12-23 21:48:33 - ✅ POST /api/logout - Status: 200 (Expected: 200)
+2024-12-23 21:48:33 - Response: {"ok":true,"message":"Logout successful"}
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"ok":true,"message":"Logout successful"}
+RawContent        : HTTP/1.1 200 OK
+                    Access-Control-Allow-Credentials: true
+                    Access-Control-Allow-Headers: Content-Type, Authorization
+                    Access-Control-Allow-Methods: GET,PUT,POST,DELETE
+                    Access-Control-Allow-Origin: *
+                    R...
+Forms             : 
+Headers           : {[Access-Control-Allow-Credentials, true], [Access-Control-Allow-Headers, Content-Type, Authorization], [Access-Control-Allow-Methods, GET,PUT,POST,DELETE], 
+                    [Access-Control-Allow-Origin, *]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 41
+
+2024-12-23 21:48:33 - 
+✨ API Tests Completed
+2024-12-23 21:48:33 - Results saved to: C:\Users\admin\api-test-results.log
+2024-12-23 21:48:33 - 
+📌 How to use this script:
+2024-12-23 21:48:33 - 1. Update the $baseUrl variable if testing a different deployment
+2024-12-23 21:48:33 - 2. Run the script in PowerShell: .\test-api.ps1
+2024-12-23 21:48:33 - 3. Check the log file for detailed results and any errors
+2024-12-23 21:48:33 - 4. Look for ❌ symbols to quickly identify failed tests

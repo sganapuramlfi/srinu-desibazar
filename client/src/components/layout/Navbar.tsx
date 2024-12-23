@@ -9,7 +9,7 @@ import {
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
 import { Button } from "@/components/ui/button";
-import { Store, LogIn, LogOut, User, Menu } from "lucide-react";
+import { Store, LogIn, LogOut, Menu } from "lucide-react";
 
 export function Navbar() {
   const [, navigate] = useLocation();
@@ -20,6 +20,12 @@ export function Navbar() {
     const result = await logout();
     if (result.ok) {
       navigate("/");
+    }
+  };
+
+  const handleDashboardClick = () => {
+    if (user?.role === "business" && user.business?.id) {
+      navigate(`/dashboard/${user.business.id}`);
     }
   };
 
@@ -70,14 +76,14 @@ export function Navbar() {
         <div className="flex items-center space-x-4">
           {user ? (
             <>
-              {user.role === "business" && (
+              {user.role === "business" && user.business?.id && (
                 <Button
                   variant="ghost"
-                  onClick={() => navigate("/dashboard")}
+                  onClick={handleDashboardClick}
                   className="hidden md:flex"
                 >
                   <Store className="mr-2 h-4 w-4" />
-                  Dashboard
+                  Business Dashboard
                 </Button>
               )}
               <Button variant="ghost" onClick={handleLogout} className="hidden md:flex">
@@ -108,53 +114,33 @@ export function Navbar() {
       {isMenuOpen && (
         <div className="md:hidden border-t">
           <nav className="flex flex-col p-4 space-y-2">
-            <Link
-              href="/?type=salon"
-              className="px-4 py-2 text-sm hover:bg-accent rounded-md"
-            >
-              Salon & Spa
-            </Link>
-            <Link
-              href="/?type=restaurant"
-              className="px-4 py-2 text-sm hover:bg-accent rounded-md"
-            >
-              Restaurant & Cafés
-            </Link>
-            <Link
-              href="/?type=event"
-              className="px-4 py-2 text-sm hover:bg-accent rounded-md"
-            >
-              Event Management
-            </Link>
-            <Link
-              href="/?type=realestate"
-              className="px-4 py-2 text-sm hover:bg-accent rounded-md"
-            >
-              Real Estate
-            </Link>
-            <Link
-              href="/?type=retail"
-              className="px-4 py-2 text-sm hover:bg-accent rounded-md"
-            >
-              Retail Stores
-            </Link>
-            <Link
-              href="/?type=professional"
-              className="px-4 py-2 text-sm hover:bg-accent rounded-md"
-            >
-              Professional Services
-            </Link>
+            {[
+              { href: "/?type=salon", label: "Salon & Spa" },
+              { href: "/?type=restaurant", label: "Restaurant & Cafés" },
+              { href: "/?type=event", label: "Event Management" },
+              { href: "/?type=realestate", label: "Real Estate" },
+              { href: "/?type=retail", label: "Retail Stores" },
+              { href: "/?type=professional", label: "Professional Services" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="px-4 py-2 text-sm hover:bg-accent rounded-md"
+              >
+                {item.label}
+              </Link>
+            ))}
 
             {user ? (
               <>
-                {user.role === "business" && (
+                {user.role === "business" && user.business?.id && (
                   <Button
                     variant="ghost"
-                    onClick={() => navigate("/dashboard")}
+                    onClick={handleDashboardClick}
                     className="w-full justify-start"
                   >
                     <Store className="mr-2 h-4 w-4" />
-                    Dashboard
+                    Business Dashboard
                   </Button>
                 )}
                 <Button

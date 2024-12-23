@@ -4,10 +4,10 @@ import { Store } from "lucide-react";
 export function Footer() {
   return (
     <footer className="w-full border-t bg-background">
-      <div className="container py-10">
+      <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-          <div>
-            <Link href="/" className="flex items-center space-x-2">
+          <div className="text-center md:text-left">
+            <Link href="/" className="inline-flex items-center space-x-2">
               <Store className="h-6 w-6 text-primary" />
               <span className="font-bold">DesiBazaar</span>
             </Link>
@@ -16,7 +16,7 @@ export function Footer() {
             </p>
           </div>
 
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="text-sm font-semibold">Categories</h3>
             <ul className="mt-4 space-y-2 text-sm">
               <li>
@@ -34,10 +34,25 @@ export function Footer() {
                   Event Management
                 </Link>
               </li>
+              <li>
+                <Link href="/?type=realestate" className="text-muted-foreground hover:text-primary">
+                  Real Estate
+                </Link>
+              </li>
+              <li>
+                <Link href="/?type=retail" className="text-muted-foreground hover:text-primary">
+                  Retail Stores
+                </Link>
+              </li>
+              <li>
+                <Link href="/?type=professional" className="text-muted-foreground hover:text-primary">
+                  Professional Services
+                </Link>
+              </li>
             </ul>
           </div>
 
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="text-sm font-semibold">Resources</h3>
             <ul className="mt-4 space-y-2 text-sm">
               <li>
@@ -58,7 +73,7 @@ export function Footer() {
             </ul>
           </div>
 
-          <div>
+          <div className="text-center md:text-left">
             <h3 className="text-sm font-semibold">Legal</h3>
             <ul className="mt-4 space-y-2 text-sm">
               <li>

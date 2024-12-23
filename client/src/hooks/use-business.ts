@@ -41,7 +41,7 @@ async function handleRequest(
 export function useBusiness(businessId?: number) {
   const queryClient = useQueryClient();
 
-  const { data: business, isLoading } = useQuery<Business>({
+  const { data: business, isLoading, error } = useQuery<Business, Error>({
     queryKey: ["businesses", businessId],
     queryFn: async () => {
       const response = await fetch(`/api/businesses/${businessId}`, {
@@ -73,6 +73,7 @@ export function useBusiness(businessId?: number) {
   return {
     business,
     isLoading,
+    error,
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
   };

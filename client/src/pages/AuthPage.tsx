@@ -96,9 +96,9 @@ export default function AuthPage() {
       // Redirect based on role and registration status
       if (result.user?.role === "business") {
         if (!isLogin && result.user.needsOnboarding) {
-          navigate(`/onboarding/${result.user.id}`);
+          navigate(`/onboarding/${result.user.business?.id}`);
         } else {
-          navigate("/dashboard");
+          navigate(`/dashboard/${result.user.business?.id}`);
         }
       } else {
         navigate("/");

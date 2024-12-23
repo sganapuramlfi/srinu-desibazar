@@ -23,6 +23,8 @@ import {
   Settings,
   PlusCircle,
   Store,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 interface BusinessDashboardProps {
@@ -32,7 +34,7 @@ interface BusinessDashboardProps {
 export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
   const { user } = useUser();
-  const { business, isLoading } = useBusiness(businessId);
+  const { business, isLoading, error } = useBusiness(businessId);
 
   useEffect(() => {
     if (!user || user.role !== "business") {
@@ -40,8 +42,30 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }
   }, [user, navigate]);
 
-  if (isLoading || !business) {
-    return <div>Loading...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !business) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="flex mb-4 gap-2">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <h1 className="text-2xl font-bold text-gray-900">Error</h1>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              {error?.message || "Failed to load business dashboard"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const renderIndustrySpecificTools = () => {
@@ -93,12 +117,48 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }
   };
 
+  const renderIndustrySpecificContent = () => {
+    switch (business.industryType) {
+      case "salon":
+        return (
+          <>
+            <TabsContent value="services" className="p-4">
+              <div className="flex justify-between mb-4">
+                <h3 className="text-lg font-semibold">Salon Services</h3>
+                <Button>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Add Service
+                </Button>
+              </div>
+              {/* Service list/management will be implemented here */}
+            </TabsContent>
+            <TabsContent value="staff" className="p-4">
+              <div className="flex justify-between mb-4">
+                <h3 className="text-lg font-semibold">Staff Management</h3>
+                <Button>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Add Staff
+                </Button>
+              </div>
+              {/* Staff management will be implemented here */}
+            </TabsContent>
+          </>
+        );
+      // Add other industry-specific content similarly
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b">
         <div className="flex h-16 items-center px-4">
           <Store className="h-6 w-6 text-primary mr-2" />
           <h1 className="text-xl font-semibold">{business.name}</h1>
+          <span className="ml-2 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
+            {business.status}
+          </span>
         </div>
       </div>
 
@@ -111,11 +171,32 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">123</div>
-              <p className="text-xs text-muted-foreground">+10% from last month</p>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">No bookings yet</p>
             </CardContent>
           </Card>
-          {/* Add more overview cards here */}
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <BarChart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">$0</div>
+              <p className="text-xs text-muted-foreground">Start adding services</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">No customers yet</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Main Dashboard Content */}
@@ -136,17 +217,47 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                   New Booking
                 </Button>
               </div>
-              {/* Add booking list/table here */}
+              <div className="text-sm text-muted-foreground text-center py-8">
+                No bookings found. Start by adding your first booking.
+              </div>
             </TabsContent>
+
+            {renderIndustrySpecificContent()}
 
             <TabsContent value="analytics" className="p-4">
               <h3 className="text-lg font-semibold mb-4">Analytics</h3>
-              {/* Add analytics charts here */}
+              <div className="text-sm text-muted-foreground text-center py-8">
+                Analytics will be available once you start getting bookings.
+              </div>
             </TabsContent>
 
             <TabsContent value="settings" className="p-4">
               <h3 className="text-lg font-semibold mb-4">Business Settings</h3>
-              {/* Add settings form here */}
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Profile Information</CardTitle>
+                    <CardDescription>
+                      Update your business profile and contact information
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Profile settings form will be implemented here */}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Working Hours</CardTitle>
+                    <CardDescription>
+                      Set your business operating hours
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Working hours form will be implemented here */}
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
           </Tabs>
         </Card>

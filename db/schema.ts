@@ -90,12 +90,9 @@ export const salonStaff = pgTable("salon_staff", {
   email: text("email").unique().notNull(),
   phone: text("phone"),
   specialization: text("specialization"),
-  status: text("status", { 
-    enum: ["active", "inactive", "on_leave"] 
+  status: text("status", {
+    enum: ["active", "inactive", "on_leave"]
   }).default("active"),
-  schedule: json("schedule").$type<{
-    [key: string]: { start: string; end: string };
-  }>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -113,11 +110,23 @@ export const shiftTemplates = pgTable("shift_templates", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id),
   name: text("name").notNull(),
+  description: text("description"),
   startTime: text("start_time").notNull(), // HH:mm format
   endTime: text("end_time").notNull(), // HH:mm format
-  breakStartTime: text("break_start_time"), // HH:mm format
-  breakDuration: integer("break_duration"), // in minutes
+  breaks: json("breaks").$type<Array<{
+    startTime: string; // HH:mm format
+    endTime: string; // HH:mm format
+    duration: number; // in minutes
+    type: "lunch" | "short_break" | "other";
+  }>>(),
+  daysOfWeek: json("days_of_week").$type<Array<"monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday">>(),
+  isActive: boolean("is_active").default(true),
+  capacity: integer("capacity").default(1), // Number of staff that can be assigned
+  type: text("type", {
+    enum: ["regular", "overtime", "holiday", "leave"]
+  }).default("regular"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
 export const staffShifts = pgTable("staff_shifts", {
@@ -201,6 +210,23 @@ export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
   }),
 }));
 
+
+// Update the staff schema to better handle schedules and template assignments
+export const staffSchedules = pgTable("staff_schedules", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").references(() => salonStaff.id),
+  templateId: integer("template_id").references(() => shiftTemplates.id),
+  date: timestamp("date").notNull(),
+  status: text("status", {
+    enum: ["scheduled", "working", "completed", "leave", "sick", "absent"]
+  }).default("scheduled"),
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
 // Basic schemas
 export const insertUserSchema = createInsertSchema(users);
 export const insertBusinessSchema = createInsertSchema(businesses);
@@ -212,6 +238,66 @@ export const insertStaffShiftSchema = createInsertSchema(staffShifts);
 export const insertServiceSlotSchema = createInsertSchema(serviceSlots);
 export const insertSalonBookingSchema = createInsertSchema(salonBookings);
 
+// Create insert schemas
+export const insertStaffScheduleSchema = createInsertSchema(staffSchedules);
+
+// Create select schemas
+export const selectStaffScheduleSchema = createSelectSchema(staffSchedules);
+
+// Create zod schemas for the new template functionality
+export const shiftTemplateSchema = z.object({
+  name: z.string().min(1, "Template name is required"),
+  description: z.string().optional(),
+  startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  breaks: z.array(z.object({
+    startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    duration: z.number().min(1, "Break duration must be at least 1 minute"),
+    type: z.enum(["lunch", "short_break", "other"]),
+  })).optional(),
+  daysOfWeek: z.array(z.enum(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])),
+  isActive: z.boolean().default(true),
+  capacity: z.number().min(1, "Capacity must be at least 1"),
+  type: z.enum(["regular", "overtime", "holiday", "leave"]).default("regular"),
+});
+
+
+// Update the staff form schema to handle all possible fields
+export const staffFormSchema = z.object({
+  name: z.string().min(1, "Staff name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number is required"),
+  specialization: z.string().min(1, "Specialization is required"),
+  status: z.enum(["active", "inactive", "on_leave"]).default("active"),
+  schedule: z.record(
+    z.string(),
+    z.object({
+      start: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+      end: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    })
+  ).optional(),
+});
+
+// Add relations
+export const shiftTemplateRelations = relations(shiftTemplates, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [shiftTemplates.businessId],
+    references: [businesses.id],
+  }),
+  schedules: many(staffSchedules),
+}));
+
+export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
+  staff: one(salonStaff, {
+    fields: [staffSchedules.staffId],
+    references: [salonStaff.id],
+  }),
+  template: one(shiftTemplates, {
+    fields: [staffSchedules.templateId],
+    references: [shiftTemplates.id],
+  }),
+}));
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -234,3 +320,7 @@ export type ServiceSlot = typeof serviceSlots.$inferSelect;
 export type InsertServiceSlot = typeof serviceSlots.$inferInsert;
 export type SalonBooking = typeof salonBookings.$inferSelect;
 export type InsertSalonBooking = typeof salonBookings.$inferInsert;
+
+// Add types
+export type StaffSchedule = typeof staffSchedules.$inferSelect;
+export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;

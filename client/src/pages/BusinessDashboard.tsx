@@ -82,9 +82,46 @@ const staffFormSchema = z.object({
   })).optional(),
 });
 
+// Add shift template form schema
+const shiftTemplateFormSchema = z.object({
+  name: z.string().min(1, "Template name is required"),
+  description: z.string().optional(),
+  startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  breaks: z.array(z.object({
+    startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+    duration: z.number().min(1, "Break duration must be at least 1 minute"),
+    type: z.enum(["lunch", "short_break", "other"]),
+  })).optional(),
+  daysOfWeek: z.array(z.enum(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])),
+  isActive: z.boolean().default(true),
+  capacity: z.number().min(1, "Capacity must be at least 1"),
+  type: z.enum(["regular", "overtime", "holiday", "leave"]).default("regular"),
+});
+
 interface BusinessDashboardProps {
   businessId: number;
 }
+
+interface ShiftTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  breaks?: {
+    startTime: string;
+    endTime: string;
+    duration: number;
+    type: "lunch" | "short_break" | "other";
+  }[];
+  daysOfWeek?: ("monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday")[];
+  isActive: boolean;
+  capacity: number;
+  type: "regular" | "overtime" | "holiday" | "leave";
+}
+
 
 export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
@@ -98,6 +135,12 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   const [staffToDelete, setStaffToDelete] = useState<SalonStaff | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Add state for shift templates
+  const [isAddingTemplate, setIsAddingTemplate] = useState(false);
+  const [isEditingTemplate, setIsEditingTemplate] = useState<ShiftTemplate | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<ShiftTemplate | null>(null);
+
 
   // Query hooks for services and staff
   const { data: services, isLoading: isLoadingServices } = useQuery({
@@ -142,6 +185,22 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       schedule: {
         monday: { start: "09:00", end: "17:00" },
       },
+    },
+  });
+
+  // Add form for shift templates
+  const shiftTemplateForm = useForm({
+    resolver: zodResolver(shiftTemplateFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      startTime: "09:00",
+      endTime: "17:00",
+      breaks: [],
+      daysOfWeek: [],
+      capacity: 1,
+      type: "regular" as const,
+      isActive: true,
     },
   });
 
@@ -301,6 +360,100 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
+  // Add query for shift templates
+  const { data: templates, isLoading: isLoadingTemplates } = useQuery({
+    queryKey: [`/api/businesses/${businessId}/shift-templates`],
+    enabled: !!businessId && business?.industryType === "salon",
+    queryFn: () =>
+      fetch(`/api/businesses/${businessId}/shift-templates`, { credentials: "include" })
+        .then((res) => res.json())
+        .catch((err) => { throw new Error("Failed to load shift templates") }),
+  });
+
+  // Add mutations for shift templates
+  const addTemplateMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof shiftTemplateFormSchema>) => {
+      const res = await fetch(`/api/businesses/${businessId}/shift-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsAddingTemplate(false);
+      shiftTemplateForm.reset();
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/shift-templates`] });
+      toast({
+        title: "Template created",
+        description: "The shift template has been created successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  const editTemplateMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof shiftTemplateFormSchema> & { id: number }) => {
+      const res = await fetch(`/api/businesses/${businessId}/shift-templates/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsEditingTemplate(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/shift-templates`] });
+      toast({
+        title: "Template updated",
+        description: "The shift template has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      const res = await fetch(`/api/businesses/${businessId}/shift-templates/${templateId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setTemplateToDelete(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/shift-templates`] });
+      toast({
+        title: "Template deleted",
+        description: "The shift template has been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
   // Move useEffect hooks to component level
   useEffect(() => {
     if (isEditingService) {
@@ -329,6 +482,23 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       });
     }
   }, [isEditingStaff, staffForm]);
+
+  // Add useEffect for shift template form
+  useEffect(() => {
+    if (isEditingTemplate) {
+      shiftTemplateForm.reset({
+        name: isEditingTemplate.name,
+        description: isEditingTemplate.description || "",
+        startTime: isEditingTemplate.startTime,
+        endTime: isEditingTemplate.endTime,
+        breaks: isEditingTemplate.breaks || [],
+        daysOfWeek: isEditingTemplate.daysOfWeek || [],
+        capacity: isEditingTemplate.capacity,
+        type: isEditingTemplate.type,
+        isActive: isEditingTemplate.isActive,
+      });
+    }
+  }, [isEditingTemplate, shiftTemplateForm]);
 
   // Early returns for loading and error states
   if (isLoading) {
@@ -432,6 +602,76 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                 variant="destructive"
                 size="sm"
                 onClick={() => setStaffToDelete(member)}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Add render function for shift template card
+  const renderShiftTemplateCard = (template: ShiftTemplate) => (
+    <Card key={template.id}>
+      <CardHeader>
+        <CardTitle>{template.name}</CardTitle>
+        <CardDescription>
+          {template.startTime} - {template.endTime}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {template.description && (
+            <p className="text-sm text-muted-foreground">{template.description}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {template.daysOfWeek?.map((day) => (
+              <span
+                key={day}
+                className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary capitalize"
+              >
+                {day}
+              </span>
+            ))}
+          </div>
+          {template.breaks && template.breaks.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2">Breaks:</h4>
+              <div className="space-y-1">
+                {template.breaks.map((break_, index) => (
+                  <p key={index} className="text-sm text-muted-foreground">
+                    {break_.type === "lunch" ? "🍽️" : "☕️"} {break_.startTime} - {break_.endTime} ({break_.duration}min)
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-between items-center mt-4">
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              template.type === "regular"
+                ? "bg-green-100 text-green-700"
+                : template.type === "overtime"
+                ? "bg-yellow-100 text-yellow-700"
+                : template.type === "holiday"
+                ? "bg-blue-100 text-blue-700"
+                : "bg-red-100 text-red-700"
+            } capitalize`}>
+              {template.type}
+            </span>
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingTemplate(template)}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setTemplateToDelete(template)}
               >
                 Delete
               </Button>
@@ -702,6 +942,150 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               className="bg-red-600 hover:bg-red-700"
             >
               {deleteStaffMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Shift Template Edit Dialog */}
+      <Dialog open={!!isEditingTemplate} onOpenChange={() => setIsEditingTemplate(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Shift Template</DialogTitle>
+            <DialogDescription>
+              Update the shift template details
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...shiftTemplateForm}>
+            <form onSubmit={shiftTemplateForm.handleSubmit((data) => editTemplateMutation.mutate({ ...data, id: isEditingTemplate!.id }))} className="space-y-4">
+              <FormField
+                control={shiftTemplateForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Template Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={shiftTemplateForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={shiftTemplateForm.control}
+                  name="startTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Time</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={shiftTemplateForm.control}
+                  name="endTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>End Time</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={shiftTemplateForm.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Template Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="regular">Regular</SelectItem>
+                        <SelectItem value="overtime">Overtime</SelectItem>
+                        <SelectItem value="holiday">Holiday</SelectItem>
+                        <SelectItem value="leave">Leave</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={shiftTemplateForm.control}
+                name="capacity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Capacity</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="1" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={editTemplateMutation.isPending}>
+                {editTemplateMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating Template...
+                  </>
+                ) : (
+                  "Update Template"
+                )}
+              </Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift Template Delete Confirmation */}
+      <AlertDialog open={!!templateToDelete} onOpenChange={() => setTemplateToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Shift Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {templateToDelete?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTemplateMutation.mutate(templateToDelete!.id)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteTemplateMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
@@ -993,22 +1377,160 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             <TabsContent value="shifts" className="p-4">
               <div className="flex justify-between mb-4">
                 <h3 className="text-lg font-semibold">Shift Templates</h3>
-                <Button>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Add Template
-                </Button>
+                <Dialog open={isAddingTemplate} onOpenChange={setIsAddingTemplate}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Template
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Shift Template</DialogTitle>
+                      <DialogDescription>
+                        Create a new shift template with breaks and schedule
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Form {...shiftTemplateForm}>
+                      <form onSubmit={shiftTemplateForm.handleSubmit((data) => addTemplateMutation.mutate(data))} className="space-y-4">
+                        {/* Add form fields for shift template */}
+                        <FormField
+                          control={shiftTemplateForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Template Name</FormLabel>
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={shiftTemplateForm.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Description</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={shiftTemplateForm.control}
+                            name="startTime"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Start Time</FormLabel>
+                                <FormControl>
+                                  <Input type="time" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={shiftTemplateForm.control}
+                            name="endTime"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>End Time</FormLabel>
+                                <FormControl>
+                                  <Input type="time" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={shiftTemplateForm.control}
+                          name="type"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Template Type</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select type" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="regular">Regular</SelectItem>
+                                  <SelectItem value="overtime">Overtime</SelectItem>
+                                  <SelectItem value="holiday">Holiday</SelectItem>
+                                  <SelectItem value="leave">Leave</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={shiftTemplateForm.control}
+                          name="capacity"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Capacity</FormLabel>
+                              <FormControl>
+                                <Input type="number" min="1" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={shiftTemplateForm.control}
+                          name="daysOfWeek"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Days of Week</FormLabel>
+                              <FormControl>
+                                <div className="flex flex-wrap gap-2">
+                                  {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
+                                    <label key={day} className="flex items-center">
+                                      <input type="checkbox" {...field} value={day} className="mr-2" />
+                                      <span className="capitalize">{day}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button type="submit" className="w-full" disabled={addTemplateMutation.isPending}>
+                          {addTemplateMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Adding Template...
+                            </>
+                          ) : (
+                            "Add Template"
+                          )}
+                        </Button>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {/* Shift template cards will go here */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Morning Shift</CardTitle>
-                    <CardDescription>9:00 AM - 2:00 PM</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">Standard morning shift template</p>
-                  </CardContent>
-                </Card>
+                {isLoadingTemplates ? (
+                  <div className="col-span-full flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : templates?.length === 0 ? (
+                  <div className="col-span-full text-center py-8 text-muted-foreground">
+                    No shift templates added yet. Add your first template to get started.
+                  </div>
+                ) : (
+                  templates?.map(renderShiftTemplateCard)
+                )}
               </div>
             </TabsContent>
 

@@ -82,7 +82,7 @@ const staffFormSchema = z.object({
   })).optional(),
 });
 
-// Add shift template form schema
+// Update shift template form schema
 const shiftTemplateFormSchema = z.object({
   name: z.string().min(1, "Template name is required"),
   description: z.string().optional(),
@@ -93,17 +93,17 @@ const shiftTemplateFormSchema = z.object({
     endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
     duration: z.number().min(1, "Break duration must be at least 1 minute"),
     type: z.enum(["lunch", "short_break", "other"]),
-  })).optional(),
-  daysOfWeek: z.array(z.enum(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])),
-  isActive: z.boolean().default(true),
-  capacity: z.number().min(1, "Capacity must be at least 1"),
+  })).default([]),
   type: z.enum(["regular", "overtime", "holiday", "leave"]).default("regular"),
+  isActive: z.boolean().default(true),
 });
 
+// Add shift template form schema
 interface BusinessDashboardProps {
   businessId: number;
 }
 
+// Update ShiftTemplate interface
 interface ShiftTemplate {
   id: number;
   name: string;
@@ -116,10 +116,8 @@ interface ShiftTemplate {
     duration: number;
     type: "lunch" | "short_break" | "other";
   }[];
-  daysOfWeek?: ("monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday")[];
-  isActive: boolean;
-  capacity: number;
   type: "regular" | "overtime" | "holiday" | "leave";
+  isActive: boolean;
 }
 
 
@@ -165,6 +163,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
+  // Update form default values
   const shiftTemplateForm = useForm({
     resolver: zodResolver(shiftTemplateFormSchema),
     defaultValues: {
@@ -173,8 +172,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       startTime: "09:00",
       endTime: "17:00",
       breaks: [],
-      daysOfWeek: [],
-      capacity: 1,
       type: "regular" as const,
       isActive: true,
     },
@@ -195,8 +192,8 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
     enabled: !!businessId && business?.industryType === "salon",
     queryFn: async () => {
-      const res = await fetch(`/api/businesses/${businessId}/shift-templates`, { 
-        credentials: "include" 
+      const res = await fetch(`/api/businesses/${businessId}/shift-templates`, {
+        credentials: "include"
       });
       if (!res.ok) throw new Error("Failed to load shift templates");
       return res.json();
@@ -486,7 +483,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   });
 
   // Move useEffect hooks to component level
-  
 
   // Early returns for loading and error states
   if (isLoading) {
@@ -600,7 +596,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </Card>
   );
 
-  // Add render function for shift template card
+  // Update the template card render function
   const renderShiftTemplateCard = (template: ShiftTemplate) => (
     <Card key={template.id}>
       <CardHeader>
@@ -614,16 +610,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           {template.description && (
             <p className="text-sm text-muted-foreground">{template.description}</p>
           )}
-          <div className="flex flex-wrap gap-2">
-            {template.daysOfWeek?.map((day) => (
-              <span
-                key={day}
-                className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary capitalize"
-              >
-                {day}
-              </span>
-            ))}
-          </div>
           {template.breaks && template.breaks.length > 0 && (
             <div className="mt-4">
               <h4 className="text-sm font-medium mb-2">Breaks:</h4>

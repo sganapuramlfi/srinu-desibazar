@@ -81,8 +81,21 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       const result = isLogin
-        ? await login(data)
-        : await register(data);
+        ? await login({
+            username: data.username,
+            password: data.password,
+          })
+        : await register({
+            username: data.username,
+            password: data.password,
+            email: data.email,
+            role: data.role,
+            business: data.role === "business" ? {
+              name: data.business?.name || "",
+              industryType: data.business?.industryType || "salon",
+              description: data.business?.description,
+            } : undefined,
+          });
 
       if (!result.ok) {
         throw new Error(result.message);
@@ -95,10 +108,12 @@ export default function AuthPage() {
 
       // Redirect based on role and registration status
       if (result.user?.role === "business") {
-        if (!isLogin && result.user.needsOnboarding) {
-          navigate(`/onboarding/${result.user.business?.id}`);
-        } else {
-          navigate(`/dashboard/${result.user.business?.id}`);
+        if (result.user.business?.id) {
+          if (!isLogin && result.user.needsOnboarding) {
+            navigate(`/onboarding/${result.user.business.id}`);
+          } else {
+            navigate(`/dashboard/${result.user.business.id}`);
+          }
         }
       } else {
         navigate("/");

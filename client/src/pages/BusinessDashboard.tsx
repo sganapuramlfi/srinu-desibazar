@@ -56,6 +56,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { SalonService, SalonStaff } from "@db/schema";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 // Service form schema
 const serviceFormSchema = z.object({
@@ -90,6 +92,11 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   const { business, isLoading, error } = useBusiness(businessId);
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [isEditingService, setIsEditingService] = useState<SalonService | null>(null);
+  const [isEditingStaff, setIsEditingStaff] = useState<SalonStaff | null>(null);
+  const [serviceToDelete, setServiceToDelete] = useState<SalonService | null>(null);
+  const [staffToDelete, setStaffToDelete] = useState<SalonStaff | null>(null);
+  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Query hooks for services and staff
@@ -183,6 +190,117 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
+  // Add mutation hooks for edit/delete operations
+  const editServiceMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof serviceFormSchema> & { id: number }) => {
+      const res = await fetch(`/api/businesses/${businessId}/services/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsEditingService(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
+      toast({
+        title: "Service updated",
+        description: "The service has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  const deleteServiceMutation = useMutation({
+    mutationFn: async (serviceId: number) => {
+      const res = await fetch(`/api/businesses/${businessId}/services/${serviceId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setServiceToDelete(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
+      toast({
+        title: "Service deleted",
+        description: "The service has been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+
+  // Add staff edit/delete mutations
+  const editStaffMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof staffFormSchema> & { id: number }) => {
+      const res = await fetch(`/api/businesses/${businessId}/staff/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsEditingStaff(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
+      toast({
+        title: "Staff updated",
+        description: "The staff member has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (staffId: number) => {
+      const res = await fetch(`/api/businesses/${businessId}/staff/${staffId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      setStaffToDelete(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
+      toast({
+        title: "Staff deleted",
+        description: "The staff member has been deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
   // Early returns for loading and error states
   if (isLoading) {
     return (
@@ -210,7 +328,366 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     );
   }
 
-  // Render industry-specific content
+  // Update the service card render to include edit and delete buttons
+  const renderServiceCard = (service: SalonService) => (
+    <Card key={service.id}>
+      <CardHeader>
+        <CardTitle>{service.name}</CardTitle>
+        <CardDescription>
+          {service.duration} mins • ${service.price}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground mb-4">
+          {service.description}
+        </p>
+        <div className="flex justify-between items-center">
+          <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+            {service.category}
+          </span>
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingService(service)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setServiceToDelete(service)}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Update the staff card render to include edit and delete buttons
+  const renderStaffCard = (member: SalonStaff) => (
+    <Card key={member.id}>
+      <CardHeader>
+        <CardTitle>{member.name}</CardTitle>
+        <CardDescription>{member.specialization}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          <p className="text-sm">
+            Email: {member.email}
+          </p>
+          <p className="text-sm">
+            Phone: {member.phone}
+          </p>
+          <div className="flex justify-between items-center mt-4">
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              member.status === "active"
+                ? "bg-green-100 text-green-700"
+                : member.status === "on_leave"
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-red-100 text-red-700"
+            }`}>
+              {member.status}
+            </span>
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditingStaff(member)}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setStaffToDelete(member)}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Add edit dialogs and delete confirmation dialogs
+  const renderDialogs = () => (
+    <>
+      {/* Service Edit Dialog */}
+      <Dialog open={!!isEditingService} onOpenChange={() => setIsEditingService(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Service</DialogTitle>
+            <DialogDescription>
+              Update the service details
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...serviceForm}>
+            <form onSubmit={serviceForm.handleSubmit((data) => editServiceMutation.mutate({ ...data, id: isEditingService!.id }))} className="space-y-4">
+              <FormField
+                control={serviceForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Service Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={serviceForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={serviceForm.control}
+                  name="duration"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duration (minutes)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={serviceForm.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Price ($)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={serviceForm.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="hair">Hair</SelectItem>
+                        <SelectItem value="spa">Spa</SelectItem>
+                        <SelectItem value="nails">Nails</SelectItem>
+                        <SelectItem value="makeup">Makeup</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={editServiceMutation.isPending}>
+                {editServiceMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating Service...
+                  </>
+                ) : (
+                  "Update Service"
+                )}
+              </Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Staff Edit Dialog */}
+      <Dialog open={!!isEditingStaff} onOpenChange={() => setIsEditingStaff(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Staff Member</DialogTitle>
+            <DialogDescription>
+              Update the staff member details
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...staffForm}>
+            <form onSubmit={staffForm.handleSubmit((data) => editStaffMutation.mutate({ ...data, id: isEditingStaff!.id }))} className="space-y-4">
+              <FormField
+                control={staffForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={staffForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={staffForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={staffForm.control}
+                name="specialization"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Specialization</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select specialization" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="hair">Hair Stylist</SelectItem>
+                        <SelectItem value="spa">Spa Therapist</SelectItem>
+                        <SelectItem value="nails">Nail Artist</SelectItem>
+                        <SelectItem value="makeup">Makeup Artist</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={staffForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="on_leave">On Leave</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={editStaffMutation.isPending}>
+                {editStaffMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating Staff...
+                  </>
+                ) : (
+                  "Update Staff Member"
+                )}
+              </Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Service Delete Confirmation */}
+      <AlertDialog open={!!serviceToDelete} onOpenChange={() => setServiceToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Service</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {serviceToDelete?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteServiceMutation.mutate(serviceToDelete!.id)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteServiceMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Staff Delete Confirmation */}
+      <AlertDialog open={!!staffToDelete} onOpenChange={() => setStaffToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {staffToDelete?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteStaffMutation.mutate(staffToDelete!.id)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteStaffMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+
+  // Update the main render to use the new card renderers and include dialogs
   const renderIndustrySpecificContent = () => {
     if (business.industryType === "salon") {
       return (
@@ -336,29 +813,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                   No services added yet. Add your first service to get started.
                 </div>
               ) : (
-                services?.map((service) => (
-                  <Card key={service.id}>
-                    <CardHeader>
-                      <CardTitle>{service.name}</CardTitle>
-                      <CardDescription>
-                        {service.duration} mins • ${service.price}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        {service.description}
-                      </p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                          {service.category}
-                        </span>
-                        <Button variant="outline" size="sm">
-                          Edit
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                services?.map(renderServiceCard)
               )}
             </div>
           </TabsContent>
@@ -490,38 +945,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                   No staff members added yet. Add your first staff member to get started.
                 </div>
               ) : (
-                staff?.map((member) => (
-                  <Card key={member.id}>
-                    <CardHeader>
-                      <CardTitle>{member.name}</CardTitle>
-                      <CardDescription>{member.specialization}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <p className="text-sm">
-                          Email: {member.email}
-                        </p>
-                        <p className="text-sm">
-                          Phone: {member.phone}
-                        </p>
-                        <div className="flex justify-between items-center mt-4">
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            member.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : member.status === "on_leave"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
-                          }`}>
-                            {member.status}
-                          </span>
-                          <Button variant="outline" size="sm">
-                            Edit
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                staff?.map(renderStaffCard)
               )}
             </div>
           </TabsContent>
@@ -553,7 +977,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">No bookings yet</p>
+                            <p className="text-xs text-muted-foreground">No bookings yet</p>
             </CardContent>
           </Card>
 
@@ -644,6 +1068,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           </Tabs>
         </Card>
       </div>
+      {renderDialogs()}
     </div>
   );
 }

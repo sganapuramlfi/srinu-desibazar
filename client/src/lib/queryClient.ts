@@ -6,6 +6,9 @@ export const queryClient = new QueryClient({
       queryFn: async ({ queryKey }) => {
         const res = await fetch(queryKey[0] as string, {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!res.ok) {
@@ -13,7 +16,8 @@ export const queryClient = new QueryClient({
             throw new Error(`${res.status}: ${res.statusText}`);
           }
 
-          throw new Error(`${res.status}: ${await res.text()}`);
+          const errorMessage = await res.text();
+          throw new Error(`${res.status}: ${errorMessage}`);
         }
 
         return res.json();

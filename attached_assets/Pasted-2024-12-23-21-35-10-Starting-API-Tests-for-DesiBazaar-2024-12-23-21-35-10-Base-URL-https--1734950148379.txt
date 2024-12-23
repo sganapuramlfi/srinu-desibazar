@@ -1,0 +1,29 @@
+2024-12-23 21:35:10 - 🔍 Starting API Tests for DesiBazaar
+2024-12-23 21:35:10 - Base URL: https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev
+2024-12-23 21:35:10 - 
+📋 Test 1: Server Health Check
+2024-12-23 21:35:11 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:35:11 - Error Details: 
+2024-12-23 21:35:11 - 
+📋 Test 2: Business User Registration
+2024-12-23 21:35:12 - ✅ POST /api/register - Status: 200
+2024-12-23 21:35:12 - Response: {"ok":true,"message":"Registration successful","user":{"id":25,"username":"testbusiness692504779","role":"business","business":{"id":22,"userId":25,"name":"Test Salon","description":"Test business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:35:11.520Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:35:12 - 
+📋 Test 3: User Login
+2024-12-23 21:35:12 - ✅ POST /api/login - Status: 200
+2024-12-23 21:35:12 - Response: {"ok":true,"message":"Login successful","user":{"id":25,"username":"testbusiness692504779","role":"business","business":{"id":22,"userId":25,"name":"Test Salon","description":"Test business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:35:11.520Z","updatedAt":null},"needsOnboarding":true}}
+2024-12-23 21:35:12 - 
+📋 Test 4: Get User Profile
+2024-12-23 21:35:12 - ❌ GET /api/user - Error: 401 - The remote server returned an error: (401) Unauthorized.
+2024-12-23 21:35:12 - Error Details: 
+2024-12-23 21:35:12 - 
+📋 Test 5: Access Business Dashboard
+2024-12-23 21:35:12 - ✅ GET /api/businesses/22 - Status: 200
+2024-12-23 21:35:12 - Response: {"id":22,"userId":25,"name":"Test Salon","description":"Test business","logo":null,"industryType":"salon","status":"pending","onboardingCompleted":false,"contactInfo":null,"workingHours":null,"settings":null,"createdAt":"2024-12-23T10:35:11.520Z","updatedAt":null}
+2024-12-23 21:35:13 - 
+📋 Test 6: User Logout
+2024-12-23 21:35:13 - ✅ POST /api/logout - Status: 200
+2024-12-23 21:35:13 - Response: {"ok":true,"message":"Logout successful"}
+2024-12-23 21:35:13 - 
+✨ API Tests Completed
+2024-12-23 21:35:13 - Results saved to: C:\Users\admin\api-test-results.log

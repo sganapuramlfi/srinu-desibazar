@@ -138,7 +138,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       email: "",
       phone: "",
       specialization: "",
-      status: "active",
+      status: "active" as const,
       schedule: {
         monday: { start: "09:00", end: "17:00" },
       },
@@ -300,6 +300,35 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       });
     },
   });
+
+  // Move useEffect hooks to component level
+  useEffect(() => {
+    if (isEditingService) {
+      serviceForm.reset({
+        name: isEditingService.name,
+        description: isEditingService.description || "",
+        duration: isEditingService.duration,
+        price: isEditingService.price.toString(),
+        category: isEditingService.category,
+        isActive: isEditingService.isActive,
+      });
+    }
+  }, [isEditingService, serviceForm]);
+
+  useEffect(() => {
+    if (isEditingStaff) {
+      staffForm.reset({
+        name: isEditingStaff.name,
+        email: isEditingStaff.email,
+        phone: isEditingStaff.phone,
+        specialization: isEditingStaff.specialization,
+        status: isEditingStaff.status,
+        schedule: isEditingStaff.schedule || {
+          monday: { start: "09:00", end: "17:00" },
+        },
+      });
+    }
+  }, [isEditingStaff, staffForm]);
 
   // Early returns for loading and error states
   if (isLoading) {
@@ -1077,54 +1106,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }
     return null;
   };
-
-  useEffect(() => {
-    if (isEditingService) {
-      serviceForm.reset({
-        name: isEditingService.name,
-        description: isEditingService.description || "",
-        duration: isEditingService.duration,
-        price: isEditingService.price.toString(),
-        category: isEditingService.category,
-        isActive: isEditingService.isActive,
-      });
-    } else {
-      serviceForm.reset({
-        name: "",
-        description: "",
-        duration: 30,
-        price: "",
-        category: "",
-        isActive: true,
-      });
-    }
-  }, [isEditingService]);
-
-  useEffect(() => {
-    if (isEditingStaff) {
-      staffForm.reset({
-        name: isEditingStaff.name,
-        email: isEditingStaff.email,
-        phone: isEditingStaff.phone,
-        specialization: isEditingStaff.specialization,
-        status: isEditingStaff.status,
-        schedule: isEditingStaff.schedule || {
-          monday: { start: "09:00", end: "17:00" },
-        },
-      });
-    } else {
-      staffForm.reset({
-        name: "",
-        email: "",
-        phone: "",
-        specialization: "",
-        status: "active",
-        schedule: {
-          monday: { start: "09:00", end: "17:00" },
-        },
-      });
-    }
-  }, [isEditingStaff]);
 
   return (
     <div className="min-h-screen bg-background">

@@ -5,7 +5,6 @@ import {
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
@@ -25,44 +24,44 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center">
-        <Link href="/" className="flex items-center space-x-2">
-          <Store className="h-6 w-6 text-primary" />
-          <span className="font-bold">DesiBazaar</span>
-        </Link>
+      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center space-x-2">
+            <Store className="h-6 w-6 text-primary" />
+            <span className="font-bold">DesiBazaar</span>
+          </Link>
 
-        <NavigationMenu className="mx-6">
-          <NavigationMenuList>
-            <NavigationMenuItem>
-              <NavigationMenuTrigger>Categories</NavigationMenuTrigger>
-              <NavigationMenuContent>
-                <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                  {[
-                    { name: "Salon & Spa", href: "/?type=salon" },
-                    { name: "Restaurant & Cafés", href: "/?type=restaurant" },
-                    { name: "Event Management", href: "/?type=event" },
-                    { name: "Real Estate", href: "/?type=realestate" },
-                    { name: "Retail Stores", href: "/?type=retail" },
-                    { name: "Professional Services", href: "/?type=professional" },
-                  ].map((item) => (
-                    <li key={item.href}>
-                      <NavigationMenuLink asChild>
+          <NavigationMenu>
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuTrigger>Categories</NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                    {[
+                      { name: "Salon & Spa", href: "/?type=salon" },
+                      { name: "Restaurant & Cafés", href: "/?type=restaurant" },
+                      { name: "Event Management", href: "/?type=event" },
+                      { name: "Real Estate", href: "/?type=realestate" },
+                      { name: "Retail Stores", href: "/?type=retail" },
+                      { name: "Professional Services", href: "/?type=professional" },
+                    ].map((item) => (
+                      <li key={item.href}>
                         <Link 
                           href={item.href}
                           className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
                         >
                           {item.name}
                         </Link>
-                      </NavigationMenuLink>
-                    </li>
-                  ))}
-                </ul>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
+                      </li>
+                    ))}
+                  </ul>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+        </div>
 
-        <div className="ml-auto flex items-center space-x-4">
+        <div className="flex items-center space-x-4">
           {user ? (
             <>
               {user.role === "business" && (

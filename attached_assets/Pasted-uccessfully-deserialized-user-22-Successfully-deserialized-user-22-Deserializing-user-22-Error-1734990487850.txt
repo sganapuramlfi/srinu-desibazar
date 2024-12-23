@@ -1,0 +1,73 @@
+uccessfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Error fetching shift templates: error: column "description" does not exist
+    at file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/DesiBazaarHub/node_modules/src/neon-serverless/session.ts:102:18)
+    at async <anonymous> (/home/runner/DesiBazaarHub/server/routes/salon.ts:261:23) {
+  length: 111,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '37',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+9:47:43 PM [express] GET /api/businesses/19/shift-templates 500 in 200ms :: {"message":"Failed to fe…
+9:47:43 PM [express] GET /api/businesses/19/services 304 in 198ms :: [{"id":5,"businessId":19,"name"…
+Deserializing user: 22
+Deserializing user: 22
+9:47:43 PM [express] GET /api/businesses/19/staff 304 in 266ms :: [{"id":4,"businessId":19,"name":"E…
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+User session check: { isAuthenticated: true, userId: 22 }
+9:47:45 PM [express] GET /api/user 304 in 133ms :: {"id":22,"username":"stest","password":"398a17c2f…
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+9:47:45 PM [express] GET /api/businesses 304 in 198ms :: [{"id":1,"userId":3,"name":"Glamour Salon &…

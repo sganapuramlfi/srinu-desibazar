@@ -20,26 +20,49 @@ function App() {
 
   return (
     <Switch>
-      <Route path="/auth" component={AuthPage} />
+      <Route path="/auth">
+        {user ? (
+          user.role === "business" && user.business ? (
+            // If business user is logged in, redirect to their dashboard
+            window.location.replace(`/dashboard/${user.business.id}`)
+          ) : (
+            // If non-business user is logged in, redirect to home
+            window.location.replace("/")
+          )
+        ) : (
+          <AuthPage />
+        )}
+      </Route>
       <Route>
         <Layout>
           <Switch>
             <Route path="/" component={LandingPage} />
             <Route path="/dashboard/:businessId">
-              {(params) =>
-                user ? (
-                  <BusinessDashboard businessId={parseInt(params.businessId)} />
-                ) : (
-                  <AuthPage />
-                )
-              }
+              {(params) => {
+                if (!user || user.role !== "business") {
+                  return <AuthPage />;
+                }
+                return <BusinessDashboard businessId={parseInt(params.businessId)} />;
+              }}
             </Route>
             <Route path="/business/:businessId" component={StorefrontPage} />
-            <Route>404 Not Found</Route>
+            <Route component={NotFound} />
           </Switch>
         </Layout>
       </Route>
     </Switch>
+  );
+}
+
+// Fallback 404 not found page
+function NotFound() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-4">404 Not Found</h1>
+        <p className="text-muted-foreground">The page you're looking for doesn't exist.</p>
+      </div>
+    </div>
   );
 }
 

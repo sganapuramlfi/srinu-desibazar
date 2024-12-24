@@ -322,6 +322,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                   onError={(e) => {
                                     const img = e.target as HTMLImageElement;
                                     img.src = 'https://via.placeholder.com/300';
+                                    console.log('Failed to load image:', image.url);
                                   }}
                                 />
                               </div>
@@ -329,7 +330,10 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                 variant="destructive"
                                 size="icon"
                                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleDeletePhoto(index)}
+                                onClick={() => {
+                                  console.log('Deleting photo at index:', index);
+                                  handleDeletePhoto(index);
+                                }}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -354,6 +358,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                           onError={(e) => {
                             const img = e.target as HTMLImageElement;
                             img.src = 'https://via.placeholder.com/300';
+                            console.log('Failed to load image:', image.url);
                           }}
                         />
                       </div>

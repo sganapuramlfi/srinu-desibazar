@@ -596,32 +596,32 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   );
 
   // Update the template card render function
-  const renderShiftTemplateCard = (template: ShiftTemplate) => (
-    <Card key={template.id}>
-      <CardHeader>
-        <CardTitle>{template.name}</CardTitle>
-        <CardDescription>
-          {template.startTime} - {template.endTime}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {template.description && (
-            <p className="text-sm text-muted-foreground">{template.description}</p>
-          )}
-          {template.breaks && template.breaks.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm font-medium mb-2">Breaks:</h4>
-              <div className="space-y-1">
-                {template.breaks.map((break_, index) => (
-                  <p key={index} className="text-sm text-muted-foreground">
-                    {break_.type === "lunch" ? "🍽️" : "☕️"} {break_.startTime} - {break_.endTime} ({break_.duration}min)
-                  </p>
-                ))}
-              </div>
+  const renderShiftTemplateCard = (template: ShiftTemplate) => {
+    const formatTime = (time: string) => {
+      return new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+      });
+    };
+
+    const calculateBreakDuration = (startTime: string, endTime: string) => {
+      const start = new Date(`2000-01-01T${startTime}`);
+      const end = new Date(`2000-01-01T${endTime}`);
+      const diffMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+      return diffMinutes;
+    };
+
+    return (
+      <Card key={template.id} className="relative">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="text-lg font-semibold">{template.name}</CardTitle>
+              <CardDescription className="text-sm text-muted-foreground">
+                {formatTime(template.startTime)} - {formatTime(template.endTime)}
+              </CardDescription>
             </div>
-          )}
-          <div className="flex justify-between items-center mt-4">
             <span className={`text-xs px-2 py-1 rounded-full ${
               template.type === "regular"
                 ? "bg-green-100 text-green-700"
@@ -633,27 +633,61 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             } capitalize`}>
               {template.type}
             </span>
-            <div className="space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditingTemplate(template)}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setTemplateToDelete(template)}
-              >
-                Delete
-              </Button>
-            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {template.description && (
+              <p className="text-sm text-muted-foreground">{template.description}</p>
+            )}
+            {template.breaks && template.breaks.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium mb-2">Breaks:</h4>
+                <div className="space-y-2">
+                  {template.breaks.map((break_, index) => {
+                    const duration = calculateBreakDuration(break_.startTime, break_.endTime);
+                    return (
+                      <div key={index} className="flex items-center justify-between bg-muted/50 rounded-lg p-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">
+                            {break_.type === "lunch" ? "🍽️" : "☕️"}
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium">
+                              {formatTime(break_.startTime)} - {formatTime(break_.endTime)}
+                            </p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {break_.type} ({duration} min)
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="absolute bottom-4 right-4 space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingTemplate(template)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setTemplateToDelete(template)}
+            >
+              Delete
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   // Add edit dialogs and delete confirmation dialogs
   const renderDialogs = () => (
@@ -916,7 +950,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             >
               {deleteStaffMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h4 w-4 animate-spin" />
                   Deleting...
                 </>
               ) : (

@@ -59,8 +59,15 @@ import { z } from "zod";
 import type { SalonService, SalonStaff } from "@db/schema";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { addDays, format, startOfWeek, isSameDay } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { DateRange } from "react-day-picker";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Package, UserPlus, CalendarDays } from "lucide-react";
 
-// Service form schema
+// Form Schemas
 const serviceFormSchema = z.object({
   name: z.string().min(1, "Service name is required"),
   description: z.string().optional(),
@@ -70,7 +77,6 @@ const serviceFormSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
-// Staff form schema
 const staffFormSchema = z.object({
   name: z.string().min(1, "Staff name is required"),
   email: z.string().email("Invalid email address"),
@@ -83,7 +89,6 @@ const staffFormSchema = z.object({
   })).optional(),
 });
 
-// Update shift template form schema
 const shiftTemplateFormSchema = z.object({
   name: z.string().min(1, "Template name is required"),
   description: z.string().optional(),
@@ -99,9 +104,24 @@ const shiftTemplateFormSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
-// Add shift template form schema
 interface BusinessDashboardProps {
   businessId: number;
+}
+
+interface ShiftTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  startTime: string;
+  endTime: string;
+  breaks?: {
+    startTime: string;
+    endTime: string;
+    duration: number;
+    type: "lunch" | "short_break" | "other";
+  }[];
+  type: "regular" | "overtime" | "holiday" | "leave";
+  isActive: boolean;
 }
 
 interface StaffSkill {
@@ -405,6 +425,402 @@ const ServiceStaffTab = ({
 };
 
 export { ServiceStaffTab };
+
+interface RosterShift {
+  id: number;
+  staffId: number;
+  templateId: number;
+  date: string;
+  status: "scheduled" | "working" | "completed" | "leave" | "sick" | "absent";
+}
+
+const RosterTab = ({
+  businessId,
+  staff,
+  templates,
+  isLoadingStaff,
+  isLoadingTemplates
+}: {
+  businessId: number;
+  staff: SalonStaff[];
+  templates: ShiftTemplate[];
+  isLoadingStaff: boolean;
+  isLoadingTemplates: boolean;
+}) => {
+  const [selectedRange, setSelectedRange] = useState<DateRange>();
+  const [selectedStaff, setSelectedStaff] = useState<number[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<number>();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Get the start of the current week
+  const startDate = startOfWeek(new Date(), { weekStartsOn: 1 }); // Start from Monday
+  const [viewStartDate, setViewStartDate] = useState(startDate);
+
+  // Generate array of 7 days starting from viewStartDate
+  const dateRange = Array.from({ length: 7 }, (_, i) => addDays(viewStartDate, i));
+
+  // Fetch roster data
+  const { data: rosterShifts = [], isLoading: isLoadingRoster } = useQuery<RosterShift[]>({
+    queryKey: [`/api/businesses/${businessId}/roster`],
+    enabled: !!businessId,
+  });
+
+  const assignShiftsMutation = useMutation({
+    mutationFn: async (data: {
+      staffIds: number[];
+      templateId: number;
+      startDate: string;
+      endDate: string;
+    }) => {
+      const response = await fetch(`/api/businesses/${businessId}/roster/batch-assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/roster`] });
+      toast({
+        title: "Success",
+        description: "Shifts have been assigned successfully.",
+      });
+      setSelectedRange(undefined);
+      setSelectedStaff([]);
+      setSelectedTemplate(undefined);
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to assign shifts",
+      });
+    },
+  });
+
+  const updateShiftMutation = useMutation({
+    mutationFn: async (data: {
+      shiftId: number;
+      templateId: number;
+    }) => {
+      const response = await fetch(`/api/businesses/${businessId}/roster/${data.shiftId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ templateId: data.templateId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/roster`] });
+      toast({
+        title: "Success",
+        description: "Shift has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update shift",
+      });
+    },
+  });
+
+  const handleStaffToggle = (staffId: number) => {
+    setSelectedStaff(prev =>
+      prev.includes(staffId)
+        ? prev.filter(id => id !== staffId)
+        : [...prev, staffId]
+    );
+  };
+
+  const handleShiftAssignment = async () => {
+    if (!selectedRange?.from || !selectedRange?.to || !selectedTemplate || selectedStaff.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select staff members, date range, and shift template",
+      });
+      return;
+    }
+
+    await assignShiftsMutation.mutateAsync({
+      staffIds: selectedStaff,
+      templateId: selectedTemplate,
+      startDate: selectedRange.from.toISOString(),
+      endDate: selectedRange.to.toISOString(),
+    });
+  };
+
+  if (isLoadingStaff || isLoadingTemplates || isLoadingRoster) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const getShiftForDateAndStaff = (date: Date, staffId: number) => {
+    return rosterShifts.find(shift =>
+      isSameDay(new Date(shift.date), date) && shift.staffId === staffId
+    );
+  };
+
+  const getTemplateById = (templateId: number) => {
+    return templates.find(t => t.id === templateId);
+  };
+
+  return (
+    <div className="p-6 space-y-8">
+      {/* Batch Assignment Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Batch Shift Assignment</CardTitle>
+          <CardDescription>
+            Assign shifts to multiple staff members for a date range
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Staff Selection */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Select Staff Members</h4>
+              <div className="space-y-2">
+                {staff.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center space-x-2"
+                  >
+                    <Checkbox
+                      id={`staff-${member.id}`}
+                      checked={selectedStaff.includes(member.id)}
+                      onCheckedChange={() => handleStaffToggle(member.id)}
+                    />
+                    <label
+                      htmlFor={`staff-${member.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {member.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Date Range Selection */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Select Date Range</h4>
+              <div className="grid gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "justify-start text-left font-normal",
+                        !selectedRange && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedRange?.from ? (
+                        selectedRange.to ? (
+                          <>
+                            {format(selectedRange.from, "LLL dd, y")} -{" "}
+                            {format(selectedRange.to, "LLL dd, y")}
+                          </>
+                        ) : (
+                          format(selectedRange.from, "LLL dd, y")
+                        )
+                      ) : (
+                        <span>Pick a date range</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      selected={selectedRange}
+                      onSelect={setSelectedRange}
+                      numberOfMonths={2}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Shift Template Selection */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Select Shift Template</h4>
+              <Select
+                value={selectedTemplate?.toString()}
+                onValueChange={(value) => setSelectedTemplate(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem
+                      key={template.id}
+                      value={template.id.toString()}
+                    >
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            className="mt-6"
+            onClick={handleShiftAssignment}
+            disabled={!selectedRange?.from || !selectedRange?.to || !selectedTemplate || selectedStaff.length === 0}
+          >
+            Assign Shifts
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Roster View */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex justify-between items-center">
+            <CardTitle>Weekly Roster</CardTitle>
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewStartDate(addDays(viewStartDate, -7))}
+              >
+                Previous Week
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewStartDate(addDays(viewStartDate, 7))}
+              >
+                Next Week
+              </Button>
+            </div>
+          </div>
+          <CardDescription>
+            {format(viewStartDate, "MMMM d, yyyy")} - {format(addDays(viewStartDate, 6), "MMMM d, yyyy")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="border p-2 bg-muted">Staff</th>
+                  {dateRange.map((date) => (
+                    <th key={date.toISOString()} className="border p-2 bg-muted min-w-[140px]">
+                      {format(date, "EEE, MMM d")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {staff.map((member) => (
+                  <tr key={member.id}>
+                    <td className="border p-2 font-medium">{member.name}</td>
+                    {dateRange.map((date) => {
+                      const shift = getShiftForDateAndStaff(date, member.id);
+                      const template = shift ? getTemplateById(shift.templateId) : null;
+
+                      return (
+                        <td key={date.toISOString()} className="border p-2">
+                          {shift ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">
+                                  {template?.name}
+                                </span>
+                                <Select
+                                  value={shift.templateId.toString()}
+                                  onValueChange={(value) =>
+                                    updateShiftMutation.mutate({
+                                      shiftId: shift.id,
+                                      templateId: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-[130px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {templates.map((t) => (
+                                      <SelectItem
+                                        key={t.id}
+                                        value={t.id.toString()}
+                                      >
+                                        {t.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {template?.startTime} - {template?.endTime}
+                              </div>
+                            </div>
+                          ) : (
+                            <Select
+                              onValueChange={(value) =>
+                                assignShiftsMutation.mutate({
+                                  staffIds: [member.id],
+                                  templateId: parseInt(value),
+                                  startDate: date.toISOString(),
+                                  endDate: date.toISOString(),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Assign shift" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {templates.map((t) => (
+                                  <SelectItem
+                                    key={t.id}
+                                    value={t.id.toString()}
+                                  >
+                                    {t.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
@@ -1508,8 +1924,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
                   <TabsTrigger value="services">Services</TabsTrigger>
                   <TabsTrigger value="staff">Staff</TabsTrigger>
                   <TabsTrigger value="shift-templates">Shift Templates</TabsTrigger>
-                  <TabsTrigger value="service-staff">Service-Staff</TabsTrigger>
-                  <TabsTrigger value="roster">Roster</TabsTrigger>
+                  <TabsTrigger value="service-staff">Service-Staff</TabsTrigger>                  <TabsTrigger value="roster">Roster</TabsTrigger>
                   <TabsTrigger value="slot-settings">Slot Settings</TabsTrigger>
                   <TabsTrigger value="bookings">Bookings</TabsTrigger>
                 </TabsList>
@@ -1561,12 +1976,13 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
                 </TabsContent>
 
                 <TabsContent value="roster" className="p-4">
-                  <div className="flex justify-between mb-4">
-                    <h2 className="text-2xl font-bold">Roster</h2>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Roster management coming soon...
-                  </p>
+                  <RosterTab
+                    businessId={businessId}
+                    staff={staff}
+                    templates={templates}
+                    isLoadingStaff={isLoadingStaff}
+                    isLoadingTemplates={isLoadingTemplates}
+                  />
                 </TabsContent>
 
                 <TabsContent value="slot-settings" className="p-4">

@@ -1,11 +1,11 @@
 import passport from "passport";
 import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
-import { type Express, Router } from "express";
+import { type Express } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, userRegistrationSchema, type User as SelectUser } from "@db/schema";
+import { users, businesses, userRegistrationSchema, type User as SelectUser } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -34,53 +34,12 @@ declare global {
   }
 }
 
-// Configure passport
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id: number, done) => {
-  try {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, id))
-      .limit(1);
-    done(null, user);
-  } catch (err) {
-    done(err);
-  }
-});
-
-passport.use(
-  new LocalStrategy(async (username, password, done) => {
-    try {
-      const [user] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-
-      if (!user) {
-        return done(null, false, { message: "Incorrect username." });
-      }
-      const isMatch = await crypto.compare(password, user.password);
-      if (!isMatch) {
-        return done(null, false, { message: "Incorrect password." });
-      }
-      return done(null, user);
-    } catch (err) {
-      return done(err);
-    }
-  })
-);
-
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "desibazaar-secret",
-    resave: false,
-    saveUninitialized: false,
+    resave: true,
+    saveUninitialized: true,
     cookie: {
       secure: false,
       httpOnly: true,
@@ -98,105 +57,8 @@ export function setupAuth(app: Express) {
     sessionSettings.cookie!.secure = true;
   }
 
-  // Create auth router for login/register endpoints
-  const authRouter = Router();
-
-  authRouter.post("/register", async (req, res, next) => {
-    try {
-      const result = userRegistrationSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json({
-          message: "Invalid input",
-          errors: result.error.issues
-        });
-      }
-
-      const { username, password } = result.data;
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-
-      if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
-      }
-
-      const hashedPassword = await crypto.hash(password);
-      const [user] = await db
-        .insert(users)
-        .values({
-          username,
-          password: hashedPassword,
-        })
-        .returning();
-
-      req.login(user, (err) => {
-        if (err) {
-          return next(err);
-        }
-        return res.json({
-          message: "Registration successful",
-          user: { id: user.id, username: user.username },
-        });
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  authRouter.post("/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: Express.User, info: IVerifyOptions) => {
-      if (err) {
-        return next(err);
-      }
-
-      if (!user) {
-        return res.status(400).json({ message: info.message ?? "Login failed" });
-      }
-
-      req.login(user, (err) => {
-        if (err) {
-          return next(err);
-        }
-
-        return res.json({
-          message: "Login successful",
-          user: { id: user.id, username: user.username },
-        });
-      });
-    })(req, res, next);
-  });
-
-  authRouter.post("/logout", (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Logout failed" });
-      }
-      res.json({ message: "Logout successful" });
-    });
-  });
-
-  authRouter.get("/user", (req, res) => {
-    if (req.isAuthenticated()) {
-      return res.json(req.user);
-    }
-    res.status(401).json({ message: "Not logged in" });
-  });
-
-  // Mount auth routes
-  app.use("/api/auth", authRouter);
-
-  // Return middleware components
-  return {
-    session: session(sessionSettings),
-    initialize: passport.initialize(),
-    passport: passport.session()
-  };
-}
-
-// CORS middleware
-app.use((req, res, next) => {
+  // Add CORS middleware with credentials support
+  app.use((req, res, next) => {
     const origin = req.headers.origin || '*';
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Origin', origin);
@@ -209,3 +71,266 @@ app.use((req, res, next) => {
     }
     next();
   });
+
+  // Initialize session middleware
+  app.use(session(sessionSettings));
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  passport.use(
+    new LocalStrategy(async (username, password, done) => {
+      try {
+        console.log(`Attempting login for user: ${username}`);
+
+        if (!username || !password) {
+          console.log('Missing credentials');
+          return done(null, false, { message: "Missing credentials" });
+        }
+
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.username, username))
+          .limit(1);
+
+        if (!user) {
+          console.log(`User not found: ${username}`);
+          return done(null, false, { message: "Incorrect username." });
+        }
+
+        const isMatch = await crypto.compare(password, user.password);
+        console.log(`Password comparison result for ${username}:`, isMatch);
+
+        if (!isMatch) {
+          console.log(`Password mismatch for user: ${username}`);
+          return done(null, false, { message: "Incorrect password." });
+        }
+
+        console.log(`Successful login for user: ${username}`);
+        return done(null, user);
+      } catch (err) {
+        console.error('Login error:', err);
+        return done(err);
+      }
+    })
+  );
+
+  passport.serializeUser((user, done) => {
+    console.log(`Serializing user: ${user.id}`);
+    done(null, user.id);
+  });
+
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      console.log(`Deserializing user: ${id}`);
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, id))
+        .limit(1);
+
+      if (!user) {
+        console.log(`User not found during deserialization: ${id}`);
+        return done(null, false);
+      }
+
+      if (user.role === "business") {
+        const [business] = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.userId, user.id))
+          .limit(1);
+
+        if (business) {
+          (user as any).business = business;
+          (user as any).needsOnboarding = !business.onboardingCompleted;
+        }
+      }
+
+      console.log(`Successfully deserialized user: ${id}`);
+      done(null, user);
+    } catch (err) {
+      console.error('Deserialization error:', err);
+      done(err);
+    }
+  });
+
+  app.post("/api/register", async (req, res, next) => {
+    try {
+      console.log('Registration request:', req.body);
+      const result = userRegistrationSchema.safeParse(req.body);
+      if (!result.success) {
+        console.log('Registration validation failed:', result.error.issues);
+        return res
+          .status(400)
+          .json({
+            ok: false,
+            message: "Invalid input: " + result.error.issues.map((i: any) => i.message).join(", ")
+          });
+      }
+
+      const { username, password, email, role, business: businessData } = result.data;
+
+      // Check if user already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUser) {
+        console.log(`Username already exists: ${username}`);
+        return res.status(400).json({ ok: false, message: "Username already exists" });
+      }
+
+      // Hash the password
+      const hashedPassword = await crypto.hash(password);
+
+      // Create the new user
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          username,
+          password: hashedPassword,
+          email,
+          role,
+        })
+        .returning();
+
+      console.log(`Created new user: ${newUser.id}`);
+
+      // If registering as a business, create the business record
+      let businessRecord = null;
+      if (role === "business" && businessData) {
+        const [business] = await db
+          .insert(businesses)
+          .values({
+            userId: newUser.id,
+            name: businessData.name,
+            industryType: businessData.industryType,
+            description: businessData.description,
+            status: "pending",
+            onboardingCompleted: false,
+          })
+          .returning();
+        businessRecord = business;
+        console.log(`Created business record: ${business.id}`);
+      }
+
+      // Log the user in after registration
+      req.login(newUser, (err) => {
+        if (err) {
+          console.error('Login after registration failed:', err);
+          return next(err);
+        }
+        console.log(`Logged in after registration: ${newUser.id}`);
+        return res.json({
+          ok: true,
+          message: "Registration successful",
+          user: {
+            id: newUser.id,
+            username: newUser.username,
+            role: newUser.role,
+            business: businessRecord,
+            needsOnboarding: businessRecord ? true : false,
+          },
+        });
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      next(error);
+    }
+  });
+
+  app.post("/api/login", (req, res, next) => {
+    console.log('Login request body:', req.body);
+
+    passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
+      if (err) {
+        console.error('Login error:', err);
+        return next(err);
+      }
+
+      if (!user) {
+        console.log('Login failed:', info.message);
+        return res.status(400).json({
+          ok: false,
+          message: info.message ?? "Login failed"
+        });
+      }
+
+      try {
+        // If business user, fetch business details
+        let businessRecord = null;
+        if (user.role === "business") {
+          const [business] = await db
+            .select()
+            .from(businesses)
+            .where(eq(businesses.userId, user.id))
+            .limit(1);
+          businessRecord = business;
+        }
+
+        req.logIn(user, (err) => {
+          if (err) {
+            console.error('Session creation failed:', err);
+            return next(err);
+          }
+
+          console.log(`Login successful: ${user.id}`);
+          return res.json({
+            ok: true,
+            message: "Login successful",
+            user: {
+              id: user.id,
+              username: user.username,
+              role: user.role,
+              business: businessRecord,
+              needsOnboarding: businessRecord ? !businessRecord.onboardingCompleted : false,
+            },
+          });
+        });
+      } catch (error) {
+        console.error('Login process error:', error);
+        next(error);
+      }
+    })(req, res, next);
+  });
+
+  app.post("/api/logout", (req, res) => {
+    console.log(`Logout request for user: ${req.user?.id}`);
+    req.logout((err) => {
+      if (err) {
+        console.error('Logout error:', err);
+        return res.status(500).json({
+          ok: false,
+          message: "Logout failed"
+        });
+      }
+
+      console.log('Logout successful');
+      res.json({
+        ok: true,
+        message: "Logout successful"
+      });
+    });
+  });
+
+  app.get("/api/user", (req, res) => {
+    console.log('User session check:', { 
+      isAuthenticated: req.isAuthenticated(),
+      userId: req.user?.id
+    });
+
+    if (req.isAuthenticated()) {
+      return res.json(req.user);
+    }
+
+    res.status(401).json({
+      ok: false,
+      message: "Not logged in"
+    });
+  });
+
+  return app;
+}

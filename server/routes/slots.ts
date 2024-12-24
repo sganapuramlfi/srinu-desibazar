@@ -7,6 +7,20 @@ import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } 
 
 const router = Router();
 
+// Validation schemas
+const createManualSlotSchema = z.object({
+  serviceId: z.number(),
+  staffId: z.number(),
+  startTime: z.string(),
+  endTime: z.string(),
+  status: z.enum(["available", "booked", "blocked"]).default("available"),
+});
+
+const generateAutoSlotsSchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+});
+
 // Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {

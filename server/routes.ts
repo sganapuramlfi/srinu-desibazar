@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import salonRouter from "./routes/salon";
 import rosterRouter from "./routes/roster";
 import slotsRouter from "./routes/slots";
+import bookingsRouter from "./routes/bookings";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,13 +35,13 @@ if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const dir = file.fieldname === 'logo' ? logosDir : galleryDir;
-    console.log('Upload destination:', dir); // Add logging
+    console.log('Upload destination:', dir);
     cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const filename = uniqueSuffix + path.extname(file.originalname);
-    console.log('Generated filename:', filename); // Add logging
+    console.log('Generated filename:', filename);
     cb(null, filename);
   }
 });
@@ -71,6 +72,9 @@ export function registerRoutes(app: Express): Server {
 
   // Register slots management routes
   app.use("/api", slotsRouter);
+
+  // Register booking routes
+  app.use("/api", bookingsRouter);
 
   // Staff Routes
   app.get("/api/businesses/:businessId/staff", async (req, res) => {

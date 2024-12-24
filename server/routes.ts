@@ -34,11 +34,14 @@ if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const dir = file.fieldname === 'logo' ? logosDir : galleryDir;
+    console.log('Upload destination:', dir); // Add logging
     cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const filename = uniqueSuffix + path.extname(file.originalname);
+    console.log('Generated filename:', filename); // Add logging
+    cb(null, filename);
   }
 });
 
@@ -137,9 +140,10 @@ export function registerRoutes(app: Express): Server {
         }
 
         // Parse the form data
-        const formData = JSON.parse(req.body.data);
-        const result = businessProfileSchema.safeParse(formData);
+        const formData = JSON.parse(req.body.data || '{}');
+        console.log('Received form data:', formData); // Add logging
 
+        const result = businessProfileSchema.safeParse(formData);
         if (!result.success) {
           return res.status(400).json({
             error: "Invalid input",
@@ -149,6 +153,8 @@ export function registerRoutes(app: Express): Server {
 
         // Handle file uploads
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        console.log('Uploaded files:', files); // Add logging
+
         let logoUrl = business.logo_url;
         if (files.logo?.[0]) {
           const logoFilename = files.logo[0].filename;
@@ -182,6 +188,7 @@ export function registerRoutes(app: Express): Server {
           .where(eq(businesses.id, businessId))
           .returning();
 
+        console.log('Updated business:', updatedBusiness); // Add logging
         res.json(updatedBusiness);
       } catch (error: any) {
         console.error('Error updating business profile:', error);

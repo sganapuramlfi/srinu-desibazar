@@ -2,8 +2,22 @@ import { Router } from "express";
 import { db } from "@db";
 import { staffSchedules, salonStaff, shiftTemplates } from "@db/schema";
 import { eq, and, between } from "drizzle-orm";
+import { z } from "zod";
 
 const router = Router();
+
+// Validation schemas
+const assignShiftSchema = z.object({
+  staffId: z.number(),
+  templateId: z.number(),
+  date: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: "Invalid date format",
+  }),
+});
+
+const updateShiftSchema = z.object({
+  templateId: z.number(),
+});
 
 // Get roster data for a business
 router.get("/api/businesses/:businessId/roster", async (req, res) => {
@@ -57,8 +71,17 @@ router.post("/api/businesses/:businessId/roster/assign", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // Validate request body
+    const validationResult = assignShiftSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        error: "Invalid input",
+        details: validationResult.error.errors,
+      });
+    }
+
     const businessId = parseInt(req.params.businessId);
-    const { staffId, templateId, date } = req.body;
+    const { staffId, templateId, date } = validationResult.data;
 
     // Check for existing shift
     const existingShift = await db.query.staffSchedules.findFirst({
@@ -107,8 +130,17 @@ router.put("/api/businesses/:businessId/roster/:shiftId", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // Validate request body
+    const validationResult = updateShiftSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        error: "Invalid input",
+        details: validationResult.error.errors,
+      });
+    }
+
     const shiftId = parseInt(req.params.shiftId);
-    const { templateId } = req.body;
+    const { templateId } = validationResult.data;
 
     const [updatedShift] = await db
       .update(staffSchedules)

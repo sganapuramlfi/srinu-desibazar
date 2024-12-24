@@ -733,6 +733,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Form setup
   const serviceForm = useForm({
     resolver: zodResolver(serviceFormSchema),
     defaultValues: {
@@ -769,6 +770,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     },
   });
 
+  // Data fetching
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId && business?.industryType === "salon" && activeTab === 'services',
@@ -784,107 +786,62 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     enabled: !!businessId && business?.industryType === "salon" && (activeTab === 'shift-templates' || activeTab === 'roster'),
   });
 
-
-  useEffect(() => {
-    if (isEditingService) {
-      serviceForm.reset({
-        name: isEditingService.name,
-        description: isEditingService.description || "",
-        duration: isEditingService.duration,
-        price: isEditingService.price.toString(),
-        category: isEditingService.category,
-        isActive: isEditingService.isActive,
-      });
-    }
-  }, [isEditingService, serviceForm]);
-
-  useEffect(() => {
-    if (isEditingStaff) {
-      staffForm.reset({
-        name: isEditingStaff.name,
-        email: isEditingStaff.email,
-        phone: isEditingStaff.phone || "",
-        specialization: isEditingStaff.specialization || "",
-        status: isEditingStaff.status,
-      });
-    }
-  }, [isEditingStaff, staffForm]);
-
-  useEffect(() => {
-    if (isEditingTemplate) {
-      shiftTemplateForm.reset({
-        name: isEditingTemplate.name,
-        description: isEditingTemplate.description || "",
-        startTime: isEditingTemplate.startTime,
-        endTime: isEditingTemplate.endTime,
-        breaks: isEditingTemplate.breaks || [],
-        type: isEditingTemplate.type,
-        isActive: isEditingTemplate.isActive,
-      });
-    }
-  }, [isEditingTemplate, shiftTemplateForm]);
-
+  // Mutations
   const addServiceMutation = useMutation({
     mutationFn: async (data: z.infer<typeof serviceFormSchema>) => {
-      const res = await fetch(`/api/businesses/${businessId}/services`, {
+      const response = await fetch(`/api/businesses/${businessId}/services`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
         credentials: "include",
+        body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       setIsAddingService(false);
       serviceForm.reset();
       queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
+      toast({
+        title: "Success",
+        description: "Service added successfully",
+      });
     },
     onError: (error) => {
-      console.error("Error adding service:", error);
-      //      //Optionally display error message to the user.
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     },
   });
 
   const addStaffMutation = useMutation({
     mutationFn: async (data: z.infer<typeof staffFormSchema>) => {
-      const res = await fetch(`/api/businesses/${businessId}/staff`, {
+      const response = await fetch(`/api/businesses/${businessId}/staff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
         credentials: "include",
+        body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       setIsAddingStaff(false);
       staffForm.reset();
       queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
-    },
-    onError: (error) => {
-      console.error("Error adding staff:", error);
-      //Optionally display error message to the user.
-    },
-  });
-
-  const editServiceMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof serviceFormSchema> & { id: number }) => {
-      const res = await fetch(`/api/businesses/${businessId}/services/${data.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setIsEditingService(null);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
       toast({
-        title: "Service updated",
-        description: "The service has been updated successfully.",
+        title: "Success",
+        description: "Staff member added successfully",
       });
     },
     onError: (error) => {
@@ -896,1018 +853,349 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     },
   });
 
-  const deleteServiceMutation = useMutation({
-    mutationFn: async (serviceId: number) => {
-      const res = await fetch(`/api/businesses/${businessId}/services/${serviceId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setServiceToDelete(null);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
-      toast({
-        title: "Service deleted",
-        description: "The service has been deleted successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    },
-  });
-
-  const editStaffMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof staffFormSchema> & { id: number }) => {
-      const res = await fetch(`/api/businesses/${businessId}/staff/${data.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setIsEditingStaff(null);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
-      toast({
-        title: "Staff updated",
-        description: "The staff member has been updated successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    },
-  });
-
-  const deleteStaffMutation = useMutation({
-    mutationFn: async (staffId: number) => {
-      const res = await fetch(`/api/businesses/${businessId}/staff/${staffId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setStaffToDelete(null);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
-      toast({
-        title: "Staff deleted",
-        description: "The staff member has been deleted successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    },
-  });
-
-  const addTemplateMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof shiftTemplateFormSchema>) => {
-      const res = await fetch(`/api/businesses/${businessId}/shift-templates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setIsAddingTemplate(false);
-      shiftTemplateForm.reset();
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/shift-templates`] });
-      toast({
-        title: "Template created",
-        description: "The shift template has been created successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    },
-  });
-
-  const editTemplateMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof shiftTemplateFormSchema> & { id: number }) => {
-      const res = await fetch(`/api/businesses/${businessId}/shift-templates/${data.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setIsEditingTemplate(null);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/shift-templates`] });
-      toast({
-        title: "Template updated",
-        description: "The shift template has been updated successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    },
-  });
-
-  const deleteTemplateMutation = useMutation({
-    mutationFn: async (templateId: number) => {
-      const res = await fetch(`/api/businesses/${businessId}/shift-templates/${templateId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: () => {
-      setTemplateToDelete(null);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/shift-templates`] });
-      toast({
-        title: "Template deleted",
-        description: "The shift template has been deleted successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    },
-  });
-
-  const renderServiceCard = (service: SalonService) => (
-    <Card key={service.id}>
-      <CardHeader>
-        <CardTitle>{service.name}</CardTitle>
-        <CardDescription>
-          {service.duration} mins • ${service.price}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground mb-4">
-          {service.description}
-        </p>
-        <div className="flex justify-between items-center">
-          <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-            {service.category}
-          </span>
-          <div className="space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditingService(service)}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setServiceToDelete(service)}
-            >
-              Delete
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const renderStaffCard = (member: SalonStaff) => (
-    <Card key={member.id}>
-      <CardHeader>
-        <CardTitle>{member.name}</CardTitle>
-        <CardDescription>{member.specialization}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <p className="text-sm">
-            Email: {member.email}
-          </p>
-          <p className="text-sm">
-            Phone: {member.phone}
-          </p>
-          <div className="flex justify-between items-center mt-4">
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              member.status === "active"
-                ? "bg-green-100 text-green-700"
-                : member.status === "on_leave"
-                  ? "bg-yellow-100 text-yellow-700"
-                  : "bg-red-100 text-red-700"
-            }`}>
-              {member.status}
-            </span>
-            <div className="space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditingStaff(member)}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setStaffToDelete(member)}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const renderShiftTemplateCard = (template: ShiftTemplate) => {
-    const formatTime = (time: string) => {
-      return new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    };
-
-    const calculateBreakDuration = (startTime: string, endTime: string) => {
-      const start = new Date(`2000-01-01T${startTime}`);
-      const end = new Date(`2000-01-01T${endTime}`);
-      const diffMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
-      return diffMinutes;
-    };
-
-    return (
-      <Card key={template.id} className="relative w-full max-w-md">
-        <CardHeader className="pb-4">
-          <div className="flex justify-between items-start gap-4">
-            <div className="flex-1 min-w-0">
-              <CardTitle className="text-lg font-semibold truncate">{template.name}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                {formatTime(template.startTime)} - {formatTime(template.endTime)}
-              </CardDescription>
-            </div>
-            <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${
-              template.type === "regular"
-                ? "bg-green-100 text-green-700"
-                : template.type === "overtime"
-                  ? "bg-yellow-100 text-yellow-700"
-                  : template.type === "holiday"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-red-100 text-red-700"
-            } capitalize`}>
-              {template.type}
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="pb-16">
-          <div className="space-y-3">
-            {template.description && (
-              <p className="text-sm text-muted-foreground break-words">{template.description}</p>
-            )}
-            {template.breaks && template.breaks.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium mb-2">Breaks:</h4>
-                <div className="space-y-2">
-                  {template.breaks.map((break_, index) => {
-                    const duration = calculateBreakDuration(break_.startTime, break_.endTime);
-                    return (
-                      <div key={index} className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-lg shrink-0">
-                            {break_.type === "lunch" ? "🍽️" : "☕️"}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {formatTime(break_.startTime)} - {formatTime(break_.endTime)}
-                            </p>
-                            <p className="text-xs text-muted-foreground capitalize truncate">
-                              {break_.type} ({duration} min)
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="absolute bottom-4 right-4 space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditingTemplate(template)}
-            >
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setTemplateToDelete(template)}
-            >
-              Delete
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const renderDialogs = () => (
-    <>
-      <Dialog open={!!isEditingService} onOpenChange={() => setIsEditingService(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Service</DialogTitle>
-            <DialogDescription>
-              Update the service details
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...serviceForm}>
-            <form onSubmit={serviceForm.handleSubmit((data) => editServiceMutation.mutate({ ...data, id: isEditingService!.id }))} className="space-y-4">
-              <FormField
-                control={serviceForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Service Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={serviceForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={serviceForm.control}
-                  name="duration"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Duration (minutes)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={serviceForm.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Price ($)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={serviceForm.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="hair">Hair</SelectItem>
-                        <SelectItem value="spa">Spa</SelectItem>
-                        <SelectItem value="nails">Nails</SelectItem>
-                        <SelectItem value="makeup">Makeup</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={editServiceMutation.isPending}>
-                {editServiceMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating Service...
-                  </>
-                ) : (
-                  "Update Service"
-                )}
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!isEditingStaff} onOpenChange={() => setIsEditingStaff(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Staff Member</DialogTitle>
-            <DialogDescription>
-              Update the staff member details
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...staffForm}>
-            <form onSubmit={staffForm.handleSubmit((data) => editStaffMutation.mutate({ ...data, id: isEditingStaff!.id }))} className="space-y-4">
-              <FormField
-                control={staffForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={staffForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={staffForm.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={staffForm.control}
-                name="specialization"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Specialization</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select specialization" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="hair">Hair Stylist</SelectItem>
-                        <SelectItem value="spa">Spa Therapist</SelectItem>
-                        <SelectItem value="nails">Nail Artist</SelectItem>
-                        <SelectItem value="makeup">Makeup Artist</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={staffForm.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                        <SelectItem value="on_leave">On Leave</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full" disabled={editStaffMutation.isPending}>
-                {editStaffMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating Staff...
-                  </>
-                ) : (
-                  "Update Staff Member"
-                )}
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!serviceToDelete} onOpenChange={() => setServiceToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Service</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {serviceToDelete?.name}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteServiceMutation.mutate(serviceToDelete!.id)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteServiceMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!staffToDelete} onOpenChange={() => setStaffToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {staffToDelete?.name}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteStaffMutation.mutate(staffToDelete!.id)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteStaffMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={!!isEditingTemplate || isAddingTemplate}
-       onOpenChange={() => isEditingTemplate ? setIsEditingTemplate(null) : setIsAddingTemplate(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditingTemplate ? 'Edit' : 'Add'} Shift Template</DialogTitle>
-            <DialogDescription>
-              {isEditingTemplate ? 'Update the shift template details' : 'Create a new shift template'}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...shiftTemplateForm}>
-            <form onSubmit={shiftTemplateForm.handleSubmit((data) =>
-              isEditingTemplate
-                ? editTemplateMutation.mutate({ ...data, id: isEditingTemplate.id })
-                : addTemplateMutation.mutate(data)
-            )} className="space-y-4">
-              <FormField
-                control={shiftTemplateForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Template Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={shiftTemplateForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={shiftTemplateForm.control}
-                  name="startTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Start Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={shiftTemplateForm.control}
-                  name="endTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>End Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={shiftTemplateForm.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Template Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="regular">Regular</SelectItem>
-                        <SelectItem value="overtime">Overtime</SelectItem>
-                        <SelectItem value="holiday">Holiday</SelectItem>
-                        <SelectItem value="leave">Leave</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={shiftTemplateForm.control}
-                name="breaks"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Breaks</FormLabel>
-                    <FormControl>
-                      <div className="space-y-2">
-                        {field.value.map((breakItem, index) => (
-                          <div key={index} className="flex gap-2 items-end">
-                            <div className="flex-1">
-                              <Input
-                                type="time"
-                                value={breakItem.startTime}
-                                onChange={(e) => {
-                                  const newBreaks = [...field.value];
-                                  newBreaks[index] = {
-                                    ...newBreaks[index],
-                                    startTime: e.target.value,
-                                  };
-                                  field.onChange(newBreaks);
-                                }}
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <Input
-                                type="time"
-                                value={breakItem.endTime}
-                                onChange={(e) => {
-                                  const newBreaks = [...field.value];
-                                  newBreaks[index] = {
-                                    ...newBreaks[index],
-                                    endTime: e.target.value,
-                                  };
-                                  field.onChange(newBreaks);
-                                }}
-                              />
-                            </div>
-                            <Select
-                              value={breakItem.type}
-                              onValueChange={(value) => {
-                                const newBreaks = [...field.value];
-                                newBreaks[index] = {
-                                  ...newBreaks[index],
-                                  type: value as "lunch" | "short_break" | "other",
-                                };
-                                field.onChange(newBreaks);
-                              }}
-                            >
-                              <SelectTrigger className="w-[120px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="lunch">Lunch</SelectItem>
-                                <SelectItem value="short_break">Short Break</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                const newBreaks = field.value.filter((_, i) => i !== index);
-                                field.onChange(newBreaks);
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            field.onChange([
-                              ...field.value,
-                              {
-                                startTime: "12:00",
-                                endTime: "13:00",
-                                duration: 60,
-                                type: "lunch",
-                              },
-                            ]);
-                          }}
-                        >
-                          <PlusCircle className="h-4 w-4 mr-2" />
-                          Add Break
-                        </Button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full">
-                {isEditingTemplate ? 'Update' : 'Create'} Template
-              </Button>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!templateToDelete} onOpenChange={() => setTemplateToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Shift Template</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {templateToDelete?.name}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteTemplateMutation.mutate(templateToDelete!.id)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteTemplateMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-
-  if (isLoadingBusiness) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error || !business) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="pt-6">
-            <div className="flex mb-4 gap-2">
-              <AlertCircle className="h-8 w-8 text-red-500" />
-              <h1 className="text-2xl font-bold text-gray-900">Error</h1>
-            </div>
-            <p className="mt-4 text-sm text-gray-600">
-              {error?.message || "Failed to load business dashboard"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  // Return the dashboard UI
   return (
     <div className="container mx-auto py-6">
-      <div className="border-b">
-        <div className="flex h-16 items-center px-4">
-          <Store className="h-6 w-6 text-primary mr-2" />
-          <h1 className="text-xl font-semibold">{business.name}</h1>
-          <span className="ml-2 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
-            {business.status}
-          </span>
-        </div>
-      </div>
+      <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+          <TabsTrigger value="services">
+            <Package className="mr-2 h-4 w-4" />
+            Services
+          </TabsTrigger>
+          <TabsTrigger value="staff">
+            <UserPlus className="mr-2 h-4 w-4" />
+            Staff
+          </TabsTrigger>
+          <TabsTrigger value="service-staff">
+            <Users className="mr-2 h-4 w-4" />
+            Skills
+          </TabsTrigger>
+          <TabsTrigger value="roster">
+            <CalendarDays className="mr-2 h-4 w-4" />
+            Roster
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="flex flex-col gap-8 p-8">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">No bookings yet</p>
-            </CardContent>
-          </Card>
+        <TabsContent value="services" className="mt-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Services</h2>
+            <Button onClick={() => setIsAddingService(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Service
+            </Button>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <BarChart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$0</div>
-              <p className="text-xs text-muted-foreground">Start adding services</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">+12,234</div>
-              <p className="text-xs text-muted-foreground">
-                +19% from last month
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="flex-1">
-          {business?.industryType === "salon" ? (
-            <>
-              <Tabs defaultValue="services" className="space-y-6" onValueChange={setActiveTab}>
-                <TabsList>
-                  <TabsTrigger value="services">Services</TabsTrigger>
-                  <TabsTrigger value="staff">Staff</TabsTrigger>
-                  <TabsTrigger value="shift-templates">Shift Templates</TabsTrigger>
-                  <TabsTrigger value="service-staff">Service-Staff</TabsTrigger>                  <TabsTrigger value="roster">Roster</TabsTrigger>
-                  <TabsTrigger value="slot-settings">Slot Settings</TabsTrigger>
-                  <TabsTrigger value="bookings">Bookings</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="services" className="p-4">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Services</h2>
-                    <Button onClick={() => setIsAddingService(true)}>
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Service
-                    </Button>
+          {/* Service List */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {services.map((service) => (
+              <Card key={service.id}>
+                <CardHeader>
+                  <div className="flex justify-between">
+                    <CardTitle>{service.name}</CardTitle>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsEditingService(service)}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setServiceToDelete(service)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {services.map(service => renderServiceCard(service))}
+                  <CardDescription>{service.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Duration:</span>
+                      <span>{service.duration} minutes</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Price:</span>
+                      <span>${service.price}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Category:</span>
+                      <span>{service.category}</span>
+                    </div>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="staff" className="p-4">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Staff</h2>
-                    <Button onClick={() => setIsAddingStaff(true)}>
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Staff
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {staff.map(member => renderStaffCard(member))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="shift-templates" className="p-4">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Shift Templates</h2>
-                    <Button onClick={() => setIsAddingTemplate(true)}>
-                      <PlusCircle className="h-4 w-4 mr-2" />
-                      Add Template
-                    </Button>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {templates.map(template => renderShiftTemplateCard(template))}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="service-staff" className="p-4">
-                  <ServiceStaffTab
-                    businessId={businessId}
-                    industryType={business?.industryType}
-                  />
-                </TabsContent>
-
-                <TabsContent value="roster" className="p-4">
-                  <RosterTabUpdated
-                    businessId={businessId}
-                    staff={staff}
-                    templates={templates}
-                    isLoadingStaff={isLoadingStaff}
-                    isLoadingTemplates={isLoadingTemplates}
-                  />
-                </TabsContent>
-
-                <TabsContent value="slot-settings" className="p-4">
-                  <div className="flex justify-between mb-4">
-                    <h2 className="text-2xl font-bold">Slot Settings</h2>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Slot settings management coming soon...
-                  </p>
-                </TabsContent>
-
-                <TabsContent value="bookings" className="p-4">
-                  <div className="flex justify-between mb-4">
-                    <h2 className="text-2xl font-bold">Bookings</h2>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Booking management coming soon...
-                  </p>
-                </TabsContent>
-              </Tabs>
-              {renderDialogs()}
-            </>
-          ) : (
-            <div className="p-4">
-              <Card className="w-full">
-                <CardContent className="pt-6">
-                  <div className="flex mb-4 gap-2">
-                    <AlertCircle className="h-8 w-8 text-yellow-500" />
-                    <h1 className="text-2xl font-bold text-gray-900">Industry Not Supported</h1>
-                  </div>
-                  <p className="mt-4 text-sm text-gray-600">
-                    This industry type is not yet supported in the dashboard.
-                  </p>
                 </CardContent>
               </Card>
-            </div>
-          )}
-        </Card>
-      </div>
+            ))}
+          </div>
+
+          {/* Add Service Dialog          <Dialog open={isAddingService} onOpenChange={setIsAddingService}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Service</DialogTitle>
+                <DialogDescription>
+                  Add a new service to your business
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...serviceForm}>
+                <form onSubmit={serviceForm.handleSubmit((data) => addServiceMutation.mutate(data))}>
+                  <div className="space-y-4">
+                    <FormField
+                      control={serviceForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={serviceForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={serviceForm.control}
+                      name="duration"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Duration (minutes)</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={serviceForm.control}
+                      name="price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Price ($)</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={serviceForm.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Category</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="flex justify-end mt-6">
+                    <Button type="submit">Add Service</Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+
+        </TabsContent>
+
+        <TabsContent value="staff" className="mt-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Staff</h2>
+            <Button onClick={() => setIsAddingStaff(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Staff
+            </Button>
+          </div>
+
+          {/* Staff List */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {staff.map((member) => (
+              <Card key={member.id}>
+                <CardHeader>
+                  <div className="flex justify-between">
+                    <CardTitle>{member.name}</CardTitle>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsEditingStaff(member)}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setStaffToDelete(member)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <CardDescription>{member.specialization}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Email:</span>
+                      <span>{member.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Phone:</span>
+                      <span>{member.phone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Status:</span>
+                      <span className={cn(
+                        "px-2 py-1 rounded-full text-xs font-medium",
+                        member.status === "active" && "bg-green-100 text-green-800",
+                        member.status === "inactive" && "bg-gray-100 text-gray-800",
+                        member.status === "on_leave" && "bg-yellow-100 text-yellow-800"
+                      )}>
+                        {member.status}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Add Staff Dialog */}
+          <Dialog open={isAddingStaff} onOpenChange={setIsAddingStaff}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Staff Member</DialogTitle>
+                <DialogDescription>
+                  Add a new staff member to your business
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...staffForm}>
+                <form onSubmit={staffForm.handleSubmit((data) => addStaffMutation.mutate(data))}>
+                  <div className="space-y-4">
+                    <FormField
+                      control={staffForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={staffForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={staffForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={staffForm.control}
+                      name="specialization"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Specialization</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={staffForm.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="on_leave">On Leave</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="flex justify-end mt-6">
+                    <Button type="submit">Add Staff Member</Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        <TabsContent value="service-staff">
+          <ServiceStaffTab
+            businessId={businessId}
+            industryType={business?.industryType}
+          />
+        </TabsContent>
+
+        <TabsContent value="roster">
+          <RosterTabUpdated
+            businessId={businessId}
+            staff={staff}
+            templates={templates}
+            isLoadingStaff={isLoadingStaff}
+            isLoadingTemplates={isLoadingTemplates}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

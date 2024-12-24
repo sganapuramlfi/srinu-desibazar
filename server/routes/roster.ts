@@ -14,7 +14,9 @@ router.get("/api/businesses/:businessId/roster", async (req, res) => {
 
     const businessId = parseInt(req.params.businessId);
     const schedules = await db.query.staffSchedules.findMany({
-      where: eq(staffSchedules.businessId, businessId),
+      where: and(
+        eq(staffSchedules.businessId, businessId)
+      ),
       with: {
         staff: true,
         template: true,
@@ -49,56 +51,52 @@ router.get("/api/businesses/:businessId/shift-templates", async (req, res) => {
 });
 
 // Assign a shift
-router.post("/api/businesses/:businessId/roster/batch-assign", async (req, res) => {
+router.post("/api/businesses/:businessId/roster/assign", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const businessId = parseInt(req.params.businessId);
-    const { staffIds, templateId, startDate, endDate } = req.body;
+    const { staffId, templateId, date } = req.body;
 
-    const shifts = [];
-    for (const staffId of staffIds) {
-      // Check for existing shift
-      const existingShift = await db.query.staffSchedules.findFirst({
-        where: and(
-          eq(staffSchedules.staffId, staffId),
-          eq(staffSchedules.date, new Date(startDate))
-        ),
-      });
+    // Check for existing shift
+    const existingShift = await db.query.staffSchedules.findFirst({
+      where: and(
+        eq(staffSchedules.staffId, staffId),
+        eq(staffSchedules.date, new Date(date))
+      ),
+    });
 
-      if (existingShift) {
-        // Update existing shift
-        const [updatedShift] = await db
-          .update(staffSchedules)
-          .set({
-            templateId,
-            updatedAt: new Date(),
-          })
-          .where(eq(staffSchedules.id, existingShift.id))
-          .returning();
-        shifts.push(updatedShift);
-      } else {
-        // Create new shift
-        const [newShift] = await db
-          .insert(staffSchedules)
-          .values({
-            staffId,
-            templateId,
-            businessId,
-            date: new Date(startDate),
-            status: "scheduled",
-          })
-          .returning();
-        shifts.push(newShift);
-      }
+    let shift;
+    if (existingShift) {
+      // Update existing shift
+      [shift] = await db
+        .update(staffSchedules)
+        .set({
+          templateId,
+          updatedAt: new Date(),
+        })
+        .where(eq(staffSchedules.id, existingShift.id))
+        .returning();
+    } else {
+      // Create new shift
+      [shift] = await db
+        .insert(staffSchedules)
+        .values({
+          staffId,
+          templateId,
+          businessId,
+          date: new Date(date),
+          status: "scheduled",
+        })
+        .returning();
     }
 
-    res.json(shifts);
+    res.json(shift);
   } catch (error) {
-    console.error("Error assigning shifts:", error);
-    res.status(500).json({ error: "Failed to assign shifts" });
+    console.error("Error assigning shift:", error);
+    res.status(500).json({ error: "Failed to assign shift" });
   }
 });
 

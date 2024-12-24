@@ -466,11 +466,7 @@ const RosterTabUpdated = ({
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({
-          staffId: data.staffId,
-          templateId: data.templateId,
-          date: data.date,
-        }),
+        body: JSON.stringify(data),
       });
 
       if (!response.ok) {
@@ -549,8 +545,36 @@ const RosterTabUpdated = ({
     return templates.find(t => t.id === templateId);
   };
 
+  const getShiftTypeColor = (type: string) => {
+    switch (type) {
+      case 'regular':
+        return 'bg-blue-100 border-blue-200';
+      case 'overtime':
+        return 'bg-orange-100 border-orange-200';
+      case 'holiday':
+        return 'bg-green-100 border-green-200';
+      case 'leave':
+        return 'bg-red-100 border-red-200';
+      default:
+        return 'bg-gray-100 border-gray-200';
+    }
+  };
+
   return (
     <div className="p-6 space-y-8">
+      {/* Shift Types Legend */}
+      <div className="flex flex-wrap gap-4 items-center">
+        <span className="text-sm font-medium">Shift Types:</span>
+        {['regular', 'overtime', 'holiday', 'leave'].map((type) => (
+          <div
+            key={type}
+            className={`px-3 py-1 rounded-full text-xs font-medium border ${getShiftTypeColor(type)}`}
+          >
+            {type.charAt(0).toUpperCase() + type.slice(1)}
+          </div>
+        ))}
+      </div>
+
       {/* Weekly Roster View */}
       <Card>
         <CardHeader className="pb-4">
@@ -606,11 +630,11 @@ const RosterTabUpdated = ({
                       return (
                         <td key={date.toISOString()} className="border p-2">
                           <div className="min-h-[80px]">
-                            {shift ? (
-                              <div className="space-y-2">
+                            {shift && template ? (
+                              <div className={`space-y-2 p-2 rounded-md border ${getShiftTypeColor(template.type)}`}>
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm font-medium">
-                                    {template?.name}
+                                    {template.name}
                                   </span>
                                   <Select
                                     value={shift.templateId.toString()}
@@ -637,7 +661,7 @@ const RosterTabUpdated = ({
                                   </Select>
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {template?.startTime} - {template?.endTime}
+                                  {template.startTime} - {template.endTime}
                                 </div>
                               </div>
                             ) : (
@@ -689,7 +713,7 @@ interface RosterShift {
 }
 
 
-export { ServiceStaffTab };
+export { ServiceStaffTab, RosterTabUpdated };
 
 function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();

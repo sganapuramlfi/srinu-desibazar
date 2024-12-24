@@ -3,24 +3,22 @@ import { db } from "@db";
 import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { shiftTemplates, staffSchedules, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
-import { z } from "zod";
+import { createProtectedRouter } from "../auth";
 
-const router = Router();
+const publicRouter = Router();
+const protectedRouter = createProtectedRouter();
 
 // Basic validation schemas
 const updateServiceSchema = insertSalonServiceSchema.partial();
 
-// Service Management
-router.get("/businesses/:businessId/services", async (req, res) => {
+// Public Routes
+publicRouter.get("/businesses/:businessId/services", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const services = await db.select()
       .from(salonServices)
       .where(eq(salonServices.businessId, parseInt(req.params.businessId)));
 
+    console.log('Fetched services:', services);
     res.json(services);
   } catch (error: any) {
     console.error('Error fetching salon services:', error);
@@ -31,12 +29,9 @@ router.get("/businesses/:businessId/services", async (req, res) => {
   }
 });
 
-router.post("/businesses/:businessId/services", async (req, res) => {
+// Protected Routes
+protectedRouter.post("/businesses/:businessId/services", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const result = insertSalonServiceSchema.safeParse({
       ...req.body,
       businessId: parseInt(req.params.businessId)
@@ -63,12 +58,8 @@ router.post("/businesses/:businessId/services", async (req, res) => {
   }
 });
 
-router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
+protectedRouter.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const result = updateServiceSchema.safeParse({
       ...req.body,
       businessId: parseInt(req.params.businessId)
@@ -103,12 +94,8 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
   }
 });
 
-router.delete("/businesses/:businessId/services/:serviceId", async (req, res) => {
+protectedRouter.delete("/businesses/:businessId/services/:serviceId", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
     const [deletedService] = await db.delete(salonServices)
       .where(and(
         eq(salonServices.id, parseInt(req.params.serviceId)),
@@ -131,7 +118,7 @@ router.delete("/businesses/:businessId/services/:serviceId", async (req, res) =>
 });
 
 // Staff-skills routes
-router.get("/businesses/:businessId/staff-skills", async (req, res) => {
+protectedRouter.get("/businesses/:businessId/staff-skills", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -154,7 +141,7 @@ router.get("/businesses/:businessId/staff-skills", async (req, res) => {
   }
 });
 
-router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
+protectedRouter.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -176,7 +163,7 @@ router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
   }
 });
 
-router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
+protectedRouter.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -231,8 +218,9 @@ router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
   }
 });
 
+
 // Staff Management
-router.get("/businesses/:businessId/staff", async (req, res) => {
+protectedRouter.get("/businesses/:businessId/staff", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -263,7 +251,7 @@ router.get("/businesses/:businessId/staff", async (req, res) => {
   }
 });
 
-router.post("/businesses/:businessId/staff", async (req, res) => {
+protectedRouter.post("/businesses/:businessId/staff", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -295,7 +283,7 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
   }
 });
 
-router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
+protectedRouter.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -329,7 +317,7 @@ router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
 
 
 // Shift Template Management
-router.get("/businesses/:businessId/shift-templates", async (req, res) => {
+protectedRouter.get("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -349,7 +337,7 @@ router.get("/businesses/:businessId/shift-templates", async (req, res) => {
   }
 });
 
-router.post("/businesses/:businessId/shift-templates", async (req, res) => {
+protectedRouter.post("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -381,7 +369,7 @@ router.post("/businesses/:businessId/shift-templates", async (req, res) => {
   }
 });
 
-router.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+protectedRouter.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -424,7 +412,7 @@ router.put("/businesses/:businessId/shift-templates/:templateId", async (req, re
   }
 });
 
-router.delete("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+protectedRouter.delete("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -457,7 +445,7 @@ router.delete("/businesses/:businessId/shift-templates/:templateId", async (req,
 });
 
 // Staff Schedule Management
-router.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res) => {
+protectedRouter.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -488,5 +476,10 @@ router.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res)
     });
   }
 });
+
+// Combine both routers
+const router = Router();
+router.use(publicRouter);
+router.use(protectedRouter);
 
 export default router;

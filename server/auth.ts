@@ -1,6 +1,6 @@
 import passport from "passport";
 import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
-import { type Express } from "express";
+import { type Express, Router } from "express";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
@@ -32,6 +32,17 @@ declare global {
   namespace Express {
     interface User extends SelectUser {}
   }
+}
+
+export function createProtectedRouter(): Router {
+  const router = Router();
+  router.use((req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    next();
+  });
+  return router;
 }
 
 export function setupAuth(app: Express) {
@@ -155,7 +166,11 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
+  const protectedRouter = createProtectedRouter();
+  const publicRouter = Router();
+
+  // Public routes
+  publicRouter.post("/api/register", async (req, res, next) => {
     try {
       console.log('Registration request:', req.body);
       const result = userRegistrationSchema.safeParse(req.body);
@@ -242,7 +257,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
+  publicRouter.post("/api/login", (req, res, next) => {
     console.log('Login request body:', req.body);
 
     passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
@@ -297,7 +312,7 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.post("/api/logout", (req, res) => {
+  publicRouter.post("/api/logout", (req, res) => {
     console.log(`Logout request for user: ${req.user?.id}`);
     req.logout((err) => {
       if (err) {
@@ -316,7 +331,9 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
+
+  // Protected routes
+  protectedRouter.get("/api/user", (req, res) => {
     console.log('User session check:', { 
       isAuthenticated: req.isAuthenticated(),
       userId: req.user?.id
@@ -331,6 +348,9 @@ export function setupAuth(app: Express) {
       message: "Not logged in"
     });
   });
+
+  app.use(publicRouter);
+  app.use(protectedRouter);
 
   return app;
 }

@@ -259,54 +259,32 @@ export const RosterTabUpdated = ({
 
                       return (
                         <td key={date.toISOString()} className="border p-2">
-                          <div className="min-h-[80px]">
+                          <div className="min-h-[60px]">
                             {shift && template ? (
-                              <div className={`space-y-2 p-2 rounded-md border ${getShiftTypeColor(template.type)}`}>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium">
-                                    {template.name}
-                                  </span>
-                                  <Select
-                                    value={shift.templateId.toString()}
-                                    onValueChange={(value) =>
-                                      updateShiftMutation.mutate({
-                                        shiftId: shift.id,
-                                        templateId: parseInt(value),
-                                      })
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 w-[130px]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {templates.map((t) => (
-                                        <SelectItem
-                                          key={t.id}
-                                          value={t.id.toString()}
-                                        >
-                                          {t.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Clock className="h-3 w-3" />
-                                  <span>{template.startTime} - {template.endTime}</span>
-                                </div>
-                                {template.breaks && template.breaks.length > 0 && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Coffee className="h-3 w-3" />
-                                    <span>
-                                      {template.breaks.map((breakTime, idx) => (
-                                        <span key={idx}>
-                                          {breakTime.startTime}-{breakTime.endTime}
-                                          {idx < template.breaks.length - 1 ? ", " : ""}
-                                        </span>
-                                      ))}
-                                    </span>
-                                  </div>
-                                )}
+                              <div className={`p-2 rounded-md border ${getShiftTypeColor(template.type)}`}>
+                                <Select
+                                  value={shift.templateId.toString()}
+                                  onValueChange={(value) =>
+                                    updateShiftMutation.mutate({
+                                      shiftId: shift.id,
+                                      templateId: parseInt(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue>{template.name}</SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {templates.map((t) => (
+                                      <SelectItem
+                                        key={t.id}
+                                        value={t.id.toString()}
+                                      >
+                                        {t.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                             ) : (
                               <Select

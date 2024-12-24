@@ -74,13 +74,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "Business not found" });
       }
 
-      let servicesList = [];
-      if (business.industryType === "salon") {
-        servicesList = await db
-          .select()
-          .from(salonServices)
-          .where(eq(salonServices.businessId, businessId));
-      }
+      let servicesList = await db
+        .select()
+        .from(salonServices)
+        .where(eq(salonServices.businessId, businessId));
+
 
       res.json(servicesList);
     } catch (error) {

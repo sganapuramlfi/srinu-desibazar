@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@db";
 import { staffSchedules, salonStaff, shiftTemplates } from "@db/schema";
-import { eq, and, between } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -13,31 +13,66 @@ const assignShiftSchema = z.object({
   date: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: "Invalid date format",
   }),
+  status: z.enum(["scheduled", "working", "completed", "leave", "sick", "absent"]).default("scheduled"),
 });
 
 const updateShiftSchema = z.object({
   templateId: z.number(),
+  status: z.enum(["scheduled", "working", "completed", "leave", "sick", "absent"]).optional(),
 });
 
 // Get roster data for a business
-router.get("/api/businesses/:businessId/roster", async (req, res) => {
+router.get("/businesses/:businessId/roster", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const businessId = parseInt(req.params.businessId);
-    const schedules = await db.query.staffSchedules.findMany({
-      where: and(
-        eq(staffSchedules.businessId, businessId)
-      ),
-      with: {
-        staff: true,
-        template: true,
-      }
-    });
 
-    res.json(schedules);
+    // Get staff and their schedules
+    const staff = await db
+      .select()
+      .from(salonStaff)
+      .where(eq(salonStaff.businessId, businessId));
+
+    const staffIds = staff.map(s => s.id);
+
+    // If no staff found, return empty array
+    if (staffIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get schedules for all staff
+    const schedules = await db
+      .select({
+        schedule: staffSchedules,
+        staff: {
+          id: salonStaff.id,
+          name: salonStaff.name,
+          email: salonStaff.email,
+          specialization: salonStaff.specialization
+        }
+      })
+      .from(staffSchedules)
+      .innerJoin(salonStaff, eq(staffSchedules.staffId, salonStaff.id))
+      .where(sql`${staffSchedules.staffId} = ANY(${staffIds})`);
+
+    // Get templates for all schedules
+    const templateIds = [...new Set(schedules.map(s => s.schedule.templateId))];
+    const templates = await db
+      .select()
+      .from(shiftTemplates)
+      .where(sql`${shiftTemplates.id} = ANY(${templateIds})`);
+
+    // Combine the data
+    const schedulesWithDetails = schedules.map(schedule => ({
+      ...schedule.schedule,
+      staff: schedule.staff,
+      template: templates.find(t => t.id === schedule.schedule.templateId)
+    }));
+
+    res.json(schedulesWithDetails);
   } catch (error) {
     console.error("Error fetching roster:", error);
     res.status(500).json({ error: "Failed to fetch roster" });
@@ -45,7 +80,7 @@ router.get("/api/businesses/:businessId/roster", async (req, res) => {
 });
 
 // Get shift templates for a business
-router.get("/api/businesses/:businessId/shift-templates", async (req, res) => {
+router.get("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -65,7 +100,7 @@ router.get("/api/businesses/:businessId/shift-templates", async (req, res) => {
 });
 
 // Assign a shift
-router.post("/api/businesses/:businessId/roster/assign", async (req, res) => {
+router.post("/businesses/:businessId/roster/assign", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -81,26 +116,41 @@ router.post("/api/businesses/:businessId/roster/assign", async (req, res) => {
     }
 
     const businessId = parseInt(req.params.businessId);
-    const { staffId, templateId, date } = validationResult.data;
+    const { staffId, templateId, date, status } = validationResult.data;
+
+    // Verify staff belongs to this business
+    const [staff] = await db
+      .select()
+      .from(salonStaff)
+      .where(and(
+        eq(salonStaff.id, staffId),
+        eq(salonStaff.businessId, businessId)
+      ));
+
+    if (!staff) {
+      return res.status(404).json({ error: "Staff not found" });
+    }
 
     // Check for existing shift
-    const existingShift = await db.query.staffSchedules.findFirst({
-      where: and(
+    const existingShift = await db
+      .select()
+      .from(staffSchedules)
+      .where(and(
         eq(staffSchedules.staffId, staffId),
         eq(staffSchedules.date, new Date(date))
-      ),
-    });
+      ));
 
     let shift;
-    if (existingShift) {
+    if (existingShift.length > 0) {
       // Update existing shift
       [shift] = await db
         .update(staffSchedules)
         .set({
           templateId,
+          status,
           updatedAt: new Date(),
         })
-        .where(eq(staffSchedules.id, existingShift.id))
+        .where(eq(staffSchedules.id, existingShift[0].id))
         .returning();
     } else {
       // Create new shift
@@ -109,9 +159,9 @@ router.post("/api/businesses/:businessId/roster/assign", async (req, res) => {
         .values({
           staffId,
           templateId,
-          businessId,
           date: new Date(date),
-          status: "scheduled",
+          status,
+          businessId
         })
         .returning();
     }
@@ -124,7 +174,7 @@ router.post("/api/businesses/:businessId/roster/assign", async (req, res) => {
 });
 
 // Update a shift
-router.put("/api/businesses/:businessId/roster/:shiftId", async (req, res) => {
+router.put("/businesses/:businessId/roster/:shiftId", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -140,12 +190,13 @@ router.put("/api/businesses/:businessId/roster/:shiftId", async (req, res) => {
     }
 
     const shiftId = parseInt(req.params.shiftId);
-    const { templateId } = validationResult.data;
+    const { templateId, status } = validationResult.data;
 
     const [updatedShift] = await db
       .update(staffSchedules)
       .set({
         templateId,
+        status,
         updatedAt: new Date(),
       })
       .where(eq(staffSchedules.id, shiftId))

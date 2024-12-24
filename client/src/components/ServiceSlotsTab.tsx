@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -61,6 +61,17 @@ export function ServiceSlotsTab({
   const [selectedService, setSelectedService] = useState<string>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Helper function to safely format dates
+  const formatTime = (dateString: string) => {
+    try {
+      const date = parseISO(dateString);
+      return format(date, "HH:mm");
+    } catch (error) {
+      console.error("Error formatting date:", dateString);
+      return "--:--";
+    }
+  };
 
   // Fetch slots for the selected date
   const { data: slots = [], isLoading: isLoadingSlots } = useQuery<Slot[]>({
@@ -322,8 +333,8 @@ export function ServiceSlotsTab({
                           <div className="text-right">
                             <div className="flex items-center text-sm text-muted-foreground">
                               <Clock className="h-4 w-4 mr-1" />
-                              {format(new Date(slot.startTime), "HH:mm")} -{" "}
-                              {format(new Date(slot.endTime), "HH:mm")}
+                              {formatTime(slot.startTime)} -{" "}
+                              {formatTime(slot.endTime)}
                             </div>
                             <span
                               className={`text-xs px-2 py-1 rounded-full ${

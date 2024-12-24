@@ -44,9 +44,23 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-user";
 import { useState } from "react";
 import { format } from "date-fns";
-import { toast } from "@/components/ui/use-toast";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
+interface Service {
+  id: number;
+  name: string;
+  description: string;
+  duration: number;
+  price: number;
+  category: string;
+  businessId: number;
+}
+
+interface Slot {
+  id: number;
+  startTime: string;
+  endTime: string;
+}
 
 interface StorefrontPageProps {
   params: {
@@ -71,21 +85,20 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const { user } = useUser();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>();
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const { toast } = useToast();
 
   const { data: business, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
   });
 
-  // Update the services query section
-  const { data: services = [], isLoading: isLoadingServices } = useQuery({
+  const { data: services = [], isLoading: isLoadingServices } = useQuery<Service[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId,
   });
 
-  // Update the availableSlots query section
-  const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery({
+  const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery<Slot[]>({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
@@ -322,7 +335,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                       No services available at the moment
                     </div>
                   ) : (
-                    services.map((service: any) => (
+                    services.map((service: Service) => (
                       <Card key={service.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="pb-3">
                           <div className="flex justify-between items-start">
@@ -390,7 +403,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                                 No slots available for this date
                                               </div>
                                             ) : (
-                                              availableSlots.map((slot: any) => (
+                                              availableSlots.map((slot: Slot) => (
                                                 <SelectItem key={slot.id} value={slot.id.toString()}>
                                                   {format(new Date(slot.startTime), 'HH:mm')} -
                                                   {format(new Date(slot.endTime), 'HH:mm')}

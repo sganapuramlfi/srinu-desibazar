@@ -853,7 +853,180 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     },
   });
 
-  // Return the dashboard UI
+  const deleteServiceMutation = useMutation({
+    mutationFn: async (serviceId: number) => {
+      const response = await fetch(`/api/businesses/${businessId}/services/${serviceId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setServiceToDelete(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
+      toast({
+        title: "Success",
+        description: "Service deleted successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  const editServiceMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof serviceFormSchema> & { id: number }) => {
+      const response = await fetch(`/api/businesses/${businessId}/services/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsEditingService(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/services`] });
+      toast({
+        title: "Success",
+        description: "Service updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    },
+  });
+
+  // Add AlertDialog for delete confirmation
+  const DeleteServiceDialog = () => (
+    <AlertDialog open={!!serviceToDelete} onOpenChange={() => setServiceToDelete(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Service</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this service? This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => serviceToDelete && deleteServiceMutation.mutate(serviceToDelete.id)}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  // Add Dialog for editing service
+  const EditServiceDialog = () => (
+    <Dialog open={!!isEditingService} onOpenChange={() => setIsEditingService(null)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Service</DialogTitle>
+          <DialogDescription>
+            Update the service details
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...serviceForm}><form onSubmit={serviceForm.handleSubmit((data) => 
+            isEditingService && editServiceMutation.mutate({ ...data, id: isEditingService.id })
+          )}>
+            <div className="space-y-4">
+              <FormField
+                control={serviceForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={serviceForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={serviceForm.control}
+                name="duration"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Duration (minutes)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={serviceForm.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price ($)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={serviceForm.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className="flex justify-end mt-6">
+              <Button type="submit">Update Service</Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="container mx-auto py-6">
       <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
@@ -931,7 +1104,8 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             ))}
           </div>
 
-          {/* Add Service Dialog          <Dialog open={isAddingService} onOpenChange={setIsAddingService}>
+          {/* Add Service Dialog */}
+          <Dialog open={isAddingService} onOpenChange={setIsAddingService}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Service</DialogTitle>

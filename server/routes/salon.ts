@@ -3,8 +3,132 @@ import { db } from "@db";
 import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { shiftTemplates, staffSchedules, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
+import { z } from "zod";
 
 const router = Router();
+
+// Basic validation schemas
+const updateServiceSchema = insertSalonServiceSchema.partial();
+
+// Service Management
+router.get("/businesses/:businessId/services", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const services = await db.select()
+      .from(salonServices)
+      .where(eq(salonServices.businessId, parseInt(req.params.businessId)));
+
+    res.json(services);
+  } catch (error: any) {
+    console.error('Error fetching salon services:', error);
+    res.status(500).json({
+      message: "Failed to fetch services",
+      error: error.message
+    });
+  }
+});
+
+router.post("/businesses/:businessId/services", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = insertSalonServiceSchema.safeParse({
+      ...req.body,
+      businessId: parseInt(req.params.businessId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [service] = await db.insert(salonServices)
+      .values(result.data)
+      .returning();
+
+    res.status(201).json(service);
+  } catch (error: any) {
+    console.error('Error creating salon service:', error);
+    res.status(500).json({
+      message: "Failed to create service",
+      error: error.message
+    });
+  }
+});
+
+router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = updateServiceSchema.safeParse({
+      ...req.body,
+      businessId: parseInt(req.params.businessId)
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [service] = await db.update(salonServices)
+      .set(result.data)
+      .where(and(
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    res.json(service);
+  } catch (error: any) {
+    console.error('Error updating salon service:', error);
+    res.status(500).json({
+      message: "Failed to update service",
+      error: error.message
+    });
+  }
+});
+
+router.delete("/businesses/:businessId/services/:serviceId", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const [deletedService] = await db.delete(salonServices)
+      .where(and(
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!deletedService) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    res.json({ message: "Service deleted successfully" });
+  } catch (error: any) {
+    console.error('Error deleting salon service:', error);
+    res.status(500).json({
+      message: "Failed to delete service",
+      error: error.message
+    });
+  }
+});
 
 // Staff-skills routes
 router.get("/businesses/:businessId/staff-skills", async (req, res) => {
@@ -102,154 +226,6 @@ router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
     console.error('Error updating staff skills:', error);
     res.status(500).json({
       message: "Failed to update staff skills",
-      error: error.message
-    });
-  }
-});
-
-// Service Management
-router.get("/businesses/:businessId/services", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const services = await db.select()
-      .from(salonServices)
-      .where(eq(salonServices.businessId, parseInt(req.params.businessId)));
-
-    res.json(services);
-  } catch (error: any) {
-    console.error('Error fetching salon services:', error);
-    res.status(500).json({
-      message: "Failed to fetch services",
-      error: error.message
-    });
-  }
-});
-
-router.post("/businesses/:businessId/services", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = insertSalonServiceSchema.safeParse({
-      ...req.body,
-      businessId: parseInt(req.params.businessId)
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
-
-    const [service] = await db.insert(salonServices)
-      .values(result.data)
-      .returning();
-
-    res.status(201).json(service);
-  } catch (error: any) {
-    console.error('Error creating salon service:', error);
-    res.status(500).json({
-      message: "Failed to create service",
-      error: error.message
-    });
-  }
-});
-
-router.get("/businesses/:businessId/services/:serviceId", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const [service] = await db.select()
-      .from(salonServices)
-      .where(and(
-        eq(salonServices.id, parseInt(req.params.serviceId)),
-        eq(salonServices.businessId, parseInt(req.params.businessId))
-      ))
-      .limit(1);
-
-    if (!service) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-
-    res.json(service);
-  } catch (error: any) {
-    console.error('Error fetching salon service:', error);
-    res.status(500).json({
-      message: "Failed to fetch service",
-      error: error.message
-    });
-  }
-});
-
-router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = insertSalonServiceSchema.partial().safeParse({
-      ...req.body,
-      businessId: parseInt(req.params.businessId)
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
-
-    const [service] = await db.update(salonServices)
-      .set(result.data)
-      .where(and(
-        eq(salonServices.id, parseInt(req.params.serviceId)),
-        eq(salonServices.businessId, parseInt(req.params.businessId))
-      ))
-      .returning();
-
-    if (!service) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-
-    res.json(service);
-  } catch (error: any) {
-    console.error('Error updating salon service:', error);
-    res.status(500).json({
-      message: "Failed to update service",
-      error: error.message
-    });
-  }
-});
-
-router.delete("/businesses/:businessId/services/:serviceId", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const [deletedService] = await db.delete(salonServices)
-      .where(and(
-        eq(salonServices.id, parseInt(req.params.serviceId)),
-        eq(salonServices.businessId, parseInt(req.params.businessId))
-      ))
-      .returning();
-
-    if (!deletedService) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-
-    res.json({ message: "Service deleted successfully" });
-  } catch (error: any) {
-    console.error('Error deleting salon service:', error);
-    res.status(500).json({
-      message: "Failed to delete service",
       error: error.message
     });
   }

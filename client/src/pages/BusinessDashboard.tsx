@@ -104,34 +104,23 @@ interface BusinessDashboardProps {
   businessId: number;
 }
 
-// Update ShiftTemplate interface to match the schema
-interface ShiftTemplate {
-  id: number;
-  name: string;
-  description?: string;
-  startTime: string;
-  endTime: string;
-  breaks?: {
-    startTime: string;
-    endTime: string;
-    duration: number;
-    type: "lunch" | "short_break" | "other";
-  }[];
-  type: "regular" | "overtime" | "holiday" | "leave";
-  isActive: boolean;
-}
-
 interface StaffSkill {
   id: number;
   staffId: number;
   serviceId: number;
   proficiencyLevel: "trainee" | "junior" | "senior" | "expert";
+  createdAt: string;
 }
 
-const ServiceStaffTab = ({ 
+interface StaffSkillResponse {
+  staff_skills: StaffSkill;
+  salon_staff: SalonStaff;
+}
+
+const ServiceStaffTab = ({
   businessId,
-  industryType 
-}: { 
+  industryType
+}: {
   businessId: number;
   industryType?: string;
 }) => {
@@ -142,10 +131,13 @@ const ServiceStaffTab = ({
   const queryClient = useQueryClient();
 
   // Fetch staff skills with service details
-  const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
+  const { data: staffSkillsResponse = [], isLoading: isLoadingSkills } = useQuery<StaffSkillResponse[]>({
     queryKey: [`/api/businesses/${businessId}/staff-skills`],
     enabled: !!businessId,
   });
+
+  // Transform the response to get just the staff skills
+  const staffSkills = staffSkillsResponse?.map(response => response?.staff_skills) || [];
 
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
@@ -157,7 +149,7 @@ const ServiceStaffTab = ({
     enabled: !!businessId,
   });
 
-  // Update staff skills mutation
+  // Update staff skills mutation with optimistic updates
   const updateSkillsMutation = useMutation({
     mutationFn: async (data: { staffId: number; serviceIds: number[] }) => {
       const response = await fetch(`/api/businesses/${businessId}/staff/${data.staffId}/skills`, {
@@ -175,20 +167,63 @@ const ServiceStaffTab = ({
 
       return response.json();
     },
+    onMutate: async (newData) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
+
+      // Snapshot the previous value
+      const previousSkills = queryClient.getQueryData([`/api/businesses/${businessId}/staff-skills`]);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(
+        [`/api/businesses/${businessId}/staff-skills`],
+        (old: StaffSkillResponse[] = []) => {
+          // Remove existing skills for this staff member
+          const filtered = old.filter(
+            (item) => item.staff_skills.staffId !== newData.staffId
+          );
+
+          // Add new skills
+          const staffMember = staff.find((s) => s.id === newData.staffId);
+          const newSkills = newData.serviceIds.map((serviceId) => ({
+            staff_skills: {
+              id: Math.random(), // temporary id
+              staffId: newData.staffId,
+              serviceId,
+              proficiencyLevel: "junior",
+              createdAt: new Date().toISOString(),
+            },
+            salon_staff: staffMember || ({} as SalonStaff), // Handle potential null
+          }));
+
+          return [...filtered, ...newSkills];
+        }
+      );
+
+      return { previousSkills };
+    },
+    onError: (err, newData, context) => {
+      // Roll back to the previous value if mutation fails
+      if (context?.previousSkills) {
+        queryClient.setQueryData(
+          [`/api/businesses/${businessId}/staff-skills`],
+          context.previousSkills
+        );
+      }
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message || "Failed to update staff services",
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
       toast({
         title: "Success",
         description: "Staff services have been updated successfully.",
       });
-      setIsUpdating(false);
     },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to update staff services",
-      });
+    onSettled: () => {
       setIsUpdating(false);
     },
   });
@@ -197,8 +232,9 @@ const ServiceStaffTab = ({
   useEffect(() => {
     if (selectedStaff) {
       const currentServiceIds = staffSkills
-        .filter(skill => skill.staffId === selectedStaff.id)
-        .map(skill => skill.serviceId);
+        .filter(skill => skill && skill.staffId === selectedStaff.id)
+        .map(skill => skill?.serviceId)
+        .filter(id => id !== undefined);
       setSelectedServiceIds(currentServiceIds);
     } else {
       setSelectedServiceIds([]);
@@ -247,8 +283,8 @@ const ServiceStaffTab = ({
               <Card
                 key={member.id}
                 className={`cursor-pointer transition-colors ${
-                  selectedStaff?.id === member.id 
-                    ? 'border-primary bg-primary/5' 
+                  selectedStaff?.id === member.id
+                    ? 'border-primary bg-primary/5'
                     : 'hover:border-primary/50'
                 }`}
                 onClick={() => handleStaffSelect(member)}
@@ -330,9 +366,9 @@ const ServiceStaffTab = ({
         <h3 className="text-lg font-semibold mb-4">Current Service Assignments</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {staff.map((member) => {
-            const memberSkills = staffSkills.filter(skill => skill.staffId === member.id);
-            const memberServices = services.filter(service => 
-              memberSkills.map(skill => skill.serviceId).includes(service.id)
+            const memberSkills = staffSkills.filter(skill => skill && skill.staffId === member.id);
+            const memberServices = services.filter(service =>
+              memberSkills.map(skill => skill?.serviceId).filter(id => id !== undefined).includes(service.id)
             );
 
             return (
@@ -370,7 +406,7 @@ const ServiceStaffTab = ({
 
 export { ServiceStaffTab };
 
-export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
+function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
   const { user } = useUser();
   const { business, isLoading: isLoadingBusiness, error } = useBusiness(businessId);
@@ -777,8 +813,8 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               member.status === "active"
                 ? "bg-green-100 text-green-700"
                 : member.status === "on_leave"
-                ? "bg-yellow-100 text-yellow-700"
-                : "bg-red-100 text-red-700"
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-red-100 text-red-700"
             }`}>
               {member.status}
             </span>
@@ -834,10 +870,10 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               template.type === "regular"
                 ? "bg-green-100 text-green-700"
                 : template.type === "overtime"
-                ? "bg-yellow-100 text-yellow-700"
-                : template.type === "holiday"
-                ? "bg-blue-100 text-blue-700"
-                : "bg-red-100 text-red-700"
+                  ? "bg-yellow-100 text-yellow-700"
+                  : template.type === "holiday"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-red-100 text-red-700"
             } capitalize`}>
               {template.type}
             </span>
@@ -876,7 +912,8 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               </div>
             )}
           </div>
-          <div className="absolute bottom-4 right-4 space-x-2"><Button
+          <div className="absolute bottom-4 right-4 space-x-2">
+            <Button
               variant="outline"
               size="sm"
               onClick={() => setIsEditingTemplate(template)}
@@ -1135,7 +1172,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!staffToDelete} onOpenChange={()=> setStaffToDelete(null)}>
+      <AlertDialog open={!!staffToDelete} onOpenChange={() => setStaffToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
@@ -1517,7 +1554,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                 </TabsContent>
 
                 <TabsContent value="service-staff" className="p-4">
-                  <ServiceStaffTab 
+                  <ServiceStaffTab
                     businessId={businessId}
                     industryType={business.industryType}
                   />
@@ -1572,3 +1609,5 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </div>
   );
 }
+
+export default BusinessDashboard;

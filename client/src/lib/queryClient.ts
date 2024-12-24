@@ -4,8 +4,12 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: async ({ queryKey }) => {
+        // For public endpoints like services listing, don't include credentials
+        const isPublicEndpoint = queryKey[0].toString().includes('/services') || 
+                                queryKey[0].toString().includes('/profile');
+
         const res = await fetch(queryKey[0] as string, {
-          credentials: 'include',
+          credentials: isPublicEndpoint ? 'omit' : 'include',
           headers: {
             "Content-Type": "application/json",
           },

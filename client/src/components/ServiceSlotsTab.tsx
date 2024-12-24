@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Clock } from "lucide-react";
+import { Loader2, Clock, AlertCircle } from "lucide-react";
 
 interface ServiceSlotsTabProps {
   businessId: number;
@@ -34,22 +34,43 @@ interface ServiceSlotsTabProps {
   }>;
 }
 
-export const ServiceSlotsTab = ({
+interface Slot {
+  id: number;
+  startTime: string;
+  endTime: string;
+  status: "available" | "booked" | "blocked";
+  service: {
+    id: number;
+    name: string;
+    duration: number;
+  };
+  staff: {
+    id: number;
+    name: string;
+  };
+  conflictingSlotIds?: number[];
+}
+
+export function ServiceSlotsTab({
   businessId,
   staff,
   services,
-}: ServiceSlotsTabProps) => {
+}: ServiceSlotsTabProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedStaff, setSelectedStaff] = useState<string>();
+  const [selectedService, setSelectedService] = useState<string>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch slots for the selected date
-  const { data: slots = [], isLoading: isLoadingSlots } = useQuery({
+  const { data: slots = [], isLoading: isLoadingSlots } = useQuery<Slot[]>({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
         startDate: format(selectedDate, 'yyyy-MM-dd'),
         endDate: format(selectedDate, 'yyyy-MM-dd'),
+        staffId: selectedStaff,
+        serviceId: selectedService,
       },
     ],
     enabled: !!businessId && !!selectedDate,
@@ -57,19 +78,24 @@ export const ServiceSlotsTab = ({
 
   // Auto-generate slots mutation
   const generateSlotsMutation = useMutation({
-    mutationFn: async (data: { startDate: string; endDate: string }) => {
+    mutationFn: async () => {
+      const startDate = format(selectedDate, 'yyyy-MM-dd');
       const response = await fetch(
         `/api/businesses/${businessId}/slots/auto-generate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(data),
+          body: JSON.stringify({
+            startDate,
+            endDate: startDate,
+          }),
         }
       );
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -83,7 +109,7 @@ export const ServiceSlotsTab = ({
         description: "Slots have been generated successfully.",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         variant: "destructive",
         title: "Error",
@@ -111,7 +137,8 @@ export const ServiceSlotsTab = ({
       );
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -122,23 +149,46 @@ export const ServiceSlotsTab = ({
       });
       toast({
         title: "Success",
-        description: "Slot has been created successfully.",
+        description: "Manual slot has been created successfully.",
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to create slot",
+        description: error.message || "Failed to create manual slot",
       });
     },
   });
 
   const handleAutoGenerate = () => {
-    const startDate = format(selectedDate, 'yyyy-MM-dd');
-    generateSlotsMutation.mutate({
-      startDate,
-      endDate: startDate,
+    generateSlotsMutation.mutate();
+  };
+
+  const handleManualCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedService || !selectedStaff) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select both staff and service",
+      });
+      return;
+    }
+
+    // Get service duration
+    const service = services.find(s => s.id === parseInt(selectedService));
+    if (!service) return;
+
+    // Create slot for current time + duration
+    const startTime = new Date();
+    const endTime = new Date(startTime.getTime() + service.duration * 60000);
+
+    createManualSlotMutation.mutate({
+      serviceId: parseInt(selectedService),
+      staffId: parseInt(selectedStaff),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
     });
   };
 
@@ -161,7 +211,6 @@ export const ServiceSlotsTab = ({
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Date Selection and Auto-generate */}
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <Calendar
@@ -182,23 +231,28 @@ export const ServiceSlotsTab = ({
                   )}
                   Auto-generate Slots for Selected Date
                 </Button>
-                
-                {/* Manual Slot Creation Form */}
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Create Manual Slot</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form className="space-y-4">
+                    <form onSubmit={handleManualCreate} className="space-y-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Staff</label>
-                        <Select>
+                        <Select
+                          value={selectedStaff}
+                          onValueChange={setSelectedStaff}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select staff member" />
                           </SelectTrigger>
                           <SelectContent>
                             {staff.map((member) => (
-                              <SelectItem key={member.id} value={member.id.toString()}>
+                              <SelectItem
+                                key={member.id}
+                                value={member.id.toString()}
+                              >
                                 {member.name}
                               </SelectItem>
                             ))}
@@ -207,13 +261,19 @@ export const ServiceSlotsTab = ({
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Service</label>
-                        <Select>
+                        <Select
+                          value={selectedService}
+                          onValueChange={setSelectedService}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select service" />
                           </SelectTrigger>
                           <SelectContent>
                             {services.map((service) => (
-                              <SelectItem key={service.id} value={service.id.toString()}>
+                              <SelectItem
+                                key={service.id}
+                                value={service.id.toString()}
+                              >
                                 {service.name} ({service.duration} min)
                               </SelectItem>
                             ))}
@@ -236,45 +296,55 @@ export const ServiceSlotsTab = ({
               </div>
             </div>
 
-            {/* Slots Display */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Available Slots</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {slots.map((slot) => (
-                  <Card key={slot.id} className="bg-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium">{slot.service.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {slot.staff.name}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Clock className="h-4 w-4 mr-1" />
-                            {format(new Date(slot.startTime), "HH:mm")} -{" "}
-                            {format(new Date(slot.endTime), "HH:mm")}
+              {slots.length === 0 ? (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-center text-muted-foreground">
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      <span>No slots available for the selected date</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {slots.map((slot) => (
+                    <Card key={slot.id} className="bg-white">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium">{slot.service.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {slot.staff.name}
+                            </p>
                           </div>
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full ${
-                              slot.status === "available"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {slot.status}
-                          </span>
+                          <div className="text-right">
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <Clock className="h-4 w-4 mr-1" />
+                              {format(new Date(slot.startTime), "HH:mm")} -{" "}
+                              {format(new Date(slot.endTime), "HH:mm")}
+                            </div>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                slot.status === "available"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {slot.status}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
   );
-};
+}

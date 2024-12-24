@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { db } from "@db";
-import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings } from "@db/schema";
+import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff } from "@db/schema";
 import { eq, and, gte, lte, not, or } from "drizzle-orm";
 import { z } from "zod";
-import { addMinutes, parseISO, format, isWithinInterval } from "date-fns";
+import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 
 const router = Router();
 
@@ -193,6 +193,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     const businessId = parseInt(req.params.businessId);
+    console.log("Processing slot generation for business:", businessId);
 
     // Validate request body
     const validationResult = generateAutoSlotsSchema.safeParse(req.body);
@@ -204,25 +205,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     const { startDate, endDate } = validationResult.data;
-
-    // Get existing bookings for the date range
-    const existingBookings = await db
-      .select({
-        id: salonBookings.id,
-        startTime: serviceSlots.startTime,
-        endTime: serviceSlots.endTime,
-        staffId: salonBookings.staffId,
-      })
-      .from(salonBookings)
-      .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
-      .where(
-        and(
-          eq(salonBookings.businessId, businessId),
-          gte(serviceSlots.startTime, new Date(startDate)),
-          lte(serviceSlots.endTime, new Date(endDate)),
-          eq(salonBookings.status, "confirmed")
-        )
-      );
+    console.log("Generating slots for date range:", startDate, "to", endDate);
 
     // Get all staff schedules and their service capabilities
     const schedules = await db
@@ -231,52 +214,58 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
         template: shiftTemplates,
         skills: staffSkills,
         service: salonServices,
+        staff: {
+          id: staffSkills.staffId,
+          name: salonStaff.name,
+        }
       })
       .from(staffSchedules)
       .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
       .innerJoin(staffSkills, eq(staffSchedules.staffId, staffSkills.staffId))
       .innerJoin(salonServices, eq(staffSkills.serviceId, salonServices.id))
+      .innerJoin(salonStaff, eq(staffSchedules.staffId, salonStaff.id))
       .where(
         and(
-          gte(staffSchedules.date, new Date(startDate)),
-          lte(staffSchedules.date, new Date(endDate)),
-          eq(salonServices.businessId, businessId)
+          eq(salonServices.businessId, businessId),
+          gte(staffSchedules.date, startOfDay(new Date(startDate))),
+          lte(staffSchedules.date, endOfDay(new Date(endDate)))
         )
       );
+
+    console.log("Found schedules:", schedules.length);
+    if (schedules.length === 0) {
+      return res.status(400).json({
+        error: "No staff schedules found for the selected date range. Please ensure staff members are scheduled."
+      });
+    }
 
     const slots = [];
 
     // Generate slots for each schedule with conflict awareness
-    for (const { schedule, template, skills, service } of schedules) {
-      if (!skills || !service) continue;
+    for (const { schedule, template, skills, service, staff } of schedules) {
+      console.log(`Processing schedule for staff ${staff.name}, service ${service.name}`);
 
       const shiftStart = parseISO(`${format(schedule.date, 'yyyy-MM-dd')}T${template.startTime}`);
       const shiftEnd = parseISO(`${format(schedule.date, 'yyyy-MM-dd')}T${template.endTime}`);
 
+      console.log(`Shift time: ${shiftStart.toISOString()} to ${shiftEnd.toISOString()}`);
+
       let currentTime = shiftStart;
       while (currentTime < shiftEnd) {
-        // Check for breaks and existing bookings
+        // Check for breaks
         const isBreakTime = template.breaks?.some(breakTime => {
           const breakStart = parseISO(`${format(schedule.date, 'yyyy-MM-dd')}T${breakTime.startTime}`);
           const breakEnd = parseISO(`${format(schedule.date, 'yyyy-MM-dd')}T${breakTime.endTime}`);
           return currentTime >= breakStart && currentTime < breakEnd;
         });
 
-        const hasBookingConflict = existingBookings.some(booking =>
-          booking.staffId === schedule.staffId &&
-          isWithinInterval(currentTime, {
-            start: booking.startTime,
-            end: booking.endTime
-          })
-        );
-
-        if (!isBreakTime && !hasBookingConflict) {
+        if (!isBreakTime) {
           const slotEnd = addMinutes(currentTime, service.duration);
           if (slotEnd <= shiftEnd) {
             const newSlot = {
               businessId,
               serviceId: service.id,
-              staffId: schedule.staffId,
+              staffId: staff.id,
               startTime: currentTime,
               endTime: slotEnd,
               status: "available" as const,
@@ -298,11 +287,11 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
             );
 
             if (existingOverlappingSlots.length > 0) {
-              // Store overlapping slot references
               newSlot.conflictingSlotIds = existingOverlappingSlots.map((_, index) => index);
             }
 
             slots.push(newSlot);
+            console.log(`Created slot: ${currentTime.toISOString()} - ${slotEnd.toISOString()} for ${staff.name}`);
           }
         }
 
@@ -310,6 +299,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
         currentTime = addMinutes(currentTime, 15);
       }
     }
+
+    console.log(`Total slots generated: ${slots.length}`);
 
     if (slots.length === 0) {
       return res.status(400).json({
@@ -319,6 +310,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
 
     // Insert all generated slots
     const createdSlots = await db.insert(serviceSlots).values(slots).returning();
+    console.log(`Successfully inserted ${createdSlots.length} slots`);
 
     res.json(createdSlots);
   } catch (error) {

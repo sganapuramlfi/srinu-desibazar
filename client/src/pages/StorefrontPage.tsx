@@ -50,9 +50,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     enabled: !!businessId,
   });
 
-  // Assuming user is fetched elsewhere and available in scope.  Replace with actual fetching logic if needed.
-  //const user = { id: 1 }; // Placeholder - Replace with your actual user fetching
-
   const queryClient = useQueryClient();
   const { user } = useUser();
 

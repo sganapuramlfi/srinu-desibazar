@@ -143,6 +143,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   const [serviceToDelete, setServiceToDelete] = useState<SalonService | null>(null);
   const [staffToDelete, setStaffToDelete] = useState<SalonStaff | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<ShiftTemplate | null>(null);
+  const [activeTab, setActiveTab] = useState('services'); // Added state for active tab
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -185,20 +186,20 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Query hooks
+  // Query hooks - made conditional on activeTab
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && business?.industryType === "salon",
+    enabled: !!businessId && business?.industryType === "salon" && activeTab === 'services',
   });
 
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && business?.industryType === "salon",
+    enabled: !!businessId && business?.industryType === "salon" && (activeTab === 'staff' || activeTab === 'service-staff'),
   });
 
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId && business?.industryType === "salon",
+    enabled: !!businessId && business?.industryType === "salon" && activeTab === 'shift-templates',
     queryFn: async () => {
       const res = await fetch(`/api/businesses/${businessId}/shift-templates`, {
         credentials: "include"
@@ -208,7 +209,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Effect hooks
+
   useEffect(() => {
     if (isEditingService) {
       serviceForm.reset({
@@ -929,7 +930,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             >
               {deleteServiceMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w4 animate-spin" />
                   Deleting...
                 </>
               ) : (
@@ -1208,7 +1209,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }
 
     return (
-      <Tabs defaultValue="services" className="space-y-6">
+      <Tabs defaultValue="services" className="space-y-6" onValueChange={setActiveTab}> {/* Added onValueChange */}
         <TabsList>
           <TabsTrigger value="services">Services</TabsTrigger>
           <TabsTrigger value="staff">Staff</TabsTrigger>
@@ -1508,7 +1509,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Service-Staff Mapping</h2>
           </div>
-          <ServiceStaffMapping />
+          <ServiceStaffTab businessId={businessId} /> {/* Replaced ServiceStaffMapping */}
         </TabsContent>
         <TabsContent value="roster" className="p-4">
           <div className="flex justify-between mb-4">
@@ -1582,279 +1583,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   };
 
   // Add the ServiceStaffMapping component inside BusinessDashboard
-  const ServiceStaffMapping = () => {
-    const [selectedStaff, setSelectedStaff] = useState<SalonStaff | null>(null);
-    const [selectedServices, setSelectedServices] = useState<Set<number>>(new Set());
-    const [isUpdating, setIsUpdating] = useState(false);
-
-    // Query for staff skills with included service details
-    const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
-      queryKey: [`/api/businesses/${businessId}/staff-skills`],
-      enabled: !!businessId && business?.industryType === "salon",
-    });
-
-    // Mutation for updating staff skills
-    const updateStaffSkillsMutation = useMutation({
-      mutationFn: async ({ staffId, serviceIds }: { staffId: number; serviceIds: number[] }) => {
-        console.log("Updating staff skills:", { staffId, serviceIds }); // Debug log
-        const res = await fetch(`/api/businesses/${businessId}/staff/${staffId}/skills`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ serviceIds }),
-          credentials: "include",
-        });
-
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error("Error updating staff skills:", errorText); // Debug log
-          throw new Error(errorText);
-        }
-
-        return res.json();
-      },
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
-        toast({
-          title: "Skills updated",
-          description: "Staff member's services have been updated successfully.",
-        });
-        setIsUpdating(false);
-      },
-      onError: (error) => {
-        console.error("Mutation error:", error); // Debug log
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message || "Failed to update staff skills",
-        });
-        setIsUpdating(false);
-      },
-    });
-
-    // Effect to initialize selected services when staff is selected
-    useEffect(() => {
-      if (selectedStaff) {
-        console.log("Staff selected:", selectedStaff.id); // Debug log
-        const staffSkillsForMember = staffSkills.filter(
-          (skill) => skill.staffId === selectedStaff.id
-        );
-        console.log("Current staff skills:", staffSkillsForMember); // Debug log
-        setSelectedServices(
-          new Set(staffSkillsForMember.map((skill) => skill.serviceId))
-        );
-      } else {
-        setSelectedServices(new Set());
-      }
-    }, [selectedStaff, staffSkills]);
-
-    const handleStaffSelect = (staff: SalonStaff) => {
-      console.log("Selecting staff:", staff.id); // Debug log
-      setSelectedStaff(staff);
-    };
-
-    const handleServiceToggle = (serviceId: number) => {
-      console.log("Toggling service:", serviceId); // Debug log
-      setSelectedServices((prev) => {
-        const newSelected = new Set(prev);
-        if (newSelected.has(serviceId)) {
-          newSelected.delete(serviceId);
-        } else {
-          newSelected.add(serviceId);
-        }
-        console.log("Updated selected services:", Array.from(newSelected)); // Debug log
-        return newSelected;
-      });
-    };
-
-    const handleUpdateSkills = async () => {
-      if (!selectedStaff) return;
-
-      const serviceIds = Array.from(selectedServices);
-      console.log("Updating skills:", { staffId: selectedStaff.id, serviceIds }); // Debug log
-
-      setIsUpdating(true);
-      try {
-        await updateStaffSkillsMutation.mutate({
-          staffId: selectedStaff.id,
-          serviceIds,
-        });
-      } catch (error) {
-        console.error("Update error:", error); // Debug log
-      }
-    };
-
-    // Helper function to get assigned services for a staff member
-    const getAssignedServices = (staffMember: SalonStaff) => {
-      return staffSkills
-        .filter((skill) => skill.staffId === staffMember.id)
-        .map((skill) => services.find((service) => service.id === skill.serviceId))
-        .filter((service): service is SalonService => service !== undefined);
-    };
-
-    if (isLoadingStaff || isLoadingServices || isLoadingSkills) {
-      return (
-        <div className="flex items-center justify-center h-48">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-8">
-        {/* Staff Selection and Service Assignment Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Staff Members</h3>
-            <div className="space-y-2">
-              {staff.map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => setSelectedStaff(member)}
-                  className={`w-full text-left p-4 rounded-lg border transition-colors ${
-                    selectedStaff?.id === member.id
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "hover:bg-accent/50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">{member.name}</h4>
-                      <p className={`text-sm ${
-                        selectedStaff?.id === member.id
-                          ? "text-primary-foreground/80"
-                          : "text-muted-foreground"
-                      }`}>
-                        {member.specialization}
-                      </p>
-                    </div>
-                    <div className="text-xs">
-                      {getAssignedServices(member).length} services assigned
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {selectedStaff ? (
-              <>
-                <h3 className="text-lg font-semibold">
-                  Services for {selectedStaff.name}
-                </h3>
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-                  {services.map((service) => (
-                    <label
-                      key={service.id}
-                      className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                        selectedServices.has(service.id)
-                          ? "bg-primary/5 border-primary/50"
-                          : "hover:bg-accent/50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedServices.has(service.id)}
-                        onChange={() => {
-                          const newSelected = new Set(selectedServices);
-                          if (newSelected.has(service.id)) {
-                            newSelected.delete(service.id);
-                          } else {
-                            newSelected.add(service.id);
-                          }
-                          setSelectedServices(newSelected);
-                        }}
-                        className="h-4 w-4 rounded border-primary text-primary focus:ring-primary mt-1"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{service.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {service.duration} mins • ${service.price}
-                        </p>
-                        {service.description && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {service.description}
-                          </p>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                <div className="pt-4 border-t">
-                  <Button
-                    onClick={() => {
-                      updateStaffSkillsMutation.mutate({
-                        staffId: selectedStaff.id,
-                        serviceIds: Array.from(selectedServices),
-                      });
-                    }}
-                    disabled={isUpdating}
-                    className="w-full"
-                  >
-                    {isUpdating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      "Save Service Assignments"
-                    )}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-4 border rounded-lg bg-muted/50">
-                <Users className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="font-medium mb-2">No Staff Member Selected</h3>
-                <p className="text-sm text-muted-foreground">
-                  Select a staff member from the list to manage their service assignments
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Current Assignments Overview Section */}
-        <div className="border rounded-lg bg-card">
-          <div className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Current Service Assignments</h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {staff.map((member) => {
-                const assignedServices = getAssignedServices(member);
-                return (
-                  <Card key={member.id} className="hover:bg-accent/5">
-                    <CardHeader>
-                      <CardTitle className="text-base">{member.name}</CardTitle>
-                      <CardDescription>{member.specialization}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {assignedServices.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {assignedServices.map((service) => (
-                            <span
-                              key={service.id}
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
-                            >
-                              {service.name}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No services assigned
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="container mx-auto py-6">
       <div className="border-b">
@@ -1915,3 +1643,245 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </div>
   );
 }
+
+const ServiceStaffTab = ({ businessId }: { businessId: number }) => {
+  const [selectedStaff, setSelectedStaff] = useState<SalonStaff | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Set<number>>(new Set());
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Query for staff skills with included service details
+  const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
+    queryKey: [`/api/businesses/${businessId}/staff-skills`],
+    enabled: !!businessId && business?.industryType === "salon",
+  });
+
+  // Query for services
+  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
+    queryKey: [`/api/businesses/${businessId}/services`],
+    enabled: !!businessId && business?.industryType === "salon",
+  });
+
+  // Query for staff
+  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
+    queryKey: [`/api/businesses/${businessId}/staff`],
+    enabled: !!businessId && business?.industryType === "salon",
+  });
+
+  // Mutation for updating staff skills
+  const updateSkillsMutation = useMutation({
+    mutationFn: async (data: { staffId: number; serviceIds: number[] }) => {
+      const response = await fetch(`/api/businesses/${businessId}/staff/${data.staffId}/skills`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ serviceIds: data.serviceIds }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
+      toast({
+        title: "Success",
+        description: "Services have been updated successfully.",
+      });
+      setIsUpdating(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update services",
+      });
+      setIsUpdating(false);
+    },
+  });
+
+  // Initialize selected services when staff member is selected
+  useEffect(() => {
+    if (selectedStaff) {
+      const currentSkills = staffSkills.filter(skill => skill.staffId === selectedStaff.id);
+      const currentServiceIds = new Set(currentSkills.map(skill => skill.serviceId));
+      setSelectedServices(currentServiceIds);
+    } else {
+      setSelectedServices(new Set());
+    }
+  }, [selectedStaff, staffSkills]);
+
+  const handleServiceToggle = (serviceId: number) => {
+    setSelectedServices(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(serviceId)) {
+        newSet.delete(serviceId);
+      } else {
+        newSet.add(serviceId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSave = async () => {
+    if (!selectedStaff) return;
+
+    setIsUpdating(true);
+    await updateSkillsMutation.mutateAsync({
+      staffId: selectedStaff.id,
+      serviceIds: Array.from(selectedServices),
+    });
+  };
+
+  // Loading state
+  if (isLoadingStaff || isLoadingServices || isLoadingSkills) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Staff List */}
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
+          <div className="space-y-2">
+            {staff.map((member) => (
+              <button
+                key={member.id}
+                onClick={() => setSelectedStaff(member)}
+                className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                  selectedStaff?.id === member.id
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-accent"
+                }`}
+              >
+                <h4 className="font-medium">{member.name}</h4>
+                <p className={`text-sm ${
+                  selectedStaff?.id === member.id
+                    ? "text-primary-foreground/80"
+                    : "text-muted-foreground"
+                }`}>
+                  {member.specialization}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Service Assignment */}
+        <div>
+          {selectedStaff ? (
+            <>
+              <h3 className="text-lg font-semibold mb-4">
+                Assign Services for {selectedStaff.name}
+              </h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {services.map((service) => (
+                  <label
+                    key={service.id}
+                    className={`block p-4 rounded-lg border cursor-pointer ${
+                      selectedServices.has(service.id)
+                        ? "bg-primary/10 border-primary"
+                        : "hover:bg-accent"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedServices.has(service.id)}
+                        onChange={() => handleServiceToggle(service.id)}
+                        className="h-4 w-4 rounded border-primary text-primary focus:ring-primary"
+                      />
+                      <div>
+                        <p className="font-medium">{service.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {service.duration} mins • ${service.price}
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <Button
+                onClick={handleSave}
+                disabled={isUpdating}
+                className="w-full mt-4"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] border rounded-lg bg-muted/50">
+              <Users className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium">No Staff Member Selected</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Select a staff member to manage their services
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Current Assignments Overview */}
+      <div className="border rounded-lg">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Current Assignments</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {staff.map((member) => {
+              const memberSkills = staffSkills.filter(
+                (skill) => skill.staffId === member.id
+              );
+              const assignedServices = memberSkills
+                .map((skill) => services.find((s) => s.id === skill.serviceId))
+                .filter((s): s is SalonService => s !== undefined);
+
+              return (
+                <Card key={member.id}>
+                  <CardHeader>
+                    <CardTitle className="text-base">{member.name}</CardTitle>
+                    <CardDescription>{member.specialization}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {assignedServices.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {assignedServices.map((service) => (
+                          <span
+                            key={service.id}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                          >
+                            {service.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No services assigned
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

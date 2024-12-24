@@ -270,6 +270,69 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.delete("/api/businesses/:businessId/gallery/:photoIndex", async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const businessId = parseInt(req.params.businessId);
+      const photoIndex = parseInt(req.params.photoIndex);
+
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      if (business.userId !== req.user.id) {
+        return res.status(403).json({ error: "Not authorized to update this business" });
+      }
+
+      // Get current gallery
+      const gallery = business.gallery || [];
+      if (photoIndex < 0 || photoIndex >= gallery.length) {
+        return res.status(400).json({ error: "Invalid photo index" });
+      }
+
+      // Get photo to delete
+      const photoToDelete = gallery[photoIndex];
+
+      // Delete file from filesystem
+      if (photoToDelete?.url) {
+        const filePath = path.join(__dirname, '..', 'public', photoToDelete.url);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+
+      // Remove photo from gallery array
+      gallery.splice(photoIndex, 1);
+
+      // Update business with new gallery
+      const [updatedBusiness] = await db
+        .update(businesses)
+        .set({
+          gallery: gallery,
+          updatedAt: new Date()
+        })
+        .where(eq(businesses.id, businessId))
+        .returning();
+
+      res.json(updatedBusiness);
+    } catch (error: any) {
+      console.error('Error deleting photo:', error);
+      res.status(500).json({
+        error: "Failed to delete photo",
+        details: error.message
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

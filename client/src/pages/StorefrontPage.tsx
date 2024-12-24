@@ -29,8 +29,11 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import type { Business } from "@db/schema";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@/hooks/use-user";
 
 interface StorefrontPageProps {
   params: {
@@ -46,6 +49,41 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
   });
+
+  // Assuming user is fetched elsewhere and available in scope.  Replace with actual fetching logic if needed.
+  //const user = { id: 1 }; // Placeholder - Replace with your actual user fetching
+
+  const queryClient = useQueryClient();
+  const { user } = useUser();
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: async (photoIndex: number) => {
+      const response = await fetch(`/api/businesses/${businessId}/gallery/${photoIndex}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status >= 500) {
+          throw new Error(`${response.status}: ${response.statusText}`);
+        }
+        throw new Error(`${response.status}: ${await response.text()}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/profile`] });
+    },
+  });
+
+  const handleDeletePhoto = async (photoIndex: number) => {
+    try {
+      await deletePhotoMutation.mutateAsync(photoIndex);
+    } catch (error) {
+      console.error('Failed to delete photo:', error);
+    }
+  };
 
   if (isLoading || !business) {
     return (
@@ -280,8 +318,43 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           <div className="lg:col-span-4">
             {business.gallery && business.gallery.length > 0 && (
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Gallery</CardTitle>
+                  {business.userId === user?.id && (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          Manage Photos
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[600px]">
+                        <DialogHeader>
+                          <DialogTitle>Manage Gallery Photos</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                          {business.gallery.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <div className="aspect-square rounded-md overflow-hidden bg-muted">
+                                <img
+                                  src={image.url}
+                                  alt={image.caption || `Gallery image ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeletePhoto(index)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-2">

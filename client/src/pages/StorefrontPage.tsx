@@ -15,6 +15,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -29,10 +37,13 @@ import {
   AlertCircle,
   ChevronRight,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import type { Business } from "@db/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-user";
+import { useState } from "react";
+import { format } from "date-fns";
 
 interface StorefrontPageProps {
   params: {
@@ -55,10 +66,53 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const businessId = parseInt(params.businessId);
   const [, navigate] = useLocation();
   const { user } = useUser();
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>();
 
-  const { data: business, isLoading } = useQuery<Business>({
+  const { data: business, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
+  });
+
+  // Fetch services for this business
+  const { data: services = [], isLoading: isLoadingServices } = useQuery({
+    queryKey: [`/api/businesses/${businessId}/services`],
+    enabled: !!businessId,
+  });
+
+  // Fetch available slots for selected date
+  const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery({
+    queryKey: [
+      `/api/businesses/${businessId}/slots`,
+      {
+        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
+      }
+    ],
+    enabled: !!selectedDate && !!businessId,
+  });
+
+  // Book appointment mutation
+  const bookingMutation = useMutation({
+    mutationFn: async (data: {
+      serviceId: number;
+      slotId: number;
+      date: string;
+    }) => {
+      const response = await fetch(`/api/businesses/${businessId}/bookings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
   });
 
   const queryClient = useQueryClient();
@@ -89,8 +143,29 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     }
   };
 
+  const handleBooking = async (serviceId: number) => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    if (!selectedDate || !selectedTimeSlot) {
+      return;
+    }
+
+    try {
+      await bookingMutation.mutateAsync({
+        serviceId,
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        slotId: parseInt(selectedTimeSlot),
+      });
+    } catch (error) {
+      console.error('Booking failed:', error);
+    }
+  };
+
   // Show loading spinner while data is being fetched
-  if (isLoading || !business) {
+  if (isLoadingBusiness || !business) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary" />
@@ -141,10 +216,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                         </span>
                       )}
                     </div>
-                    <Button size="lg" className="hidden md:flex">
-                      Book Appointment
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
                   </div>
 
                   {/* Quick Info Grid */}
@@ -209,12 +280,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 </div>
               </div>
             </div>
-
-            {/* Mobile Book Button */}
-            <Button size="lg" className="md:hidden w-full">
-              Book Appointment
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
           </div>
         </div>
       </div>
@@ -232,21 +297,97 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {/* Sample service card - will be replaced with actual services */}
-                  <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">Sample Service</CardTitle>
-                          <CardDescription>45 mins • Professional service</CardDescription>
-                        </div>
-                        <span className="text-lg font-semibold">$50</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button className="w-full">Book Now</Button>
-                    </CardContent>
-                  </Card>
+                  {isLoadingServices ? (
+                    <div className="col-span-2 flex justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : services.length === 0 ? (
+                    <div className="col-span-2 text-center py-8 text-muted-foreground">
+                      No services available at the moment
+                    </div>
+                  ) : (
+                    services.map((service: any) => (
+                      <Card key={service.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                        <CardHeader className="pb-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-lg">{service.name}</CardTitle>
+                              <CardDescription>{service.duration} mins • {service.category}</CardDescription>
+                            </div>
+                            <span className="text-lg font-semibold">${service.price}</span>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button className="w-full">Book Now</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Book {service.name}</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium">Select Date</label>
+                                  <Calendar
+                                    mode="single"
+                                    selected={selectedDate}
+                                    onSelect={setSelectedDate}
+                                    className="rounded-md border"
+                                    disabled={(date) => date < new Date()}
+                                  />
+                                </div>
+                                {selectedDate && (
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium">Select Time</label>
+                                    <Select
+                                      value={selectedTimeSlot}
+                                      onValueChange={setSelectedTimeSlot}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Choose a time slot" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {isLoadingSlots ? (
+                                          <div className="flex justify-center p-2">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          </div>
+                                        ) : availableSlots.length === 0 ? (
+                                          <div className="text-center p-2 text-sm text-muted-foreground">
+                                            No slots available for this date
+                                          </div>
+                                        ) : (
+                                          availableSlots.map((slot: any) => (
+                                            <SelectItem key={slot.id} value={slot.id.toString()}>
+                                              {format(new Date(slot.startTime), 'HH:mm')}
+                                            </SelectItem>
+                                          ))
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                                <Button
+                                  className="w-full mt-4"
+                                  onClick={() => handleBooking(service.id)}
+                                  disabled={!selectedDate || !selectedTimeSlot || bookingMutation.isPending}
+                                >
+                                  {bookingMutation.isPending ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Booking...
+                                    </>
+                                  ) : (
+                                    'Confirm Booking'
+                                  )}
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -327,7 +468,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                   onError={(e) => {
                                     const img = e.target as HTMLImageElement;
                                     img.src = 'https://via.placeholder.com/300';
-                                    console.log('Failed to load image:', image.url);
                                   }}
                                 />
                               </div>
@@ -335,10 +475,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                 variant="destructive"
                                 size="icon"
                                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => {
-                                  console.log('Deleting photo at index:', index);
-                                  handleDeletePhoto(index);
-                                }}
+                                onClick={() => handleDeletePhoto(index)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -363,7 +500,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                           onError={(e) => {
                             const img = e.target as HTMLImageElement;
                             img.src = 'https://via.placeholder.com/300';
-                            console.log('Failed to load image:', image.url);
                           }}
                         />
                       </div>

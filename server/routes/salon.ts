@@ -6,6 +6,107 @@ import { shiftTemplates, staffSchedules, insertShiftTemplateSchema, insertStaffS
 
 const router = Router();
 
+// Staff-skills routes
+router.get("/businesses/:businessId/staff-skills", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+    const allStaffSkills = await db
+      .select()
+      .from(staffSkills)
+      .innerJoin(salonStaff, eq(staffSkills.staffId, salonStaff.id))
+      .where(eq(salonStaff.businessId, businessId));
+
+    res.json(allStaffSkills);
+  } catch (error: any) {
+    console.error('Error fetching staff skills:', error);
+    res.status(500).json({
+      message: "Failed to fetch staff skills",
+      error: error.message
+    });
+  }
+});
+
+router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const staffId = parseInt(req.params.staffId);
+    const skills = await db
+      .select()
+      .from(staffSkills)
+      .where(eq(staffSkills.staffId, staffId));
+
+    res.json(skills);
+  } catch (error: any) {
+    console.error('Error fetching staff skills:', error);
+    res.status(500).json({
+      message: "Failed to fetch staff skills",
+      error: error.message
+    });
+  }
+});
+
+router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const staffId = parseInt(req.params.staffId);
+    const serviceIds: number[] = req.body.serviceIds || [];
+
+    // Verify staff belongs to the business
+    const [staff] = await db
+      .select()
+      .from(salonStaff)
+      .where(
+        and(
+          eq(salonStaff.id, staffId),
+          eq(salonStaff.businessId, parseInt(req.params.businessId))
+        )
+      )
+      .limit(1);
+
+    if (!staff) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+
+    // First, delete existing skills
+    await db
+      .delete(staffSkills)
+      .where(eq(staffSkills.staffId, staffId));
+
+    let skills = [];
+    // Then insert new skills if any
+    if (serviceIds.length > 0) {
+      skills = await db
+        .insert(staffSkills)
+        .values(
+          serviceIds.map(serviceId => ({
+            staffId,
+            serviceId,
+            proficiencyLevel: "junior" as const,
+          }))
+        )
+        .returning();
+    }
+
+    res.json(skills);
+  } catch (error: any) {
+    console.error('Error updating staff skills:', error);
+    res.status(500).json({
+      message: "Failed to update staff skills",
+      error: error.message
+    });
+  }
+});
+
 // Service Management
 router.get("/businesses/:businessId/services", async (req, res) => {
   try {
@@ -208,7 +309,7 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
       .values(result.data)
       .returning();
 
-    res.status(201).json(staff);
+    res.json(staff);
   } catch (error: any) {
     console.error('Error creating salon staff:', error);
     res.status(500).json({

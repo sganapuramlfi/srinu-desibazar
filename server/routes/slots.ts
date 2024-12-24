@@ -84,7 +84,7 @@ router.post("/businesses/:businessId/slots/manual", async (req, res) => {
     }
 
     const businessId = parseInt(req.params.businessId);
-    
+
     // Validate request body
     const validationResult = createManualSlotSchema.safeParse(req.body);
     if (!validationResult.success) {
@@ -155,7 +155,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     const businessId = parseInt(req.params.businessId);
-    
+
     // Validate request body
     const validationResult = generateAutoSlotsSchema.safeParse(req.body);
     if (!validationResult.success) {
@@ -190,10 +190,13 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     const slots = [];
 
     // Generate slots for each schedule
-    for (const { schedule, template, service } of schedules) {
+    for (const { schedule, template, skills, service } of schedules) {
+      // Only generate slots if staff has the required skill for the service
+      if (!skills || !service) continue;
+
       const shiftStart = parseISO(`${format(schedule.date, 'yyyy-MM-dd')}T${template.startTime}`);
       const shiftEnd = parseISO(`${format(schedule.date, 'yyyy-MM-dd')}T${template.endTime}`);
-      
+
       let currentTime = shiftStart;
       while (currentTime < shiftEnd) {
         // Check if the slot overlaps with any break
@@ -217,9 +220,16 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
             });
           }
         }
-        
+
         currentTime = addMinutes(currentTime, service.duration);
       }
+    }
+
+    // Check if any slots were generated
+    if (slots.length === 0) {
+      return res.status(400).json({ 
+        error: "No slots could be generated. Please ensure staff members are scheduled and have the required service skills." 
+      });
     }
 
     // Insert all generated slots

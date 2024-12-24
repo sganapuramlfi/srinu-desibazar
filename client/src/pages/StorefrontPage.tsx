@@ -50,7 +50,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
   // Fetch business data
   const { data: business, isLoading } = useQuery<Business>({
-    queryKey: ["/api/businesses", businessId],
+    queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
   });
 
@@ -62,38 +62,23 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     );
   }
 
-  // Mock data for demo - would come from API in production
-  const amenities = [
-    { icon: Wifi, name: "Free Wi-Fi" },
-    { icon: Car, name: "Free Parking" },
-    { icon: CreditCard, name: "Card Payment" },
-    { icon: Coffee, name: "Refreshments" },
+  const amenities = business.amenities || [
+    { icon: "Wifi", name: "Free Wi-Fi", enabled: true },
+    { icon: "Car", name: "Free Parking", enabled: true },
+    { icon: "CreditCard", name: "Card Payment", enabled: true },
+    { icon: "Coffee", name: "Refreshments", enabled: true },
   ];
 
-  const reviews = [
-    {
-      id: 1,
-      rating: 5,
-      author: "Sarah M.",
-      content: "Excellent service! Very professional and friendly staff.",
-      date: "2024-12-20"
-    },
-    {
-      id: 2,
-      rating: 4,
-      author: "John D.",
-      content: "Great experience. Will definitely come back!",
-      date: "2024-12-18"
-    },
-    // Add more reviews
-  ];
-
-  const gallery = [
-    "/salon-1.jpg",
-    "/salon-2.jpg",
-    "/salon-3.jpg",
-    // Add more images
-  ];
+  // Helper function to get icon component
+  const getIconComponent = (iconName: string) => {
+    const icons: { [key: string]: typeof Wifi } = {
+      Wifi,
+      Car,
+      CreditCard,
+      Coffee,
+    };
+    return icons[iconName] || Coffee;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -106,7 +91,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
               {/* Business Logo */}
               <div className="w-32 h-32 bg-white rounded-lg shadow-lg flex items-center justify-center">
                 <img
-                  src={business.logoUrl || "/default-logo.png"}
+                  src={business.logo || "/default-logo.png"}
                   alt={`${business.name} logo`}
                   className="max-w-full max-h-full object-contain"
                 />
@@ -118,10 +103,12 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                     <MapPin className="h-4 w-4" />
                     {business.contactInfo?.address}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Star className="h-4 w-4 text-yellow-400" />
-                    4.8 (48 reviews)
-                  </span>
+                  {business.status === "active" && (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Verified Business
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -149,93 +136,102 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                     Operating Hours
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="font-medium">Monday - Friday</p>
-                      <p className="text-muted-foreground">9:00 AM - 6:00 PM</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Saturday</p>
-                      <p className="text-muted-foreground">10:00 AM - 4:00 PM</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Sunday</p>
-                      <p className="text-muted-foreground">Closed</p>
-                    </div>
+                    {business.operatingHours && Object.entries(business.operatingHours).map(([day, hours]) => (
+                      <div key={day}>
+                        <p className="font-medium capitalize">{day}</p>
+                        <p className="text-muted-foreground">
+                          {hours.isOpen ? `${hours.open} - ${hours.close}` : 'Closed'}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* Contact Information */}
                 <div className="mt-6 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <span>{business.contactInfo?.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <span>{business.contactInfo?.email}</span>
-                  </div>
+                  {business.contactInfo?.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-primary" />
+                      <span>{business.contactInfo.phone}</span>
+                    </div>
+                  )}
+                  {business.contactInfo?.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-primary" />
+                      <span>{business.contactInfo.email}</span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Social Media Links */}
+                {business.socialMedia && Object.entries(business.socialMedia).some(([_, url]) => url) && (
+                  <div className="mt-6">
+                    <h3 className="font-semibold mb-2">Connect With Us</h3>
+                    <div className="flex gap-4">
+                      {Object.entries(business.socialMedia).map(([platform, url]) => (
+                        url && (
+                          <a
+                            key={platform}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary/80"
+                          >
+                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                          </a>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            {/* Services Section */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">Our Services</h2>
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>Haircut & Styling</span>
-                      <span className="text-lg">$30</span>
-                    </CardTitle>
-                    <CardDescription>45 mins • Professional cut and style</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full">Book Now</Button>
-                  </CardContent>
-                </Card>
-                {/* Add more service cards */}
-              </div>
-            </div>
-
             {/* Photo Gallery */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">Gallery</h2>
-              <Carousel className="w-full">
-                <CarouselContent>
-                  {gallery.map((image, index) => (
-                    <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
-                      <div className="p-1">
-                        <div className="overflow-hidden rounded-lg aspect-square">
-                          <img
-                            src={image}
-                            alt={`Gallery image ${index + 1}`}
-                            className="object-cover w-full h-full hover:scale-110 transition-transform duration-300"
-                          />
+            {business.gallery && business.gallery.length > 0 && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-semibold">Gallery</h2>
+                <Carousel className="w-full">
+                  <CarouselContent>
+                    {business.gallery.map((image, index) => (
+                      <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">
+                        <div className="p-1">
+                          <div className="overflow-hidden rounded-lg aspect-square">
+                            <img
+                              src={image.url}
+                              alt={image.caption || `Gallery image ${index + 1}`}
+                              className="object-cover w-full h-full hover:scale-110 transition-transform duration-300"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious />
-                <CarouselNext />
-              </Carousel>
-            </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious />
+                  <CarouselNext />
+                </Carousel>
+              </div>
+            )}
 
             {/* Amenities Section */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">Amenities</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {amenities.map((amenity) => (
-                  <Card key={amenity.name}>
-                    <CardContent className="p-4 flex flex-col items-center text-center">
-                      <amenity.icon className="h-8 w-8 text-primary mb-2" />
-                      <span className="text-sm font-medium">{amenity.name}</span>
-                    </CardContent>
-                  </Card>
-                ))}
+            {amenities && amenities.length > 0 && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-semibold">Amenities</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {amenities.filter(amenity => amenity.enabled).map((amenity) => {
+                    const IconComponent = getIconComponent(amenity.icon);
+                    return (
+                      <Card key={amenity.name}>
+                        <CardContent className="p-4 flex flex-col items-center text-center">
+                          <IconComponent className="h-8 w-8 text-primary mb-2" />
+                          <span className="text-sm font-medium">{amenity.name}</span>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Reviews Section */}
             <div className="space-y-6">

@@ -34,12 +34,22 @@ import {
   Car,
   CreditCard,
   Coffee,
+  Facebook,
+  Instagram,
+  Twitter,
+  Globe,
 } from "lucide-react";
 
 const businessProfileSchema = z.object({
   name: z.string().min(2, "Business name must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  logo: z.string().optional(),
+  logo: z.string().url("Please enter a valid URL").optional(),
+  socialMedia: z.object({
+    facebook: z.string().url("Please enter a valid Facebook URL").optional().or(z.literal("")),
+    instagram: z.string().url("Please enter a valid Instagram URL").optional().or(z.literal("")),
+    twitter: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
+    website: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
+  }),
   contactInfo: z.object({
     phone: z.string().min(10, "Phone number must be at least 10 characters"),
     email: z.string().email("Invalid email address"),
@@ -121,6 +131,12 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
       name: business?.name || "",
       description: business?.description || "",
       logo: business?.logo || "",
+      socialMedia: business?.socialMedia || {
+        facebook: "",
+        instagram: "",
+        twitter: "",
+        website: "",
+      },
       contactInfo: business?.contactInfo || {
         phone: "",
         email: "",
@@ -276,6 +292,85 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                     <FormLabel>Logo URL</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="https://example.com/logo.png" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Social Media Links */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Social Media</CardTitle>
+              <CardDescription>
+                Add your social media links (optional)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="socialMedia.facebook"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Facebook className="h-4 w-4" />
+                      Facebook
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="https://facebook.com/your-page" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="socialMedia.instagram"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Instagram className="h-4 w-4" />
+                      Instagram
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="https://instagram.com/your-profile" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="socialMedia.twitter"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Twitter className="h-4 w-4" />
+                      Twitter
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="https://twitter.com/your-profile" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="socialMedia.website"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Globe className="h-4 w-4" />
+                      Website
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="https://your-website.com" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

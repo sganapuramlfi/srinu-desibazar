@@ -48,7 +48,7 @@ router.get("/api/businesses/:businessId/shift-templates", async (req, res) => {
   }
 });
 
-// Batch assign shifts
+// Assign a shift
 router.post("/api/businesses/:businessId/roster/batch-assign", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
@@ -60,17 +60,39 @@ router.post("/api/businesses/:businessId/roster/batch-assign", async (req, res) 
 
     const shifts = [];
     for (const staffId of staffIds) {
-      const [shift] = await db
-        .insert(staffSchedules)
-        .values({
-          staffId,
-          templateId,
-          businessId,
-          date: new Date(startDate),
-          status: "scheduled",
-        })
-        .returning();
-      shifts.push(shift);
+      // Check for existing shift
+      const existingShift = await db.query.staffSchedules.findFirst({
+        where: and(
+          eq(staffSchedules.staffId, staffId),
+          eq(staffSchedules.date, new Date(startDate))
+        ),
+      });
+
+      if (existingShift) {
+        // Update existing shift
+        const [updatedShift] = await db
+          .update(staffSchedules)
+          .set({
+            templateId,
+            updatedAt: new Date(),
+          })
+          .where(eq(staffSchedules.id, existingShift.id))
+          .returning();
+        shifts.push(updatedShift);
+      } else {
+        // Create new shift
+        const [newShift] = await db
+          .insert(staffSchedules)
+          .values({
+            staffId,
+            templateId,
+            businessId,
+            date: new Date(startDate),
+            status: "scheduled",
+          })
+          .returning();
+        shifts.push(newShift);
+      }
     }
 
     res.json(shifts);

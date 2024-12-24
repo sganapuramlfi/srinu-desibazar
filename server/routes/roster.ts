@@ -131,6 +131,16 @@ router.post("/businesses/:businessId/roster/assign", async (req, res) => {
       return res.status(404).json({ error: "Staff not found" });
     }
 
+    // Verify template exists
+    const [template] = await db
+      .select()
+      .from(shiftTemplates)
+      .where(eq(shiftTemplates.id, templateId));
+
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+
     // Check for existing shift
     const existingShift = await db
       .select()
@@ -161,7 +171,7 @@ router.post("/businesses/:businessId/roster/assign", async (req, res) => {
           templateId,
           date: new Date(date),
           status,
-          businessId
+          updatedAt: new Date()
         })
         .returning();
     }
@@ -169,7 +179,7 @@ router.post("/businesses/:businessId/roster/assign", async (req, res) => {
     res.json(shift);
   } catch (error) {
     console.error("Error assigning shift:", error);
-    res.status(500).json({ error: "Failed to assign shift" });
+    res.status(500).json({ error: "Failed to assign shift", details: error.message });
   }
 });
 

@@ -12,12 +12,13 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar } from "lucide-react";
+import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings } from "lucide-react";
 import { StaffTab } from "../components/StaffTab";
 import { ServiceStaffTab } from "../components/ServiceStaffTab";
 import { RosterTabUpdated } from "../components/RosterTabUpdated";
 import { ServicesTab } from "../components/ServicesTab";
 import { ServiceSlotsTab } from "../components/ServiceSlotsTab";
+import { BusinessProfileTab } from "../components/BusinessProfileTab";
 import type { SalonStaff, ShiftTemplate } from "../types/salon";
 
 interface BusinessDashboardProps {
@@ -89,7 +90,11 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
       </div>
 
       <Tabs defaultValue="services" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="profile">
+            <Settings className="w-4 h-4 mr-2" />
+            Profile
+          </TabsTrigger>
           <TabsTrigger value="services">
             <Package className="w-4 h-4 mr-2" />
             Services
@@ -111,6 +116,9 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             Service Slots
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="profile">
+          <BusinessProfileTab businessId={businessId} />
+        </TabsContent>
         <TabsContent value="services">
           <ServicesTab businessId={businessId} />
         </TabsContent>

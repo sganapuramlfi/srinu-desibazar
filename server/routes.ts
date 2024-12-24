@@ -226,6 +226,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(servicesList);
     } catch (error) {
+      console.error('Error fetching services:', error);
       res.status(500).json({ error: "Failed to fetch services" });
     }
   });

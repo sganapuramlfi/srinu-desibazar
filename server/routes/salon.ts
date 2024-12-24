@@ -1,24 +1,27 @@
 import { Router } from "express";
 import { db } from "@db";
-import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
 import { eq, and } from "drizzle-orm";
-import { shiftTemplates, staffSchedules, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
+import { z } from "zod";
+import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema } from "@db/schema";
 import { createProtectedRouter } from "../auth";
 
+// Create separate routers for public and protected routes
 const publicRouter = Router();
 const protectedRouter = createProtectedRouter();
 
 // Basic validation schemas
 const updateServiceSchema = insertSalonServiceSchema.partial();
 
-// Public Routes
+// Public Routes - No Authentication Required
 publicRouter.get("/businesses/:businessId/services", async (req, res) => {
   try {
-    const services = await db.select()
+    const businessId = parseInt(req.params.businessId);
+    const services = await db
+      .select()
       .from(salonServices)
-      .where(eq(salonServices.businessId, parseInt(req.params.businessId)));
+      .where(eq(salonServices.businessId, businessId));
 
-    console.log('Fetched services:', services);
+    console.log('Fetched services for business:', businessId, services);
     res.json(services);
   } catch (error: any) {
     console.error('Error fetching salon services:', error);
@@ -29,7 +32,7 @@ publicRouter.get("/businesses/:businessId/services", async (req, res) => {
   }
 });
 
-// Protected Routes
+// Protected Routes - Authentication Required
 protectedRouter.post("/businesses/:businessId/services", async (req, res) => {
   try {
     const result = insertSalonServiceSchema.safeParse({
@@ -44,7 +47,8 @@ protectedRouter.post("/businesses/:businessId/services", async (req, res) => {
       });
     }
 
-    const [service] = await db.insert(salonServices)
+    const [service] = await db
+      .insert(salonServices)
       .values(result.data)
       .returning();
 
@@ -117,7 +121,7 @@ protectedRouter.delete("/businesses/:businessId/services/:serviceId", async (req
   }
 });
 
-// Staff-skills routes
+
 protectedRouter.get("/businesses/:businessId/staff-skills", async (req, res) => {
   try {
     if (!req.user) {
@@ -219,7 +223,6 @@ protectedRouter.put("/businesses/:businessId/staff/:staffId/skills", async (req,
 });
 
 
-// Staff Management
 protectedRouter.get("/businesses/:businessId/staff", async (req, res) => {
   try {
     if (!req.user) {
@@ -316,168 +319,7 @@ protectedRouter.delete("/businesses/:businessId/staff/:staffId", async (req, res
 });
 
 
-// Shift Template Management
-protectedRouter.get("/businesses/:businessId/shift-templates", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const templates = await db.select()
-      .from(shiftTemplates)
-      .where(eq(shiftTemplates.businessId, parseInt(req.params.businessId)));
-
-    res.json(templates);
-  } catch (error: any) {
-    console.error('Error fetching shift templates:', error);
-    res.status(500).json({
-      message: "Failed to fetch templates",
-      error: error.message
-    });
-  }
-});
-
-protectedRouter.post("/businesses/:businessId/shift-templates", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = insertShiftTemplateSchema.safeParse({
-      ...req.body,
-      businessId: parseInt(req.params.businessId)
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
-
-    const [template] = await db.insert(shiftTemplates)
-      .values(result.data)
-      .returning();
-
-    res.status(201).json(template);
-  } catch (error: any) {
-    console.error('Error creating shift template:', error);
-    res.status(500).json({
-      message: "Failed to create template",
-      error: error.message
-    });
-  }
-});
-
-protectedRouter.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = insertShiftTemplateSchema.partial().safeParse({
-      ...req.body,
-      businessId: parseInt(req.params.businessId)
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
-
-    const [template] = await db.update(shiftTemplates)
-      .set({
-        ...result.data,
-        updatedAt: new Date(),
-      })
-      .where(and(
-        eq(shiftTemplates.id, parseInt(req.params.templateId)),
-        eq(shiftTemplates.businessId, parseInt(req.params.businessId))
-      ))
-      .returning();
-
-    if (!template) {
-      return res.status(404).json({ message: "Template not found" });
-    }
-
-    res.json(template);
-  } catch (error: any) {
-    console.error('Error updating shift template:', error);
-    res.status(500).json({
-      message: "Failed to update template",
-      error: error.message
-    });
-  }
-});
-
-protectedRouter.delete("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    // First delete related schedules
-    await db.delete(staffSchedules)
-      .where(eq(staffSchedules.templateId, parseInt(req.params.templateId)));
-
-    // Then delete the template
-    const [deletedTemplate] = await db.delete(shiftTemplates)
-      .where(and(
-        eq(shiftTemplates.id, parseInt(req.params.templateId)),
-        eq(shiftTemplates.businessId, parseInt(req.params.businessId))
-      ))
-      .returning();
-
-    if (!deletedTemplate) {
-      return res.status(404).json({ message: "Template not found" });
-    }
-
-    res.json({ message: "Template deleted successfully" });
-  } catch (error: any) {
-    console.error('Error deleting shift template:', error);
-    res.status(500).json({
-      message: "Failed to delete template",
-      error: error.message
-    });
-  }
-});
-
-// Staff Schedule Management
-protectedRouter.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = insertStaffScheduleSchema.safeParse({
-      ...req.body,
-      staffId: parseInt(req.params.staffId),
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
-
-    const [schedule] = await db.insert(staffSchedules)
-      .values(result.data)
-      .returning();
-
-    res.status(201).json(schedule);
-  } catch (error: any) {
-    console.error('Error creating staff schedule:', error);
-    res.status(500).json({
-      message: "Failed to create schedule",
-      error: error.message
-    });
-  }
-});
-
-// Combine both routers
+// Combine routers - Important: public routes must be registered first
 const router = Router();
 router.use(publicRouter);
 router.use(protectedRouter);

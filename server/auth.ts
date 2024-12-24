@@ -50,16 +50,16 @@ export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "desibazaar-secret",
     resave: true,
-    saveUninitialized: true,
+    saveUninitialized: false, 
     cookie: {
       secure: false,
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, 
       sameSite: 'lax',
       path: '/'
     },
     store: new MemoryStore({
-      checkPeriod: 86400000 // 24 hours
+      checkPeriod: 86400000 
     }),
   };
 
@@ -68,7 +68,7 @@ export function setupAuth(app: Express) {
     sessionSettings.cookie!.secure = true;
   }
 
-  // Add CORS middleware with credentials support
+  
   app.use((req, res, next) => {
     const origin = req.headers.origin || '*';
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -83,10 +83,12 @@ export function setupAuth(app: Express) {
     next();
   });
 
-  // Initialize session middleware
+  
   app.use(session(sessionSettings));
-  app.use(passport.initialize());
-  app.use(passport.session());
+
+  
+  const authMiddleware = [passport.initialize(), passport.session()];
+  app.use(['/api/auth', '/api/protected'], authMiddleware);
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -166,11 +168,10 @@ export function setupAuth(app: Express) {
     }
   });
 
-  const protectedRouter = createProtectedRouter();
-  const publicRouter = Router();
+  const authRouter = Router();
 
-  // Public routes
-  publicRouter.post("/api/register", async (req, res, next) => {
+  
+  authRouter.post("/register", async (req, res, next) => {
     try {
       console.log('Registration request:', req.body);
       const result = userRegistrationSchema.safeParse(req.body);
@@ -186,7 +187,7 @@ export function setupAuth(app: Express) {
 
       const { username, password, email, role, business: businessData } = result.data;
 
-      // Check if user already exists
+      
       const [existingUser] = await db
         .select()
         .from(users)
@@ -198,10 +199,10 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ ok: false, message: "Username already exists" });
       }
 
-      // Hash the password
+      
       const hashedPassword = await crypto.hash(password);
 
-      // Create the new user
+      
       const [newUser] = await db
         .insert(users)
         .values({
@@ -214,7 +215,7 @@ export function setupAuth(app: Express) {
 
       console.log(`Created new user: ${newUser.id}`);
 
-      // If registering as a business, create the business record
+      
       let businessRecord = null;
       if (role === "business" && businessData) {
         const [business] = await db
@@ -232,7 +233,7 @@ export function setupAuth(app: Express) {
         console.log(`Created business record: ${business.id}`);
       }
 
-      // Log the user in after registration
+      
       req.login(newUser, (err) => {
         if (err) {
           console.error('Login after registration failed:', err);
@@ -257,7 +258,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  publicRouter.post("/api/login", (req, res, next) => {
+  authRouter.post("/login", (req, res, next) => {
     console.log('Login request body:', req.body);
 
     passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
@@ -275,7 +276,7 @@ export function setupAuth(app: Express) {
       }
 
       try {
-        // If business user, fetch business details
+        
         let businessRecord = null;
         if (user.role === "business") {
           const [business] = await db
@@ -312,7 +313,7 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  publicRouter.post("/api/logout", (req, res) => {
+  authRouter.post("/logout", (req, res) => {
     console.log(`Logout request for user: ${req.user?.id}`);
     req.logout((err) => {
       if (err) {
@@ -331,9 +332,11 @@ export function setupAuth(app: Express) {
     });
   });
 
+  
+  app.use("/api/auth", authRouter);
 
-  // Protected routes
-  protectedRouter.get("/api/user", (req, res) => {
+  
+  app.get("/api/user", authMiddleware, (req, res) => {
     console.log('User session check:', { 
       isAuthenticated: req.isAuthenticated(),
       userId: req.user?.id
@@ -348,9 +351,6 @@ export function setupAuth(app: Express) {
       message: "Not logged in"
     });
   });
-
-  app.use(publicRouter);
-  app.use(protectedRouter);
 
   return app;
 }

@@ -6,6 +6,7 @@ import {
   businesses,
   users,
   salonServices,
+  salonStaff,
 } from "@db/schema";
 import { eq } from "drizzle-orm";
 import salonRouter from "./routes/salon";
@@ -19,6 +20,26 @@ export function registerRoutes(app: Express): Server {
 
   // Register roster routes
   app.use("/api", rosterRouter);
+
+  // Staff Routes
+  app.get("/api/businesses/:businessId/staff", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const businessId = parseInt(req.params.businessId);
+      const staffMembers = await db
+        .select()
+        .from(salonStaff)
+        .where(eq(salonStaff.businessId, businessId));
+
+      res.json(staffMembers);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      res.status(500).json({ error: "Failed to fetch staff" });
+    }
+  });
 
   // Business Routes
   app.get("/api/businesses/:id", async (req, res) => {

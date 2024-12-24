@@ -424,12 +424,12 @@ const ServiceStaffTab = ({
   );
 };
 
-interface RosterShift {
-  id: number;
-  staffId: number;
-  templateId: number;
-  date: string;
-  status: "scheduled" | "working" | "completed" | "leave" | "sick" | "absent";
+interface RosterTabProps {
+  businessId: number;
+  staff: SalonStaff[];
+  templates: ShiftTemplate[];
+  isLoadingStaff: boolean;
+  isLoadingTemplates: boolean;
 }
 
 const RosterTabUpdated = ({
@@ -438,13 +438,7 @@ const RosterTabUpdated = ({
   templates,
   isLoadingStaff,
   isLoadingTemplates
-}: {
-  businessId: number;
-  staff: SalonStaff[];
-  templates: ShiftTemplate[];
-  isLoadingStaff: boolean;
-  isLoadingTemplates: boolean;
-}) => {
+}: RosterTabProps) => {
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [selectedStaff, setSelectedStaff] = useState<number[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<number>();
@@ -461,7 +455,7 @@ const RosterTabUpdated = ({
   // Fetch roster data
   const { data: rosterShifts = [], isLoading: isLoadingRoster } = useQuery<RosterShift[]>({
     queryKey: [`/api/businesses/${businessId}/roster`],
-    enabled: !!businessId,
+    enabled: !!businessId && !!staff.length,
   });
 
   const assignShiftsMutation = useMutation({
@@ -564,7 +558,7 @@ const RosterTabUpdated = ({
             {/* Staff Selection */}
             <div>
               <h4 className="text-sm font-medium mb-3">Select Staff Members</h4>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {staff.map((member) => (
                   <div
                     key={member.id}
@@ -784,6 +778,15 @@ const RosterTabUpdated = ({
     </div>
   );
 };
+
+interface RosterShift {
+  id: number;
+  staffId: number;
+  templateId: number;
+  date: string;
+  status: "scheduled" | "working" | "completed" | "leave" | "sick" | "absent";
+}
+
 
 export { ServiceStaffTab };
 

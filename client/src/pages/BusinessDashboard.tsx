@@ -1596,13 +1596,20 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     // Mutation for updating staff skills
     const updateStaffSkillsMutation = useMutation({
       mutationFn: async ({ staffId, serviceIds }: { staffId: number; serviceIds: number[] }) => {
+        console.log("Updating staff skills:", { staffId, serviceIds }); // Debug log
         const res = await fetch(`/api/businesses/${businessId}/staff/${staffId}/skills`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ serviceIds }),
           credentials: "include",
         });
-        if (!res.ok) throw new Error(await res.text());
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("Error updating staff skills:", errorText); // Debug log
+          throw new Error(errorText);
+        }
+
         return res.json();
       },
       onSuccess: () => {
@@ -1612,13 +1619,13 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           description: "Staff member's services have been updated successfully.",
         });
         setIsUpdating(false);
-        setSelectedStaff(null); // Reset selection after successful update
       },
       onError: (error) => {
+        console.error("Mutation error:", error); // Debug log
         toast({
           variant: "destructive",
           title: "Error",
-          description: error.message,
+          description: error.message || "Failed to update staff skills",
         });
         setIsUpdating(false);
       },
@@ -1627,9 +1634,11 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     // Effect to initialize selected services when staff is selected
     useEffect(() => {
       if (selectedStaff) {
+        console.log("Staff selected:", selectedStaff.id); // Debug log
         const staffSkillsForMember = staffSkills.filter(
           (skill) => skill.staffId === selectedStaff.id
         );
+        console.log("Current staff skills:", staffSkillsForMember); // Debug log
         setSelectedServices(
           new Set(staffSkillsForMember.map((skill) => skill.serviceId))
         );
@@ -1639,26 +1648,39 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }, [selectedStaff, staffSkills]);
 
     const handleStaffSelect = (staff: SalonStaff) => {
+      console.log("Selecting staff:", staff.id); // Debug log
       setSelectedStaff(staff);
     };
 
     const handleServiceToggle = (serviceId: number) => {
-      const newSelected = new Set(selectedServices);
-      if (newSelected.has(serviceId)) {
-        newSelected.delete(serviceId);
-      } else {
-        newSelected.add(serviceId);
-      }
-      setSelectedServices(newSelected);
+      console.log("Toggling service:", serviceId); // Debug log
+      setSelectedServices((prev) => {
+        const newSelected = new Set(prev);
+        if (newSelected.has(serviceId)) {
+          newSelected.delete(serviceId);
+        } else {
+          newSelected.add(serviceId);
+        }
+        console.log("Updated selected services:", Array.from(newSelected)); // Debug log
+        return newSelected;
+      });
     };
 
     const handleUpdateSkills = async () => {
       if (!selectedStaff) return;
+
+      const serviceIds = Array.from(selectedServices);
+      console.log("Updating skills:", { staffId: selectedStaff.id, serviceIds }); // Debug log
+
       setIsUpdating(true);
-      await updateStaffSkillsMutation.mutate({
-        staffId: selectedStaff.id,
-        serviceIds: Array.from(selectedServices),
-      });
+      try {
+        await updateStaffSkillsMutation.mutate({
+          staffId: selectedStaff.id,
+          serviceIds,
+        });
+      } catch (error) {
+        console.error("Update error:", error); // Debug log
+      }
     };
 
     // Helper function to get assigned services for a staff member
@@ -1687,7 +1709,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               {staff.map((member) => {
                 const assignedServices = getAssignedServices(member);
                 return (
-                  <Card key={member.id}>
+                  <Card key={member.id} className="hover:bg-accent/5 transition-colors">
                     <CardHeader>
                       <CardTitle className="text-base">{member.name}</CardTitle>
                       <CardDescription>{member.specialization}</CardDescription>
@@ -1754,7 +1776,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                       onChange={() => handleServiceToggle(service.id)}
                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium">{service.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {service.duration} mins • ${service.price}

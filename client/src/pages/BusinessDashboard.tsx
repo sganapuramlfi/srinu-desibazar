@@ -114,12 +114,12 @@ interface ShiftTemplate {
   description?: string;
   startTime: string;
   endTime: string;
-  breaks?: {
+  breaks?: Array<{
     startTime: string;
     endTime: string;
     duration: number;
     type: "lunch" | "short_break" | "other";
-  }[];
+  }>;
   type: "regular" | "overtime" | "holiday" | "leave";
   isActive: boolean;
 }
@@ -447,7 +447,7 @@ const RosterTab = ({
   isLoadingStaff: boolean;
   isLoadingTemplates: boolean;
 }) => {
-  const [selectedRange, setSelectedRange] = useState<DateRange>();
+  const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [selectedStaff, setSelectedStaff] = useState<number[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<number>();
   const { toast } = useToast();
@@ -656,6 +656,7 @@ const RosterTab = ({
                     <Calendar
                       initialFocus
                       mode="range"
+                      defaultMonth={new Date()}
                       selected={selectedRange}
                       onSelect={setSelectedRange}
                       numberOfMonths={2}
@@ -888,14 +889,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
 
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId && business?.industryType === "salon" && activeTab === 'shift-templates',
-    queryFn: async () => {
-      const res = await fetch(`/api/businesses/${businessId}/shift-templates`, {
-        credentials: "include"
-      });
-      if (!res.ok) throw new Error("Failed to load shift templates");
-      return res.json();
-    },
+    enabled: !!businessId && business?.industryType === "salon" && (activeTab === 'shift-templates' || activeTab === 'roster'),
   });
 
 
@@ -956,7 +950,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     },
     onError: (error) => {
       console.error("Error adding service:", error);
-      //Optionally display error message to the user.
+      //      //Optionally display error message to the user.
     },
   });
 

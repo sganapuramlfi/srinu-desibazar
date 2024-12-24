@@ -78,8 +78,8 @@ export function ServiceSlotsTab({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
-        startDate: format(selectedDate, 'yyyy-MM-dd'),
-        endDate: format(selectedDate, 'yyyy-MM-dd'),
+        startDate: format(selectedDate, "yyyy-MM-dd"),
+        endDate: format(selectedDate, "yyyy-MM-dd"),
         staffId: selectedStaff,
         serviceId: selectedService,
       },
@@ -90,7 +90,7 @@ export function ServiceSlotsTab({
   // Auto-generate slots mutation
   const generateSlotsMutation = useMutation({
     mutationFn: async () => {
-      const startDate = format(selectedDate, 'yyyy-MM-dd');
+      const startDate = format(selectedDate, "yyyy-MM-dd");
       const response = await fetch(
         `/api/businesses/${businessId}/slots/auto-generate`,
         {
@@ -188,7 +188,7 @@ export function ServiceSlotsTab({
     }
 
     // Get service duration
-    const service = services.find(s => s.id === parseInt(selectedService));
+    const service = services.find((s) => s.id === parseInt(selectedService));
     if (!service) return;
 
     // Create slot for current time + duration
@@ -235,7 +235,7 @@ export function ServiceSlotsTab({
                 <Button
                   onClick={handleAutoGenerate}
                   disabled={generateSlotsMutation.isPending}
-                  className="w-full"
+                  className="w-full bg-purple-600 hover:bg-purple-700"
                 >
                   {generateSlotsMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -250,7 +250,7 @@ export function ServiceSlotsTab({
                   <CardContent>
                     <form onSubmit={handleManualCreate} className="space-y-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Staff</label>
+                        <label className="text-sm font-medium">Staff Member</label>
                         <Select
                           value={selectedStaff}
                           onValueChange={setSelectedStaff}
@@ -322,19 +322,30 @@ export function ServiceSlotsTab({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {slots.map((slot) => (
                     <Card key={slot.id} className="bg-white">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium">{slot.service.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {slot.staff.name}
-                            </p>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg font-semibold">
+                          {slot.service.name}
+                          <span className="text-sm font-normal ml-2 text-muted-foreground">
+                            ({slot.service.duration} min)
+                          </span>
+                        </CardTitle>
+                        <CardDescription>
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 mr-1" />
+                            <span className="font-medium">
+                              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                            </span>
                           </div>
-                          <div className="text-right">
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <Clock className="h-4 w-4 mr-1" />
-                              {formatTime(slot.startTime)} -{" "}
-                              {formatTime(slot.endTime)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="flex flex-col">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-medium">Staff:</span>
+                              <span className="text-sm text-muted-foreground">
+                                {slot.staff.name}
+                              </span>
                             </div>
                             <span
                               className={`text-xs px-2 py-1 rounded-full ${
@@ -346,6 +357,11 @@ export function ServiceSlotsTab({
                               {slot.status}
                             </span>
                           </div>
+                          {slot.conflictingSlotIds && slot.conflictingSlotIds.length > 0 && (
+                            <p className="text-xs text-amber-600 mt-2">
+                              Note: This slot overlaps with other services
+                            </p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

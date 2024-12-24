@@ -11,6 +11,7 @@ import {
 import { eq } from "drizzle-orm";
 import salonRouter from "./routes/salon";
 import rosterRouter from "./routes/roster";
+import slotsRouter from "./routes/slots";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -20,6 +21,9 @@ export function registerRoutes(app: Express): Server {
 
   // Register roster routes
   app.use("/api", rosterRouter);
+
+  // Register slots management routes
+  app.use("/api", slotsRouter);
 
   // Staff Routes
   app.get("/api/businesses/:businessId/staff", async (req, res) => {

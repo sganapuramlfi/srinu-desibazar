@@ -130,10 +130,10 @@ interface StaffSkill {
 
 
 export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
-  // State hooks - keep all hooks at the top level
   const [, navigate] = useLocation();
   const { user } = useUser();
-  const { business, isLoading, error } = useBusiness(businessId);
+  const { business, isLoading: isLoadingBusiness, error } = useBusiness(businessId);
+  const [activeTab, setActiveTab] = useState('services');
   const [isAddingService, setIsAddingService] = useState(false);
   const [isAddingStaff, setIsAddingStaff] = useState(false);
   const [isAddingTemplate, setIsAddingTemplate] = useState(false);
@@ -143,12 +143,10 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   const [serviceToDelete, setServiceToDelete] = useState<SalonService | null>(null);
   const [staffToDelete, setStaffToDelete] = useState<SalonStaff | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<ShiftTemplate | null>(null);
-  const [activeTab, setActiveTab] = useState('services'); // Added state for active tab
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Form hooks - initialize all forms at top level
   const serviceForm = useForm({
     resolver: zodResolver(serviceFormSchema),
     defaultValues: {
@@ -172,7 +170,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Update form default values
   const shiftTemplateForm = useForm({
     resolver: zodResolver(shiftTemplateFormSchema),
     defaultValues: {
@@ -186,7 +183,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Query hooks - made conditional on activeTab
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId && business?.industryType === "salon" && activeTab === 'services',
@@ -249,7 +245,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }
   }, [isEditingTemplate, shiftTemplateForm]);
 
-  // Mutations
   const addServiceMutation = useMutation({
     mutationFn: async (data: z.infer<typeof serviceFormSchema>) => {
       const res = await fetch(`/api/businesses/${businessId}/services`, {
@@ -294,7 +289,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Add mutation hooks for edit/delete operations
   const editServiceMutation = useMutation({
     mutationFn: async (data: z.infer<typeof serviceFormSchema> & { id: number }) => {
       const res = await fetch(`/api/businesses/${businessId}/services/${data.id}`, {
@@ -349,8 +343,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-
-  // Add staff edit/delete mutations
   const editStaffMutation = useMutation({
     mutationFn: async (data: z.infer<typeof staffFormSchema> & { id: number }) => {
       const res = await fetch(`/api/businesses/${businessId}/staff/${data.id}`, {
@@ -405,7 +397,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Add mutations for shift templates
   const addTemplateMutation = useMutation({
     mutationFn: async (data: z.infer<typeof shiftTemplateFormSchema>) => {
       const res = await fetch(`/api/businesses/${businessId}/shift-templates`, {
@@ -489,36 +480,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     },
   });
 
-  // Move useEffect hooks to component level
-
-  // Early returns for loading and error states
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error || !business) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="pt-6">
-            <div className="flex mb-4 gap-2">
-              <AlertCircle className="h-8 w-8 text-red-500" />
-              <h1 className="text-2xl font-bold text-gray-900">Error</h1>
-            </div>
-            <p className="mt-4 text-sm text-gray-600">
-              {error?.message || "Failed to load business dashboard"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Update the service card render to include edit and delete buttons
   const renderServiceCard = (service: SalonService) => (
     <Card key={service.id}>
       <CardHeader>
@@ -556,7 +517,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </Card>
   );
 
-  // Update the staff card render to include edit and delete buttons
   const renderStaffCard = (member: SalonStaff) => (
     <Card key={member.id}>
       <CardHeader>
@@ -603,7 +563,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </Card>
   );
 
-  // Update the template card render function
   const renderShiftTemplateCard = (template: ShiftTemplate) => {
     const formatTime = (time: string) => {
       return new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
@@ -697,10 +656,8 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     );
   };
 
-  // Add edit dialogs and delete confirmation dialogs
   const renderDialogs = () => (
     <>
-      {/* Service Edit Dialog */}
       <Dialog open={!!isEditingService} onOpenChange={() => setIsEditingService(null)}>
         <DialogContent>
           <DialogHeader>
@@ -803,7 +760,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         </DialogContent>
       </Dialog>
 
-      {/* Staff Edit Dialog */}
       <Dialog open={!!isEditingStaff} onOpenChange={() => setIsEditingStaff(null)}>
         <DialogContent>
           <DialogHeader>
@@ -913,7 +869,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         </DialogContent>
       </Dialog>
 
-      {/* Service Delete Confirmation */}
       <AlertDialog open={!!serviceToDelete} onOpenChange={() => setServiceToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -941,7 +896,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Staff Delete Confirmation */}
       <AlertDialog open={!!staffToDelete} onOpenChange={()=> setStaffToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -969,7 +923,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Shift Template Edit Dialog */}
       <Dialog open={!!isEditingTemplate || isAddingTemplate}
        onOpenChange={() => isEditingTemplate ? setIsEditingTemplate(null) : setIsAddingTemplate(false)}>
         <DialogContent>
@@ -1166,7 +1119,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         </DialogContent>
       </Dialog>
 
-      {/* Shift Template Delete Confirmation */}
       <AlertDialog open={!!templateToDelete} onOpenChange={() => setTemplateToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1196,393 +1148,32 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </>
   );
 
-  // Update the main render to use the new card renderers and include dialogs
-  const renderIndustrySpecificContent = () => {
-    if (business?.industryType !== "salon") {
-      return (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">
-            Industry-specific features not available for this business type.
-          </p>
-        </div>
-      );
-    }
-
+  if (isLoadingBusiness) {
     return (
-      <Tabs defaultValue="services" className="space-y-6" onValueChange={setActiveTab}> {/* Added onValueChange */}
-        <TabsList>
-          <TabsTrigger value="services">Services</TabsTrigger>
-          <TabsTrigger value="staff">Staff</TabsTrigger>
-          <TabsTrigger value="shift-templates">Shift Templates</TabsTrigger>
-          <TabsTrigger value="service-staff">Service-Staff</TabsTrigger>
-          <TabsTrigger value="roster">Roster</TabsTrigger>
-          <TabsTrigger value="slots">Slot Settings</TabsTrigger>
-          <TabsTrigger value="bookings">Bookings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="services" className="space-y-4">
-          <div className="flex justify-between mb-4">
-            <h3 className="text-lg font-semibold">Salon Services</h3>
-            <Dialog open={isAddingService} onOpenChange={setIsAddingService}>
-              <DialogTrigger asChild>
-                <Button>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Add Service
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Service</DialogTitle>
-                  <DialogDescription>
-                    Add a new service to your salon's catalog
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...serviceForm}>
-                  <form onSubmit={serviceForm.handleSubmit((data) => addServiceMutation.mutate(data))} className="space-y-4">
-                    <FormField
-                      control={serviceForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Service Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={serviceForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description</FormLabel>
-                          <FormControl>
-                            <Textarea {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={serviceForm.control}
-                        name="duration"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Duration (minutes)</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={serviceForm.control}
-                        name="price"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Price ($)</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={serviceForm.control}
-                      name="category"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Category</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select category" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="hair">Hair</SelectItem>
-                              <SelectItem value="spa">Spa</SelectItem>
-                              <SelectItem value="nails">Nails</SelectItem>
-                              <SelectItem value="makeup">Makeup</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="submit" className="w-full" disabled={addServiceMutation.isPending}>
-                      {addServiceMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Adding Service...
-                        </>
-                      ) : (
-                        "Add Service"
-                      )}
-                    </Button>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {isLoadingServices ? (
-              <div className="col-span-full flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : services?.length === 0 ? (
-              <div className="col-span-full text-center py-8 text-muted-foreground">
-                No services added yet. Add your first service to get started.
-              </div>
-            ) : (
-              services?.map(renderServiceCard)
-            )}
-          </div>
-        </TabsContent>
-        <TabsContent value="staff" className="space-y-4">
-          <div className="flex justify-between mb-4">
-            <h3 className="text-lg font-semibold">Staff Management</h3>
-            <Dialog open={isAddingStaff} onOpenChange={setIsAddingStaff}>
-              <DialogTrigger asChild>
-                <Button>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Add Staff
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Staff Member</DialogTitle>
-                  <DialogDescription>
-                    Add a new staff member to your salon
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...staffForm}>
-                  <form onSubmit={staffForm.handleSubmit((data) => addStaffMutation.mutate(data))} className="space-y-4">
-                    <FormField
-                      control={staffForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="specialization"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Specialization</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select specialization" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="hair">Hair Stylist</SelectItem>
-                              <SelectItem value="spa">Spa Therapist</SelectItem>
-                              <SelectItem value="nails">Nail Artist</SelectItem>
-                              <SelectItem value="makeup">Makeup Artist</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="inactive">Inactive</SelectItem>
-                              <SelectItem value="on_leave">On Leave</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="submit" className="w-full" disabled={addStaffMutation.isPending}>
-                      {addStaffMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Adding Staff...
-                        </>
-                      ) : (
-                        "Add Staff Member"
-                      )}
-                    </Button>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {isLoadingStaff ? (
-              <div className="col-span-full flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : staff?.length === 0 ? (
-              <div className="col-span-full text-center py-8 text-muted-foreground">
-                No staff members added yet. Add your first staff member to get started.
-              </div>
-            ) : (
-              staff?.map(renderStaffCard)
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="shift-templates" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold">Shift Templates</h2>
-            <Button onClick={() => setIsAddingTemplate(true)}>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Template
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoadingTemplates ? (
-              <div className="col-span-full flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : templates?.length === 0 ? (
-              <div className="col-span-full text-center py-8">
-                <p className="text-muted-foreground">No templates found.</p>
-                <p className="text-sm text-muted-foreground">
-                  Click the button above to add your first template.
-                </p>
-              </div>
-            ) : (
-              templates?.map(renderShiftTemplateCard)
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="service-staff" className="p-4">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Service-Staff Mapping</h2>
-          </div>
-          <ServiceStaffTab businessId={businessId} industryType={business?.industryType} />
-        </TabsContent>
-        <TabsContent value="roster" className="p-4">
-          <div className="flex justify-between mb-4">
-            <h3 className="text-lg font-semibold">Staff Roster</h3>
-            <Button>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Create Schedule
-            </Button>
-          </div>
-          <div className="grid gap-4">
-            {/* Weekly roster view will go here */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Weekly Schedule</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">View and manage staff schedules</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="slots" className="p-4">
-          <div className="flex justify-between mb-4">
-            <h3 className="text-lg font-semibold">Slot Settings</h3>
-            <div className="space-x-2">
-              <Button variant="outline">
-                Auto-Generate
-              </Button>
-              <Button>
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Add Manual Slot
-              </Button>
-            </div>
-          </div>
-          <div className="grid gap-4">
-            {/* Slot configuration interface will go here */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Slots</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Configure and manage appointment slots</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="bookings" className="p-4">
-          <div className="flex justify-between mb-4">
-            <h3 className="text-lg font-semibold">Bookings</h3>
-            <Button>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              New Booking
-            </Button>
-          </div>
-          <div className="grid gap-4">
-            {/* Bookings management interface will go here */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Today's Appointments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">View and manage current bookings</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
-  };
+  }
 
-  // Add the ServiceStaffMapping component inside BusinessDashboard
+  if (error || !business) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="flex mb-4 gap-2">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <h1 className="text-2xl font-bold text-gray-900">Error</h1>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              {error?.message || "Failed to load business dashboard"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-6">
       <div className="border-b">
@@ -1596,7 +1187,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       </div>
 
       <div className="flex flex-col gap-8 p-8">
-        {/* Overview Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1634,12 +1224,112 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           </Card>
         </div>
 
-        {/* Main Dashboard Content */}
         <Card className="flex-1">
-          {renderIndustrySpecificContent()}
+          {business?.industryType === "salon" ? (
+            <>
+              <Tabs defaultValue="services" className="space-y-6" onValueChange={setActiveTab}>
+                <TabsList>
+                  <TabsTrigger value="services">Services</TabsTrigger>
+                  <TabsTrigger value="staff">Staff</TabsTrigger>
+                  <TabsTrigger value="shift-templates">Shift Templates</TabsTrigger>
+                  <TabsTrigger value="service-staff">Service-Staff</TabsTrigger>
+                  <TabsTrigger value="roster">Roster</TabsTrigger>
+                  <TabsTrigger value="slot-settings">Slot Settings</TabsTrigger>
+                  <TabsTrigger value="bookings">Bookings</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="services" className="p-4">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">Services</h2>
+                    <Button onClick={() => setIsAddingService(true)}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Service
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {services.map(service => renderServiceCard(service))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="staff" className="p-4">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">Staff</h2>
+                    <Button onClick={() => setIsAddingStaff(true)}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Staff
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {staff.map(member => renderStaffCard(member))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="shift-templates" className="p-4">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">Shift Templates</h2>
+                    <Button onClick={() => setIsAddingTemplate(true)}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add Template
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {templates.map(template => renderShiftTemplateCard(template))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="service-staff" className="p-4">
+                  <ServiceStaffTab 
+                    businessId={businessId}
+                    industryType={business.industryType}
+                  />
+                </TabsContent>
+
+                <TabsContent value="roster" className="p-4">
+                  <div className="flex justify-between mb-4">
+                    <h2 className="text-2xl font-bold">Roster</h2>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Roster management coming soon...
+                  </p>
+                </TabsContent>
+
+                <TabsContent value="slot-settings" className="p-4">
+                  <div className="flex justify-between mb-4">
+                    <h2 className="text-2xl font-bold">Slot Settings</h2>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Slot settings management coming soon...
+                  </p>
+                </TabsContent>
+
+                <TabsContent value="bookings" className="p-4">
+                  <div className="flex justify-between mb-4">
+                    <h2 className="text-2xl font-bold">Bookings</h2>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Booking management coming soon...
+                  </p>
+                </TabsContent>
+              </Tabs>
+              {renderDialogs()}
+            </>
+          ) : (
+            <div className="p-4">
+              <Card className="w-full">
+                <CardContent className="pt-6">
+                  <div className="flex mb-4 gap-2">
+                    <AlertCircle className="h-8 w-8 text-yellow-500" />
+                    <h1 className="text-2xl font-bold text-gray-900">Industry Not Supported</h1>
+                  </div>
+                  <p className="mt-4 text-sm text-gray-600">
+                    This industry type is not yet supported in the dashboard.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </Card>
       </div>
-      {renderDialogs()}
     </div>
   );
 }
@@ -1657,27 +1347,24 @@ const ServiceStaffTab = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Query for staff skills
   const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
     queryKey: [`/api/businesses/${businessId}/staff-skills`],
     enabled: !!businessId && industryType === "salon",
   });
 
-  // Query for services
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId && industryType === "salon",
   });
 
-  // Query for staff
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
     enabled: !!businessId && industryType === "salon",
   });
 
-  // Update staff skills mutation
   const updateSkillsMutation = useMutation({
     mutationFn: async (data: { staffId: number; serviceIds: number[] }) => {
+      console.log('Updating staff skills:', data);
       const response = await fetch(`/api/businesses/${businessId}/staff/${data.staffId}/skills`, {
         method: 'PUT',
         headers: {
@@ -1688,7 +1375,9 @@ const ServiceStaffTab = ({
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        console.error('Failed to update staff skills:', errorText);
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -1702,6 +1391,7 @@ const ServiceStaffTab = ({
       setIsUpdating(false);
     },
     onError: (error: Error) => {
+      console.error('Staff skills update error:', error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -1711,12 +1401,13 @@ const ServiceStaffTab = ({
     },
   });
 
-  // Initialize selected services when staff member is selected
   useEffect(() => {
     if (selectedStaff) {
+      console.log('Loading services for staff:', selectedStaff.id);
       const staffServiceIds = staffSkills
         .filter(skill => skill.staffId === selectedStaff.id)
         .map(skill => skill.serviceId);
+      console.log('Current staff services:', staffServiceIds);
       setSelectedServices(new Set(staffServiceIds));
     } else {
       setSelectedServices(new Set());
@@ -1724,10 +1415,12 @@ const ServiceStaffTab = ({
   }, [selectedStaff, staffSkills]);
 
   const handleStaffSelect = (member: SalonStaff) => {
+    console.log('Staff member selected:', member.id);
     setSelectedStaff(member);
   };
 
   const handleServiceToggle = (serviceId: number) => {
+    console.log('Service toggled:', serviceId);
     setSelectedServices(prev => {
       const newSet = new Set(prev);
       if (newSet.has(serviceId)) {
@@ -1735,12 +1428,16 @@ const ServiceStaffTab = ({
       } else {
         newSet.add(serviceId);
       }
+      console.log('Updated selected services:', Array.from(newSet));
       return newSet;
     });
   };
 
   const handleSaveAssignments = () => {
     if (!selectedStaff) return;
+
+    console.log('Saving assignments for staff:', selectedStaff.id);
+    console.log('Selected services:', Array.from(selectedServices));
 
     setIsUpdating(true);
     updateSkillsMutation.mutate({
@@ -1757,24 +1454,16 @@ const ServiceStaffTab = ({
     );
   }
 
-  // Get assigned services for display in the overview
-  const getAssignedServices = (member: SalonStaff) => {
-    const memberSkills = staffSkills.filter(skill => skill.staffId === member.id);
-    return memberSkills
-      .map(skill => services.find(s => s.id === skill.serviceId))
-      .filter((s): s is SalonService => s !== undefined);
-  };
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Staff Selection */}
         <div>
           <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
           <div className="space-y-2">
             {staff.map((member) => (
               <button
                 key={member.id}
+                type="button"
                 onClick={() => handleStaffSelect(member)}
                 className={`w-full text-left p-4 rounded-lg border transition-colors ${
                   selectedStaff?.id === member.id
@@ -1790,15 +1479,11 @@ const ServiceStaffTab = ({
                 }`}>
                   {member.specialization}
                 </p>
-                <div className="mt-2 text-xs">
-                  {getAssignedServices(member).length} services assigned
-                </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Service Assignment Section */}
         <div>
           {selectedStaff ? (
             <>
@@ -1807,18 +1492,20 @@ const ServiceStaffTab = ({
               </h3>
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                 {services.map((service) => (
-                  <label
+                  <div
                     key={service.id}
                     className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
                       selectedServices.has(service.id)
                         ? "bg-primary/10 border-primary"
                         : "hover:bg-accent"
                     }`}
+                    onClick={() => handleServiceToggle(service.id)}
                   >
                     <input
                       type="checkbox"
                       checked={selectedServices.has(service.id)}
                       onChange={() => handleServiceToggle(service.id)}
+                      onClick={(e) => e.stopPropagation()}
                       className="h-4 w-4 rounded border-primary text-primary focus:ring-primary mt-1"
                     />
                     <div className="flex-1 min-w-0">
@@ -1832,7 +1519,7 @@ const ServiceStaffTab = ({
                         </p>
                       )}
                     </div>
-                  </label>
+                  </div>
                 ))}
               </div>
               <Button
@@ -1862,45 +1549,48 @@ const ServiceStaffTab = ({
         </div>
       </div>
 
-      {/* Current Assignments Overview */}
-      <div className="border rounded-lg">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Current Assignments</h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {staff.map((member) => {
-              const assignedServices = getAssignedServices(member);
+      <div className="border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Current Assignments</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {staff.map((member) => {
+            const staffServiceIds = staffSkills
+              .filter(skill => skill.staffId === member.id)
+              .map(skill => skill.serviceId);
+            const assignedServices = services.filter(service => 
+              staffServiceIds.includes(service.id)
+            );
 
-              return (
-                <Card key={member.id}>
-                  <CardHeader>
-                    <CardTitle className="text-base">{member.name}</CardTitle>
-                    <CardDescription>{member.specialization}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {assignedServices.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {assignedServices.map((service) => (
-                          <span
-                            key={service.id}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
-                          >
-                            {service.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No services assigned
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+            return (
+              <Card key={member.id}>
+                <CardHeader>
+                  <CardTitle className="text-base">{member.name}</CardTitle>
+                  <CardDescription>{member.specialization}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {assignedServices.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {assignedServices.map((service) => (
+                        <span
+                          key={service.id}
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                        >
+                          {service.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No services assigned
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     </div>
   );
-
 };
+
+export default BusinessDashboard;

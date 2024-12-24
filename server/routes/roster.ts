@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@db";
-import { staffSchedules, salonStaff } from "@db/schema";
+import { staffSchedules, salonStaff, shiftTemplates } from "@db/schema";
 import { eq, and, between } from "drizzle-orm";
 
 const router = Router();
@@ -8,6 +8,10 @@ const router = Router();
 // Get roster data for a business
 router.get("/api/businesses/:businessId/roster", async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const businessId = parseInt(req.params.businessId);
     const schedules = await db.query.staffSchedules.findMany({
       where: eq(staffSchedules.businessId, businessId),
@@ -24,9 +28,33 @@ router.get("/api/businesses/:businessId/roster", async (req, res) => {
   }
 });
 
+// Get shift templates for a business
+router.get("/api/businesses/:businessId/shift-templates", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+    const templates = await db
+      .select()
+      .from(shiftTemplates)
+      .where(eq(shiftTemplates.businessId, businessId));
+
+    res.json(templates);
+  } catch (error) {
+    console.error("Error fetching shift templates:", error);
+    res.status(500).json({ error: "Failed to fetch shift templates" });
+  }
+});
+
 // Batch assign shifts
 router.post("/api/businesses/:businessId/roster/batch-assign", async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const businessId = parseInt(req.params.businessId);
     const { staffIds, templateId, startDate, endDate } = req.body;
 
@@ -37,9 +65,9 @@ router.post("/api/businesses/:businessId/roster/batch-assign", async (req, res) 
         .values({
           staffId,
           templateId,
+          businessId,
           date: new Date(startDate),
           status: "scheduled",
-          businessId,
         })
         .returning();
       shifts.push(shift);
@@ -55,6 +83,10 @@ router.post("/api/businesses/:businessId/roster/batch-assign", async (req, res) 
 // Update a shift
 router.put("/api/businesses/:businessId/roster/:shiftId", async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const shiftId = parseInt(req.params.shiftId);
     const { templateId } = req.body;
 

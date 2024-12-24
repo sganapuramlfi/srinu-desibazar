@@ -424,8 +424,6 @@ const ServiceStaffTab = ({
   );
 };
 
-export { ServiceStaffTab };
-
 interface RosterShift {
   id: number;
   staffId: number;
@@ -434,7 +432,7 @@ interface RosterShift {
   status: "scheduled" | "working" | "completed" | "leave" | "sick" | "absent";
 }
 
-const RosterTab = ({
+const RosterTabUpdated = ({
   businessId,
   staff,
   templates,
@@ -503,42 +501,6 @@ const RosterTab = ({
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to assign shifts",
-      });
-    },
-  });
-
-  const updateShiftMutation = useMutation({
-    mutationFn: async (data: {
-      shiftId: number;
-      templateId: number;
-    }) => {
-      const response = await fetch(`/api/businesses/${businessId}/roster/${data.shiftId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ templateId: data.templateId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/roster`] });
-      toast({
-        title: "Success",
-        description: "Shift has been updated successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to update shift",
       });
     },
   });
@@ -656,7 +618,7 @@ const RosterTab = ({
                     <Calendar
                       initialFocus
                       mode="range"
-                      defaultMonth={new Date()}
+                      defaultMonth={selectedRange?.from || new Date()}
                       selected={selectedRange}
                       onSelect={setSelectedRange}
                       numberOfMonths={2}
@@ -822,6 +784,9 @@ const RosterTab = ({
     </div>
   );
 };
+
+export { ServiceStaffTab };
+
 
 function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
@@ -1965,12 +1930,12 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
                 <TabsContent value="service-staff" className="p-4">
                   <ServiceStaffTab
                     businessId={businessId}
-                    industryType={business.industryType}
+                    industryType={business?.industryType}
                   />
                 </TabsContent>
 
                 <TabsContent value="roster" className="p-4">
-                  <RosterTab
+                  <RosterTabUpdated
                     businessId={businessId}
                     staff={staff}
                     templates={templates}

@@ -128,6 +128,264 @@ interface StaffSkill {
   proficiencyLevel: "trainee" | "junior" | "senior" | "expert";
 }
 
+const ServiceStaffTab = ({ 
+  businessId,
+  industryType 
+}: { 
+  businessId: number;
+  industryType?: string;
+}) => {
+  const [selectedStaff, setSelectedStaff] = useState<SalonStaff | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Set<number>>(new Set());
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
+    queryKey: [`/api/businesses/${businessId}/staff-skills`],
+    enabled: !!businessId && industryType === "salon",
+  });
+
+  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
+    queryKey: [`/api/businesses/${businessId}/services`],
+    enabled: !!businessId && industryType === "salon",
+  });
+
+  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
+    queryKey: [`/api/businesses/${businessId}/staff`],
+    enabled: !!businessId && industryType === "salon",
+  });
+
+  const updateSkillsMutation = useMutation({
+    mutationFn: async (data: { staffId: number; serviceIds: number[] }) => {
+      console.log('Updating staff skills:', data);
+      const response = await fetch(`/api/businesses/${businessId}/staff/${data.staffId}/skills`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ serviceIds: data.serviceIds }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to update staff skills:', errorText);
+        throw new Error(errorText);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
+      toast({
+        title: "Success",
+        description: "Staff services have been updated successfully.",
+      });
+      setIsUpdating(false);
+    },
+    onError: (error: Error) => {
+      console.error('Staff skills update error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update staff services",
+      });
+      setIsUpdating(false);
+    },
+  });
+
+  useEffect(() => {
+    if (selectedStaff) {
+      console.log('Loading services for staff:', selectedStaff.id);
+      const staffServiceIds = staffSkills
+        .filter(skill => skill.staffId === selectedStaff.id)
+        .map(skill => skill.serviceId);
+      console.log('Current staff services:', staffServiceIds);
+      setSelectedServices(new Set(staffServiceIds));
+    } else {
+      setSelectedServices(new Set());
+    }
+  }, [selectedStaff, staffSkills]);
+
+  const handleStaffSelect = (member: SalonStaff) => {
+    console.log('Staff member selected:', member.id);
+    setSelectedStaff(member);
+  };
+
+  const handleServiceToggle = (serviceId: number) => {
+    console.log('Service toggled:', serviceId);
+    setSelectedServices(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(serviceId)) {
+        newSet.delete(serviceId);
+      } else {
+        newSet.add(serviceId);
+      }
+      console.log('Updated selected services:', Array.from(newSet));
+      return newSet;
+    });
+  };
+
+  const handleSaveAssignments = () => {
+    if (!selectedStaff) return;
+
+    console.log('Saving assignments for staff:', selectedStaff.id);
+    console.log('Selected services:', Array.from(selectedServices));
+
+    setIsUpdating(true);
+    updateSkillsMutation.mutate({
+      staffId: selectedStaff.id,
+      serviceIds: Array.from(selectedServices),
+    });
+  };
+
+  if (isLoadingStaff || isLoadingServices || isLoadingSkills) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
+          <div className="space-y-2">
+            {staff.map((member) => (
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => handleStaffSelect(member)}
+                className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                  selectedStaff?.id === member.id
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-accent"
+                }`}
+              >
+                <h4 className="font-medium">{member.name}</h4>
+                <p className={`text-sm ${
+                  selectedStaff?.id === member.id
+                    ? "text-primary-foreground/80"
+                    : "text-muted-foreground"
+                }`}>
+                  {member.specialization}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          {selectedStaff ? (
+            <>
+              <h3 className="text-lg font-semibold mb-4">
+                Assign Services for {selectedStaff.name}
+              </h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                {services.map((service) => (
+                  <div
+                    key={service.id}
+                    className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                      selectedServices.has(service.id)
+                        ? "bg-primary/10 border-primary"
+                        : "hover:bg-accent"
+                    }`}
+                    onClick={() => handleServiceToggle(service.id)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedServices.has(service.id)}
+                      onChange={() => handleServiceToggle(service.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 rounded border-primary text-primary focus:ring-primary mt-1"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {service.duration} mins • ${service.price}
+                      </p>
+                      {service.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {service.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={handleSaveAssignments}
+                disabled={isUpdating}
+                className="w-full mt-4"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving Changes...
+                  </>
+                ) : (
+                  "Save Service Assignments"
+                )}
+              </Button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] border rounded-lg bg-muted/50">
+              <Users className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium">No Staff Member Selected</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Select a staff member to manage their services
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="border rounded-lg p-6">
+        <h3 className="text-lg font-semibold mb-4">Current Assignments</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {staff.map((member) => {
+            const staffServiceIds = staffSkills
+              .filter(skill => skill.staffId === member.id)
+              .map(skill => skill.serviceId);
+            const assignedServices = services.filter(service => 
+              staffServiceIds.includes(service.id)
+            );
+
+            return (
+              <Card key={member.id}>
+                <CardHeader>
+                  <CardTitle className="text-base">{member.name}</CardTitle>
+                  <CardDescription>{member.specialization}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {assignedServices.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {assignedServices.map((service) => (
+                        <span
+                          key={service.id}
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                        >
+                          {service.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No services assigned
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
@@ -635,8 +893,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               </div>
             )}
           </div>
-          <div className="absolute bottom-4 right-4 space-x-2">
-            <Button
+          <div className="absolute bottom-4 right-4 space-x-2"><Button
               variant="outline"
               size="sm"
               onClick={() => setIsEditingTemplate(template)}
@@ -1333,264 +1590,3 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     </div>
   );
 }
-
-const ServiceStaffTab = ({ 
-  businessId,
-  industryType 
-}: { 
-  businessId: number;
-  industryType?: string;
-}) => {
-  const [selectedStaff, setSelectedStaff] = useState<SalonStaff | null>(null);
-  const [selectedServices, setSelectedServices] = useState<Set<number>>(new Set());
-  const [isUpdating, setIsUpdating] = useState(false);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
-    queryKey: [`/api/businesses/${businessId}/staff-skills`],
-    enabled: !!businessId && industryType === "salon",
-  });
-
-  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
-    queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && industryType === "salon",
-  });
-
-  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
-    queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && industryType === "salon",
-  });
-
-  const updateSkillsMutation = useMutation({
-    mutationFn: async (data: { staffId: number; serviceIds: number[] }) => {
-      console.log('Updating staff skills:', data);
-      const response = await fetch(`/api/businesses/${businessId}/staff/${data.staffId}/skills`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ serviceIds: data.serviceIds }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to update staff skills:', errorText);
-        throw new Error(errorText);
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
-      toast({
-        title: "Success",
-        description: "Staff services have been updated successfully.",
-      });
-      setIsUpdating(false);
-    },
-    onError: (error: Error) => {
-      console.error('Staff skills update error:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to update staff services",
-      });
-      setIsUpdating(false);
-    },
-  });
-
-  useEffect(() => {
-    if (selectedStaff) {
-      console.log('Loading services for staff:', selectedStaff.id);
-      const staffServiceIds = staffSkills
-        .filter(skill => skill.staffId === selectedStaff.id)
-        .map(skill => skill.serviceId);
-      console.log('Current staff services:', staffServiceIds);
-      setSelectedServices(new Set(staffServiceIds));
-    } else {
-      setSelectedServices(new Set());
-    }
-  }, [selectedStaff, staffSkills]);
-
-  const handleStaffSelect = (member: SalonStaff) => {
-    console.log('Staff member selected:', member.id);
-    setSelectedStaff(member);
-  };
-
-  const handleServiceToggle = (serviceId: number) => {
-    console.log('Service toggled:', serviceId);
-    setSelectedServices(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(serviceId)) {
-        newSet.delete(serviceId);
-      } else {
-        newSet.add(serviceId);
-      }
-      console.log('Updated selected services:', Array.from(newSet));
-      return newSet;
-    });
-  };
-
-  const handleSaveAssignments = () => {
-    if (!selectedStaff) return;
-
-    console.log('Saving assignments for staff:', selectedStaff.id);
-    console.log('Selected services:', Array.from(selectedServices));
-
-    setIsUpdating(true);
-    updateSkillsMutation.mutate({
-      staffId: selectedStaff.id,
-      serviceIds: Array.from(selectedServices),
-    });
-  };
-
-  if (isLoadingStaff || isLoadingServices || isLoadingSkills) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
-          <div className="space-y-2">
-            {staff.map((member) => (
-              <button
-                key={member.id}
-                type="button"
-                onClick={() => handleStaffSelect(member)}
-                className={`w-full text-left p-4 rounded-lg border transition-colors ${
-                  selectedStaff?.id === member.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-accent"
-                }`}
-              >
-                <h4 className="font-medium">{member.name}</h4>
-                <p className={`text-sm ${
-                  selectedStaff?.id === member.id
-                    ? "text-primary-foreground/80"
-                    : "text-muted-foreground"
-                }`}>
-                  {member.specialization}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          {selectedStaff ? (
-            <>
-              <h3 className="text-lg font-semibold mb-4">
-                Assign Services for {selectedStaff.name}
-              </h3>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                {services.map((service) => (
-                  <div
-                    key={service.id}
-                    className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                      selectedServices.has(service.id)
-                        ? "bg-primary/10 border-primary"
-                        : "hover:bg-accent"
-                    }`}
-                    onClick={() => handleServiceToggle(service.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedServices.has(service.id)}
-                      onChange={() => handleServiceToggle(service.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4 rounded border-primary text-primary focus:ring-primary mt-1"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium">{service.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {service.duration} mins • ${service.price}
-                      </p>
-                      {service.description && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {service.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Button
-                onClick={handleSaveAssignments}
-                disabled={isUpdating}
-                className="w-full mt-4"
-              >
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving Changes...
-                  </>
-                ) : (
-                  "Save Service Assignments"
-                )}
-              </Button>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full min-h-[400px] border rounded-lg bg-muted/50">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="font-medium">No Staff Member Selected</h3>
-              <p className="text-sm text-muted-foreground mt-2">
-                Select a staff member to manage their services
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="border rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Current Assignments</h3>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {staff.map((member) => {
-            const staffServiceIds = staffSkills
-              .filter(skill => skill.staffId === member.id)
-              .map(skill => skill.serviceId);
-            const assignedServices = services.filter(service => 
-              staffServiceIds.includes(service.id)
-            );
-
-            return (
-              <Card key={member.id}>
-                <CardHeader>
-                  <CardTitle className="text-base">{member.name}</CardTitle>
-                  <CardDescription>{member.specialization}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {assignedServices.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {assignedServices.map((service) => (
-                        <span
-                          key={service.id}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
-                        >
-                          {service.name}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No services assigned
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default BusinessDashboard;

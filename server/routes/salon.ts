@@ -4,10 +4,12 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema } from "@db/schema";
 
-const router = Router();
+// Create separate routers for public and protected routes
+const publicRouter = Router();
+const protectedRouter = Router();
 
-// Public route - GET services
-router.get("/businesses/:businessId/services", async (req, res) => {
+// Public Routes - No authentication required
+publicRouter.get("/businesses/:businessId/services", async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     const services = await db
@@ -16,25 +18,17 @@ router.get("/businesses/:businessId/services", async (req, res) => {
       .where(eq(salonServices.businessId, businessId));
 
     res.json(services);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching salon services:', error);
     res.status(500).json({
       message: "Failed to fetch services",
-      error: error.message
+      error: (error as Error).message
     });
   }
 });
 
-// Protected routes - require authentication
-function requireAuth(req: any, res: any, next: any) {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  next();
-}
-
-// Create service - protected
-router.post("/businesses/:businessId/services", requireAuth, async (req, res) => {
+// Protected Routes - Protected endpoints requiring authentication
+protectedRouter.post("/businesses/:businessId/services", async (req, res) => {
   try {
     const result = insertSalonServiceSchema.safeParse({
       ...req.body,
@@ -54,17 +48,16 @@ router.post("/businesses/:businessId/services", requireAuth, async (req, res) =>
       .returning();
 
     res.status(201).json(service);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating salon service:', error);
     res.status(500).json({
       message: "Failed to create service",
-      error: error.message
+      error: (error as Error).message
     });
   }
 });
 
-// Update service - protected
-router.put("/businesses/:businessId/services/:serviceId", requireAuth, async (req, res) => {
+protectedRouter.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
   try {
     const result = insertSalonServiceSchema.partial().safeParse({
       ...req.body,
@@ -92,17 +85,16 @@ router.put("/businesses/:businessId/services/:serviceId", requireAuth, async (re
     }
 
     res.json(service);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating salon service:', error);
     res.status(500).json({
       message: "Failed to update service",
-      error: error.message
+      error: (error as Error).message
     });
   }
 });
 
-// Staff management - protected
-router.get("/businesses/:businessId/staff", requireAuth, async (req, res) => {
+protectedRouter.get("/businesses/:businessId/staff", async (req, res) => {
   try {
     const staff = await db
       .select()
@@ -122,13 +114,13 @@ router.get("/businesses/:businessId/staff", requireAuth, async (req, res) => {
     }));
 
     res.json(staffWithSkills);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching salon staff:', error);
     res.status(500).json({
       message: "Failed to fetch staff",
-      error: error.message
+      error: (error as Error).message
     });
   }
 });
 
-export default router;
+export { publicRouter as salonPublicRouter, protectedRouter as salonProtectedRouter };

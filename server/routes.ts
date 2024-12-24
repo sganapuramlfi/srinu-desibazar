@@ -8,7 +8,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { businesses } from "@db/schema";
 import { eq } from "drizzle-orm";
-import salonRouter from "./routes/salon";
+import { salonPublicRouter, salonProtectedRouter } from "./routes/salon";
 import rosterRouter from "./routes/roster";
 import slotsRouter from "./routes/slots";
 import bookingsRouter from "./routes/bookings";
@@ -52,7 +52,23 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express): Server {
-  // Public routes first
+  // CORS middleware
+  app.use((req, res, next) => {
+    const origin = req.headers.origin || '*';
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
+
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
+
+  // PUBLIC ROUTES - NO AUTH REQUIRED
+  // Business profile
   app.get("/api/businesses/:businessId/profile", async (req, res) => {
     try {
       const [business] = await db
@@ -71,6 +87,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // List businesses
   app.get("/api/businesses", async (req, res) => {
     try {
       const result = await db.select().from(businesses);
@@ -80,16 +97,30 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Register salon routes (includes both public and protected routes)
-  app.use("/api", salonRouter);
+  // Register public salon routes BEFORE auth setup
+  app.use("/api", salonPublicRouter);
 
-  // Setup auth middleware and register protected routes
-  setupAuth(app);
+  // Setup auth and get middleware components
+  const auth = setupAuth(app);
 
-  // Register other protected routes
-  app.use("/api/roster", rosterRouter);
-  app.use("/api/slots", slotsRouter);
-  app.use("/api/bookings", bookingsRouter);
+  // Create protected middleware chain
+  const protectedMiddleware = [
+    auth.session,
+    auth.initialize,
+    auth.passport,
+    (req: any, res: any, next: any) => {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      next();
+    }
+  ];
+
+  // Apply protected middleware to protected routes
+  app.use("/api/salon", protectedMiddleware, salonProtectedRouter);
+  app.use("/api/roster", protectedMiddleware, rosterRouter);
+  app.use("/api/slots", protectedMiddleware, slotsRouter);
+  app.use("/api/bookings", protectedMiddleware, bookingsRouter);
 
   const httpServer = createServer(app);
   return httpServer;

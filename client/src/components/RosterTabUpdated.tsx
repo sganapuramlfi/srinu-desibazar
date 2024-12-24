@@ -16,34 +16,55 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Clock, Coffee } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-interface SalonStaff {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-  specialization?: string;
-  status: "active" | "inactive" | "on_leave";
-}
-
-interface ShiftTemplate {
-  id: number;
-  name: string;
-  startTime: string;
-  endTime: string;
-  type: string;
-}
-
-interface RosterShift {
-  id: number;
-  staffId: number;
-  templateId: number;
-  date: string;
-  status: "scheduled" | "working" | "completed" | "leave" | "sick" | "absent";
-}
+// Add ShiftTemplateLegend component
+const ShiftTemplateLegend = ({ templates }) => {
+  return (
+    <div className="flex flex-wrap gap-4 items-start mb-6">
+      <span className="text-sm font-medium">Shift Templates:</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full">
+        {templates.map((template) => (
+          <div
+            key={template.id}
+            className={cn(
+              "p-3 rounded-lg border",
+              template.type === "regular" && "bg-blue-50 border-blue-200",
+              template.type === "overtime" && "bg-orange-50 border-orange-200",
+              template.type === "holiday" && "bg-green-50 border-green-200",
+              template.type === "leave" && "bg-red-50 border-red-200"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span className="font-medium">{template.name}</span>
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <span>Time:</span>
+                <span>{template.startTime} - {template.endTime}</span>
+              </div>
+              {template.breaks && template.breaks.length > 0 && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Coffee className="h-3 w-3" />
+                  <span>Breaks:</span>
+                  {template.breaks.map((breakTime, idx) => (
+                    <span key={idx} className="text-xs">
+                      {breakTime.startTime}-{breakTime.endTime}
+                      {idx < template.breaks.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 interface RosterTabProps {
   businessId: number;
@@ -61,8 +82,6 @@ export const RosterTabUpdated = ({
   isLoadingTemplates
 }: RosterTabProps) => {
   const [viewStartDate, setViewStartDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [selectedStaff, setSelectedStaff] = useState<number[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<number>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -183,18 +202,8 @@ export const RosterTabUpdated = ({
 
   return (
     <div className="p-6 space-y-8">
-      {/* Shift Types Legend */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <span className="text-sm font-medium">Shift Types:</span>
-        {['regular', 'overtime', 'holiday', 'leave'].map((type) => (
-          <div
-            key={type}
-            className={`px-3 py-1 rounded-full text-xs font-medium border ${getShiftTypeColor(type)}`}
-          >
-            {type.charAt(0).toUpperCase() + type.slice(1)}
-          </div>
-        ))}
-      </div>
+      {/* Shift Template Legend */}
+      <ShiftTemplateLegend templates={templates} />
 
       {/* Weekly Roster View */}
       <Card>
@@ -281,9 +290,23 @@ export const RosterTabUpdated = ({
                                     </SelectContent>
                                   </Select>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {template.startTime} - {template.endTime}
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{template.startTime} - {template.endTime}</span>
                                 </div>
+                                {template.breaks && template.breaks.length > 0 && (
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Coffee className="h-3 w-3" />
+                                    <span>
+                                      {template.breaks.map((breakTime, idx) => (
+                                        <span key={idx}>
+                                          {breakTime.startTime}-{breakTime.endTime}
+                                          {idx < template.breaks.length - 1 ? ", " : ""}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <Select
@@ -324,3 +347,29 @@ export const RosterTabUpdated = ({
     </div>
   );
 };
+
+interface SalonStaff {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  specialization?: string;
+  status: "active" | "inactive" | "on_leave";
+}
+
+interface ShiftTemplate {
+  id: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  type: string;
+  breaks?: { startTime: string; endTime: string }[];
+}
+
+interface RosterShift {
+  id: number;
+  staffId: number;
+  templateId: number;
+  date: string;
+  status: "scheduled" | "working" | "completed" | "leave" | "sick" | "absent";
+}

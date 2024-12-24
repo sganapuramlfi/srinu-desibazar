@@ -28,6 +28,7 @@ import {
   Coffee,
   CheckCircle2,
   AlertCircle,
+  ChevronRight,
 } from "lucide-react";
 import type { Business } from "@db/schema";
 
@@ -41,7 +42,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const businessId = parseInt(params.businessId);
   const [, navigate] = useLocation();
 
-  // Fetch business data
   const { data: business, isLoading } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
@@ -70,16 +70,15 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Compact Hero Section with Info */}
-      <div className="relative bg-gradient-to-r from-primary/10 to-primary/5 pt-8 pb-4">
-        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-        <div className="relative max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row gap-6 items-start">
+      {/* Hero Section with Business Info */}
+      <div className="relative bg-gradient-to-r from-primary/5 to-transparent">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row gap-8">
             {/* Business Info */}
             <div className="flex-1">
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-start gap-6">
                 {/* Logo */}
-                <div className="w-20 h-20 bg-white rounded-lg shadow-lg flex items-center justify-center overflow-hidden">
+                <div className="w-24 h-24 bg-white rounded-lg shadow-lg flex items-center justify-center overflow-hidden">
                   {business.logo_url ? (
                     <img
                       src={business.logo_url}
@@ -87,110 +86,104 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <AlertCircle className="w-10 h-10 text-muted-foreground" />
+                    <AlertCircle className="w-12 h-12 text-muted-foreground" />
                   )}
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold">{business.name}</h1>
-                  {business.contactInfo?.address && (
-                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                      <MapPin className="h-4 w-4" />
-                      {business.contactInfo.address}
-                    </div>
-                  )}
-                  {business.status === "active" && (
-                    <span className="inline-flex items-center gap-1 text-green-600 text-sm mt-1">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Verified Business
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              {/* Quick Info Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                {/* Contact */}
-                <Card className="bg-white/90">
-                  <CardContent className="p-3">
-                    <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
-                      <Phone className="h-4 w-4 text-primary" />
-                      Contact
-                    </h3>
-                    <div className="space-y-1">
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h1 className="text-3xl font-bold">{business.name}</h1>
+                      {business.status === "active" && (
+                        <span className="inline-flex items-center gap-1 text-green-600 text-sm mt-1">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Verified Business
+                        </span>
+                      )}
+                    </div>
+                    <Button size="lg" className="hidden md:flex">
+                      Book Appointment
+                      <ChevronRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Quick Info Grid */}
+                  <div className="grid md:grid-cols-3 gap-6 mt-6">
+                    {/* Location & Contact */}
+                    <div className="space-y-2">
+                      {business.contactInfo?.address && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <MapPin className="h-4 w-4 mt-0.5 text-primary" />
+                          <span>{business.contactInfo.address}</span>
+                        </div>
+                      )}
                       {business.contactInfo?.phone && (
-                        <p className="text-sm">{business.contactInfo.phone}</p>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="h-4 w-4 text-primary" />
+                          <span>{business.contactInfo.phone}</span>
+                        </div>
                       )}
                       {business.contactInfo?.email && (
-                        <p className="text-sm flex items-center gap-1">
-                          <Mail className="h-3 w-3 text-primary" />
-                          {business.contactInfo.email}
-                        </p>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Mail className="h-4 w-4 text-primary" />
+                          <span>{business.contactInfo.email}</span>
+                        </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
 
-                {/* Hours */}
-                <Card className="bg-white/90">
-                  <CardContent className="p-3">
-                    <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
-                      <Clock className="h-4 w-4 text-primary" />
-                      Hours
-                    </h3>
-                    <div className="text-sm space-y-1 max-h-[80px] overflow-y-auto">
-                      {business.operatingHours && Object.entries(business.operatingHours).map(([day, hours]) => (
-                        <div key={day} className="flex justify-between">
-                          <span className="capitalize">{day.slice(0,3)}</span>
-                          <span className="text-muted-foreground">
-                            {hours.isOpen ? `${hours.open}-${hours.close}` : 'Closed'}
-                          </span>
+                    {/* Hours Summary */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Clock className="h-4 w-4 text-primary" />
+                        <span>Today's Hours</span>
+                      </div>
+                      {business.operatingHours && (
+                        <div className="text-sm">
+                          {business.operatingHours[Object.keys(business.operatingHours)[0]]?.isOpen ? (
+                            <span className="text-green-600">
+                              Open: {business.operatingHours[Object.keys(business.operatingHours)[0]]?.open} - {business.operatingHours[Object.keys(business.operatingHours)[0]]?.close}
+                            </span>
+                          ) : (
+                            <span className="text-red-600">Closed</span>
+                          )}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
 
-                {/* Amenities */}
-                <Card className="bg-white/90">
-                  <CardContent className="p-3">
-                    <h3 className="text-sm font-semibold mb-2">Amenities</h3>
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Amenities */}
+                    <div className="flex flex-wrap gap-3">
                       {amenities.filter(amenity => amenity.enabled).map((amenity) => {
                         const IconComponent = getIconComponent(amenity.icon);
                         return (
-                          <div key={amenity.name} className="flex items-center gap-1 text-sm">
+                          <div
+                            key={amenity.name}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 bg-primary/5 rounded-md text-xs"
+                          >
                             <IconComponent className="h-3 w-3 text-primary" />
                             <span>{amenity.name}</span>
                           </div>
                         );
                       })}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Quick Book Widget */}
-            <div className="w-full md:w-72">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Book Appointment</CardTitle>
-                  <CardDescription>Choose a time and service</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="w-full">View Available Services</Button>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Mobile Book Button */}
+            <Button size="lg" className="md:hidden w-full">
+              Book Appointment
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-12">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid gap-8 lg:grid-cols-12">
           {/* Left Column - Services & About */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-8 space-y-8">
             {/* Services Section */}
             <Card>
               <CardHeader>
@@ -199,8 +192,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {/* Service cards will be dynamically added here */}
-                  <Card>
+                  {/* Sample service card - will be replaced with actual services */}
+                  <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
                         <div>
@@ -215,7 +208,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                         <DialogTrigger asChild>
                           <Button className="w-full">Book Now</Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="sm:max-w-[425px]">
                           <DialogHeader>
                             <DialogTitle>Book Appointment</DialogTitle>
                           </DialogHeader>
@@ -243,10 +236,25 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
               <CardContent>
                 <p className="text-muted-foreground">{business.description}</p>
 
+                {/* Operating Hours */}
+                <div className="mt-6 pt-6 border-t">
+                  <h3 className="font-semibold mb-4">Operating Hours</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {business.operatingHours && Object.entries(business.operatingHours).map(([day, hours]) => (
+                      <div key={day} className="flex justify-between text-sm">
+                        <span className="capitalize font-medium">{day}</span>
+                        <span className="text-muted-foreground">
+                          {hours.isOpen ? `${hours.open} - ${hours.close}` : 'Closed'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Social Media Links */}
                 {business.socialMedia && Object.entries(business.socialMedia).some(([_, url]) => url) && (
-                  <div className="mt-4 pt-4 border-t">
-                    <h3 className="font-semibold mb-2">Connect With Us</h3>
+                  <div className="mt-6 pt-6 border-t">
+                    <h3 className="font-semibold mb-4">Connect With Us</h3>
                     <div className="flex gap-4">
                       {Object.entries(business.socialMedia).map(([platform, url]) => (
                         url && (
@@ -255,9 +263,9 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                             href={url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary hover:text-primary/80"
+                            className="text-primary hover:text-primary/80 capitalize"
                           >
-                            {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                            {platform}
                           </a>
                         )
                       ))}
@@ -269,7 +277,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
           </div>
 
           {/* Right Column - Gallery */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-4">
             {business.gallery && business.gallery.length > 0 && (
               <Card>
                 <CardHeader>
@@ -280,18 +288,18 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                     {business.gallery.slice(0, 4).map((image, index) => (
                       <div
                         key={index}
-                        className="aspect-square rounded-md overflow-hidden"
+                        className="aspect-square rounded-md overflow-hidden bg-muted"
                       >
                         <img
                           src={image.url}
                           alt={image.caption || `Gallery image ${index + 1}`}
-                          className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                         />
                       </div>
                     ))}
                   </div>
                   {business.gallery.length > 4 && (
-                    <Button variant="link" className="w-full mt-2">
+                    <Button variant="outline" className="w-full mt-4">
                       View All Photos ({business.gallery.length})
                     </Button>
                   )}

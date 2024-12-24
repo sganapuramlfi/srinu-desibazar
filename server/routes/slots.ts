@@ -41,13 +41,20 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
 
     // Fetch existing bookings to check availability
     const existingBookings = await db
-      .select()
+      .select({
+        id: salonBookings.id,
+        startTime: serviceSlots.startTime,
+        endTime: serviceSlots.endTime,
+        staffId: salonBookings.staffId,
+      })
       .from(salonBookings)
+      .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
       .where(
         and(
           eq(salonBookings.businessId, businessId),
-          startDate ? gte(salonBookings.createdAt, new Date(startDate as string)) : undefined,
-          endDate ? lte(salonBookings.createdAt, new Date(endDate as string)) : undefined
+          startDate ? gte(serviceSlots.startTime, new Date(startDate as string)) : undefined,
+          endDate ? lte(serviceSlots.endTime, new Date(endDate as string)) : undefined,
+          eq(salonBookings.status, "confirmed")
         )
       );
 
@@ -86,14 +93,15 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
     // Filter out slots that conflict with existing bookings
     const availableSlots = slots.filter(slot => {
       const hasConflict = existingBookings.some(booking =>
-        isWithinInterval(slot.slot.startTime, {
+        booking.staffId === slot.staff.id &&
+        (isWithinInterval(slot.slot.startTime, {
           start: booking.startTime,
           end: booking.endTime
         }) ||
         isWithinInterval(slot.slot.endTime, {
           start: booking.startTime,
           end: booking.endTime
-        })
+        }))
       );
       return !hasConflict;
     });
@@ -166,6 +174,7 @@ router.post("/businesses/:businessId/slots/manual", async (req, res) => {
         endTime: new Date(endTime),
         status,
         isManual: true,
+        conflictingSlotIds: [],
       })
       .returning();
 
@@ -198,13 +207,20 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
 
     // Get existing bookings for the date range
     const existingBookings = await db
-      .select()
+      .select({
+        id: salonBookings.id,
+        startTime: serviceSlots.startTime,
+        endTime: serviceSlots.endTime,
+        staffId: salonBookings.staffId,
+      })
       .from(salonBookings)
+      .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
       .where(
         and(
           eq(salonBookings.businessId, businessId),
-          gte(salonBookings.createdAt, new Date(startDate)),
-          lte(salonBookings.createdAt, new Date(endDate))
+          gte(serviceSlots.startTime, new Date(startDate)),
+          lte(serviceSlots.endTime, new Date(endDate)),
+          eq(salonBookings.status, "confirmed")
         )
       );
 
@@ -229,7 +245,6 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       );
 
     const slots = [];
-    const conflictMap = new Map(); // Track conflicting slots
 
     // Generate slots for each schedule with conflict awareness
     for (const { schedule, template, skills, service } of schedules) {
@@ -264,12 +279,13 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
               staffId: schedule.staffId,
               startTime: currentTime,
               endTime: slotEnd,
-              status: "available",
+              status: "available" as const,
               isManual: false,
+              conflictingSlotIds: [] as number[],
             };
 
-            // Check for overlapping slots
-            const conflictingSlots = slots.filter(existingSlot =>
+            // Check for overlapping slots with other services
+            const existingOverlappingSlots = slots.filter(existingSlot =>
               existingSlot.staffId === newSlot.staffId &&
               (isWithinInterval(newSlot.startTime, {
                 start: existingSlot.startTime,
@@ -281,17 +297,17 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
               }))
             );
 
-            if (conflictingSlots.length > 0) {
-              // Store conflicting slot IDs for reference
-              newSlot.conflictingSlotIds = conflictingSlots.map(slot => slot.id);
+            if (existingOverlappingSlots.length > 0) {
+              // Store overlapping slot references
+              newSlot.conflictingSlotIds = existingOverlappingSlots.map((_, index) => index);
             }
 
             slots.push(newSlot);
           }
         }
 
-        // Move to next potential slot start time
-        currentTime = addMinutes(currentTime, 15); // Use 15-minute increments for flexibility
+        // Move to next potential slot start time (15-minute increments)
+        currentTime = addMinutes(currentTime, 15);
       }
     }
 
@@ -302,10 +318,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     // Insert all generated slots
-    const createdSlots = await db
-      .insert(serviceSlots)
-      .values(slots)
-      .returning();
+    const createdSlots = await db.insert(serviceSlots).values(slots).returning();
 
     res.json(createdSlots);
   } catch (error) {

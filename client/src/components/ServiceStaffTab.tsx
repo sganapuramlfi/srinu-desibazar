@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,38 +11,7 @@ import {
 import { Loader2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-interface SalonStaff {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-  specialization?: string;
-  status: "active" | "inactive" | "on_leave";
-}
-
-interface SalonService {
-  id: number;
-  name: string;
-  description?: string;
-  duration: number;
-  price: string;
-  category: string;
-  isActive: boolean;
-}
-
-interface StaffSkill {
-  id: number;
-  staffId: number;
-  serviceId: number;
-  proficiencyLevel: "trainee" | "junior" | "senior" | "expert";
-  createdAt: string;
-}
-
-interface StaffSkillResponse {
-  staff_skills: StaffSkill;
-  salon_staff: SalonStaff;
-}
+import type { SalonStaff, SalonService, StaffSkill, StaffSkillResponse } from "@/types/salon";
 
 interface Props {
   businessId: number;
@@ -62,9 +31,6 @@ export const ServiceStaffTab = ({ businessId, industryType }: Props) => {
     enabled: !!businessId,
   });
 
-  // Transform the response to get just the staff skills
-  const staffSkills = staffSkillsResponse?.map(response => response?.staff_skills) || [];
-
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId,
@@ -74,6 +40,18 @@ export const ServiceStaffTab = ({ businessId, industryType }: Props) => {
     queryKey: [`/api/businesses/${businessId}/staff`],
     enabled: !!businessId,
   });
+
+  // Update selected services when staff is selected
+  useEffect(() => {
+    if (selectedStaff) {
+      const staffSkills = staffSkillsResponse
+        .filter(response => response.salon_staff.id === selectedStaff.id)
+        .map(response => response.staff_skills.serviceId);
+      setSelectedServiceIds(staffSkills);
+    } else {
+      setSelectedServiceIds([]);
+    }
+  }, [selectedStaff, staffSkillsResponse]);
 
   const handleStaffSelect = (member: SalonStaff) => {
     setSelectedStaff(member);
@@ -100,7 +78,8 @@ export const ServiceStaffTab = ({ businessId, industryType }: Props) => {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update staff services');
       }
 
       return response.json();
@@ -128,10 +107,19 @@ export const ServiceStaffTab = ({ businessId, industryType }: Props) => {
     if (!selectedStaff) return;
 
     setIsUpdating(true);
-    await updateSkillsMutation.mutateAsync({
-      staffId: selectedStaff.id,
-      serviceIds: selectedServiceIds,
-    });
+    try {
+      // Validate service IDs exist
+      const validServiceIds = selectedServiceIds.filter(id => 
+        services.some(service => service.id === id)
+      );
+
+      await updateSkillsMutation.mutateAsync({
+        staffId: selectedStaff.id,
+        serviceIds: validServiceIds,
+      });
+    } catch (error) {
+      console.error('Error updating staff skills:', error);
+    }
   };
 
   if (isLoadingStaff || isLoadingServices || isLoadingSkills) {

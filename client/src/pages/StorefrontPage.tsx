@@ -44,6 +44,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-user";
 import { useState } from "react";
 import { format } from "date-fns";
+import { toast } from "@/components/ui/use-toast"
+
 
 interface StorefrontPageProps {
   params: {
@@ -68,6 +70,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   const { user } = useUser();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>();
+  const [selectedService, setSelectedService] = useState<any>(null);
 
   const { data: business, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
@@ -80,15 +83,16 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     enabled: !!businessId,
   });
 
-  // Fetch available slots for selected date
+  // Updated fetchAvailableSlots query to include serviceId
   const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
         date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
+        serviceId: selectedService?.id,
       }
     ],
-    enabled: !!selectedDate && !!businessId,
+    enabled: !!selectedDate && !!businessId && !!selectedService?.id,
   });
 
   // Book appointment mutation
@@ -143,25 +147,38 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     }
   };
 
-  const handleBooking = async (serviceId: number) => {
+  // Update handleBooking to use the selected service
+  const handleBooking = async () => {
     if (!user) {
       navigate('/auth');
       return;
     }
 
-    if (!selectedDate || !selectedTimeSlot) {
+    if (!selectedDate || !selectedTimeSlot || !selectedService) {
       return;
     }
 
     try {
       await bookingMutation.mutateAsync({
-        serviceId,
+        serviceId: selectedService.id,
         date: format(selectedDate, 'yyyy-MM-dd'),
         slotId: parseInt(selectedTimeSlot),
       });
-    } catch (error) {
-      console.error('Booking failed:', error);
-    }
+
+    // Show success message
+    toast({
+      title: "Booking Confirmed",
+      description: `Your appointment for ${selectedService.name} has been booked.`,
+    });
+  } catch (error: any) {
+    // Show error message
+    toast({
+      title: "Booking Failed",
+      description: error.message || "Failed to book appointment. Please try again.",
+      variant: "destructive",
+    });
+    console.error('Booking failed:', error);
+  }
   };
 
   // Show loading spinner while data is being fetched
@@ -318,7 +335,13 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <Dialog>
+                          <Dialog onOpenChange={(open) => {
+                            if (open) {
+                              setSelectedService(service);
+                              setSelectedDate(undefined);
+                              setSelectedTimeSlot(undefined);
+                            }
+                          }}>
                             <DialogTrigger asChild>
                               <Button className="w-full">Book Now</Button>
                             </DialogTrigger>
@@ -327,60 +350,74 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                 <DialogTitle>Book {service.name}</DialogTitle>
                               </DialogHeader>
                               <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium">Select Date</label>
-                                  <Calendar
-                                    mode="single"
-                                    selected={selectedDate}
-                                    onSelect={setSelectedDate}
-                                    className="rounded-md border"
-                                    disabled={(date) => date < new Date()}
-                                  />
-                                </div>
-                                {selectedDate && (
-                                  <div className="space-y-2">
-                                    <label className="text-sm font-medium">Select Time</label>
-                                    <Select
-                                      value={selectedTimeSlot}
-                                      onValueChange={setSelectedTimeSlot}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Choose a time slot" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {isLoadingSlots ? (
-                                          <div className="flex justify-center p-2">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          </div>
-                                        ) : availableSlots.length === 0 ? (
-                                          <div className="text-center p-2 text-sm text-muted-foreground">
-                                            No slots available for this date
-                                          </div>
-                                        ) : (
-                                          availableSlots.map((slot: any) => (
-                                            <SelectItem key={slot.id} value={slot.id.toString()}>
-                                              {format(new Date(slot.startTime), 'HH:mm')}
-                                            </SelectItem>
-                                          ))
-                                        )}
-                                      </SelectContent>
-                                    </Select>
+                                {!user ? (
+                                  <div className="text-center space-y-4">
+                                    <p className="text-sm text-muted-foreground">
+                                      Please sign in to book this service
+                                    </p>
+                                    <Button onClick={() => navigate('/auth')} className="w-full">
+                                      Sign In to Continue
+                                    </Button>
                                   </div>
+                                ) : (
+                                  <>
+                                    <div className="space-y-2">
+                                      <label className="text-sm font-medium">Select Date</label>
+                                      <Calendar
+                                        mode="single"
+                                        selected={selectedDate}
+                                        onSelect={setSelectedDate}
+                                        className="rounded-md border"
+                                        disabled={(date) => date < new Date()}
+                                      />
+                                    </div>
+                                    {selectedDate && (
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium">Select Time</label>
+                                        <Select
+                                          value={selectedTimeSlot}
+                                          onValueChange={setSelectedTimeSlot}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Choose a time slot" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {isLoadingSlots ? (
+                                              <div className="flex justify-center p-2">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              </div>
+                                            ) : availableSlots.length === 0 ? (
+                                              <div className="text-center p-2 text-sm text-muted-foreground">
+                                                No slots available for this date
+                                              </div>
+                                            ) : (
+                                              availableSlots.map((slot: any) => (
+                                                <SelectItem key={slot.id} value={slot.id.toString()}>
+                                                  {format(new Date(slot.startTime), 'HH:mm')} -
+                                                  {format(new Date(slot.endTime), 'HH:mm')}
+                                                </SelectItem>
+                                              ))
+                                            )}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
+                                    <Button
+                                      className="w-full mt-4"
+                                      onClick={handleBooking}
+                                      disabled={!selectedDate || !selectedTimeSlot || bookingMutation.isPending}
+                                    >
+                                      {bookingMutation.isPending ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          Booking...
+                                        </>
+                                      ) : (
+                                        'Confirm Booking'
+                                      )}
+                                    </Button>
+                                  </>
                                 )}
-                                <Button
-                                  className="w-full mt-4"
-                                  onClick={() => handleBooking(service.id)}
-                                  disabled={!selectedDate || !selectedTimeSlot || bookingMutation.isPending}
-                                >
-                                  {bookingMutation.isPending ? (
-                                    <>
-                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                      Booking...
-                                    </>
-                                  ) : (
-                                    'Confirm Booking'
-                                  )}
-                                </Button>
                               </div>
                             </DialogContent>
                           </Dialog>

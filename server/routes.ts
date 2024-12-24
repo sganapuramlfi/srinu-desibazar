@@ -76,7 +76,7 @@ export function registerRoutes(app: Express): Server {
   // Register booking routes
   app.use("/api", bookingsRouter);
 
-  // Staff Routes
+  // Staff Routes (Protected)
   app.get("/api/businesses/:businessId/staff", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -96,7 +96,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Business Profile Routes
+  // Business Profile Routes (Public)
   app.get("/api/businesses/:businessId/profile", async (req, res) => {
     try {
       const [business] = await db
@@ -116,6 +116,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Protected profile update route
   app.put(
     "/api/businesses/:businessId/profile",
     upload.fields([
@@ -145,7 +146,7 @@ export function registerRoutes(app: Express): Server {
 
         // Parse the form data
         const formData = JSON.parse(req.body.data || '{}');
-        console.log('Received form data:', formData); // Add logging
+        console.log('Received form data:', formData);
 
         const result = businessProfileSchema.safeParse(formData);
         if (!result.success) {
@@ -157,7 +158,7 @@ export function registerRoutes(app: Express): Server {
 
         // Handle file uploads
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        console.log('Uploaded files:', files); // Add logging
+        console.log('Uploaded files:', files);
 
         let logoUrl = business.logo_url;
         if (files.logo?.[0]) {
@@ -192,7 +193,7 @@ export function registerRoutes(app: Express): Server {
           .where(eq(businesses.id, businessId))
           .returning();
 
-        console.log('Updated business:', updatedBusiness); // Add logging
+        console.log('Updated business:', updatedBusiness);
         res.json(updatedBusiness);
       } catch (error: any) {
         console.error('Error updating business profile:', error);
@@ -204,26 +205,7 @@ export function registerRoutes(app: Express): Server {
     }
   );
 
-  // Business Routes
-  app.get("/api/businesses/:id", async (req, res) => {
-    try {
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, parseInt(req.params.id)))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-      res.json(business);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch business" });
-    }
-  });
-
-  // Industry-specific Routes
+  // Public Services Route
   app.get("/api/businesses/:businessId/services", async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
@@ -248,6 +230,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Protected Business Routes
   app.post("/api/businesses", async (req, res) => {
     try {
       if (!req.user) {
@@ -265,6 +248,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Public Business Listing
   app.get("/api/businesses", async (req, res) => {
     try {
       const { industryType } = req.query;
@@ -281,6 +265,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Protected Gallery Management
   app.delete("/api/businesses/:businessId/gallery/:photoIndex", async (req, res) => {
     try {
       if (!req.user) {

@@ -13,11 +13,11 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Package, Users, Store, Loader2, AlertCircle, CalendarDays } from "lucide-react";
-import { StaffTab } from "@/components/StaffTab";
-import { ServiceStaffTab } from "@/components/ServiceStaffTab";
-import { RosterTabUpdated } from "@/components/RosterTabUpdated";
-import { ServicesTab } from "@/components/ServicesTab";
-import type { SalonStaff, ShiftTemplate } from "@/types/salon";
+import { StaffTab } from "../components/StaffTab";
+import { ServiceStaffTab } from "../components/ServiceStaffTab";
+import { RosterTabUpdated } from "../components/RosterTabUpdated";
+import { ServicesTab } from "../components/ServicesTab";
+import type { SalonStaff, ShiftTemplate } from "../types/salon";
 
 interface BusinessDashboardProps {
   businessId: number;

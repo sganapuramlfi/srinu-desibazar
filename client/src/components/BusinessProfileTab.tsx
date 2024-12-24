@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect as ReactuseEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { type Business, businessProfileSchema } from "@db/schema";
 import { z } from "zod";
 import {
   Clock,
@@ -40,67 +41,6 @@ import {
   Globe,
 } from "lucide-react";
 
-const businessProfileSchema = z.object({
-  name: z.string().min(2, "Business name must be at least 2 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-  logo: z.string().url("Please enter a valid URL").optional(),
-  socialMedia: z.object({
-    facebook: z.string().url("Please enter a valid Facebook URL").optional().or(z.literal("")),
-    instagram: z.string().url("Please enter a valid Instagram URL").optional().or(z.literal("")),
-    twitter: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
-    website: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
-  }),
-  contactInfo: z.object({
-    phone: z.string().min(10, "Phone number must be at least 10 characters"),
-    email: z.string().email("Invalid email address"),
-    address: z.string().min(5, "Address must be at least 5 characters"),
-  }),
-  operatingHours: z.object({
-    monday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-    tuesday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-    wednesday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-    thursday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-    friday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-    saturday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-    sunday: z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    }),
-  }),
-  amenities: z.array(
-    z.object({
-      name: z.string(),
-      icon: z.string(),
-      enabled: z.boolean(),
-    })
-  ),
-});
-
 type BusinessProfileFormData = z.infer<typeof businessProfileSchema>;
 
 const defaultAmenities = [
@@ -115,12 +55,13 @@ interface BusinessProfileTabProps {
 }
 
 export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [selectedLogo, setSelectedLogo] = useState<File | null>(null);
+  const [selectedGalleryImages, setSelectedGalleryImages] = useState<File[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch business profile data
-  const { data: business, isLoading } = useQuery({
+  const { data: business, isLoading } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
   });
@@ -128,21 +69,21 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
   const form = useForm<BusinessProfileFormData>({
     resolver: zodResolver(businessProfileSchema),
     defaultValues: {
-      name: business?.name || "",
-      description: business?.description || "",
-      logo: business?.logo || "",
-      socialMedia: business?.socialMedia || {
+      name: "",
+      description: "",
+      logo: "",
+      socialMedia: {
         facebook: "",
         instagram: "",
         twitter: "",
         website: "",
       },
-      contactInfo: business?.contactInfo || {
+      contactInfo: {
         phone: "",
         email: "",
         address: "",
       },
-      operatingHours: business?.operatingHours || {
+      operatingHours: {
         monday: { open: "09:00", close: "18:00", isOpen: true },
         tuesday: { open: "09:00", close: "18:00", isOpen: true },
         wednesday: { open: "09:00", close: "18:00", isOpen: true },
@@ -151,17 +92,47 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
         saturday: { open: "10:00", close: "16:00", isOpen: true },
         sunday: { open: "10:00", close: "16:00", isOpen: false },
       },
-      amenities: business?.amenities || defaultAmenities,
+      amenities: defaultAmenities,
     },
   });
 
+  // Set form values when business data is loaded
+  ReactuseEffect(() => {
+    if (business) {
+      form.reset({
+        name: business.name,
+        description: business.description || "",
+        socialMedia: business.socialMedia || {
+          facebook: "",
+          instagram: "",
+          twitter: "",
+          website: "",
+        },
+        contactInfo: business.contactInfo || {
+          phone: "",
+          email: "",
+          address: "",
+        },
+        operatingHours: business.operatingHours || {
+          monday: { open: "09:00", close: "18:00", isOpen: true },
+          tuesday: { open: "09:00", close: "18:00", isOpen: true },
+          wednesday: { open: "09:00", close: "18:00", isOpen: true },
+          thursday: { open: "09:00", close: "18:00", isOpen: true },
+          friday: { open: "09:00", close: "18:00", isOpen: true },
+          saturday: { open: "10:00", close: "16:00", isOpen: true },
+          sunday: { open: "10:00", close: "16:00", isOpen: false },
+        },
+        amenities: business.amenities || defaultAmenities,
+      });
+    }
+  }, [business, form]);
+
   // Update profile mutation
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: BusinessProfileFormData) => {
+    mutationFn: async (data: FormData) => {
       const response = await fetch(`/api/businesses/${businessId}/profile`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: data,
       });
 
       if (!response.ok) {
@@ -186,53 +157,39 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
     },
   });
 
-  // Upload gallery images mutation
-  const uploadImagesMutation = useMutation({
-    mutationFn: async (files: File[]) => {
-      const formData = new FormData();
-      files.forEach((file) => formData.append("images", file));
+  const onSubmit = async (data: BusinessProfileFormData) => {
+    const formData = new FormData();
 
-      const response = await fetch(`/api/businesses/${businessId}/gallery`, {
-        method: "POST",
-        body: formData,
-      });
+    // Append form data
+    formData.append("data", JSON.stringify(data));
 
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      setSelectedImages([]);
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/gallery`] });
-      toast({
-        title: "Success",
-        description: "Images uploaded successfully",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to upload images",
-      });
-    },
-  });
-
-  const onSubmit = (data: BusinessProfileFormData) => {
-    updateProfileMutation.mutate(data);
-  };
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedImages(files);
-  };
-
-  const uploadImages = () => {
-    if (selectedImages.length > 0) {
-      uploadImagesMutation.mutate(selectedImages);
+    // Append logo if selected
+    if (selectedLogo) {
+      formData.append("logo", selectedLogo);
     }
+
+    // Append gallery images if selected
+    selectedGalleryImages.forEach((file) => {
+      formData.append("gallery", file);
+    });
+
+    updateProfileMutation.mutate(formData);
+  };
+
+  const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedLogo(file);
+    }
+  };
+
+  const handleGalleryImagesChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setSelectedGalleryImages((prev) => [...prev, ...files]);
+  };
+
+  const removeGalleryImage = (index: number) => {
+    setSelectedGalleryImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (isLoading) {
@@ -284,19 +241,40 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="logo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Logo URL</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="https://example.com/logo.png" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div>
+                <FormLabel>Logo</FormLabel>
+                <div className="mt-2 flex items-center gap-4">
+                  {business?.logo && !selectedLogo && (
+                    <img
+                      src={business.logo}
+                      alt="Business logo"
+                      className="h-16 w-16 object-contain rounded-lg border"
+                    />
+                  )}
+                  {selectedLogo && (
+                    <img
+                      src={URL.createObjectURL(selectedLogo)}
+                      alt="Selected logo"
+                      className="h-16 w-16 object-contain rounded-lg border"
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById("logo-upload")?.click()}
+                  >
+                    <ImagePlus className="mr-2 h-4 w-4" />
+                    {selectedLogo ? "Change Logo" : "Upload Logo"}
+                  </Button>
+                  <Input
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoChange}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -569,6 +547,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             <Button
+              type="button"
               variant="outline"
               onClick={() => document.getElementById("gallery-upload")?.click()}
             >
@@ -581,50 +560,39 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
               multiple
               accept="image/*"
               className="hidden"
-              onChange={handleImageUpload}
+              onChange={handleGalleryImagesChange}
             />
-            {selectedImages.length > 0 && (
-              <Button
-                onClick={uploadImages}
-                disabled={uploadImagesMutation.isPending}
-              >
-                {uploadImagesMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+            {selectedGalleryImages.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button type="button" onClick={() => {}}>
                   <Upload className="mr-2 h-4 w-4" />
-                )}
-                Upload {selectedImages.length} Images
-              </Button>
+                  Upload {selectedGalleryImages.length} Images
+                </Button>
+                <div className="grid grid-cols-3 gap-4">
+                  {selectedGalleryImages.map((file, index) => (
+                    <div
+                      key={index}
+                      className="relative aspect-square rounded-lg border bg-muted"
+                    >
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Selected ${index + 1}`}
+                        className="object-cover w-full h-full rounded-lg"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2"
+                        onClick={() => removeGalleryImage(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-          {selectedImages.length > 0 && (
-            <div className="grid grid-cols-3 gap-4">
-              {selectedImages.map((file, index) => (
-                <div
-                  key={index}
-                  className="relative aspect-square rounded-lg border bg-muted"
-                >
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={`Selected ${index + 1}`}
-                    className="object-cover w-full h-full rounded-lg"
-                  />
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={() =>
-                      setSelectedImages((prev) =>
-                        prev.filter((_, i) => i !== index)
-                      )
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@db";
 import { staffSchedules, salonStaff, shiftTemplates } from "@db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -36,10 +36,8 @@ router.get("/businesses/:businessId/roster", async (req, res) => {
       .from(salonStaff)
       .where(eq(salonStaff.businessId, businessId));
 
-    const staffIds = staff.map(s => s.id);
-
     // If no staff found, return empty array
-    if (staffIds.length === 0) {
+    if (staff.length === 0) {
       return res.json([]);
     }
 
@@ -52,24 +50,23 @@ router.get("/businesses/:businessId/roster", async (req, res) => {
           name: salonStaff.name,
           email: salonStaff.email,
           specialization: salonStaff.specialization
-        }
+        },
+        template: shiftTemplates
       })
       .from(staffSchedules)
       .innerJoin(salonStaff, eq(staffSchedules.staffId, salonStaff.id))
-      .where(sql`${staffSchedules.staffId} = ANY(${staffIds})`);
+      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .where(eq(salonStaff.businessId, businessId));
 
-    // Get templates for all schedules
-    const templateIds = [...new Set(schedules.map(s => s.schedule.templateId))];
-    const templates = await db
-      .select()
-      .from(shiftTemplates)
-      .where(sql`${shiftTemplates.id} = ANY(${templateIds})`);
-
-    // Combine the data
+    // Transform the data to match the expected format
     const schedulesWithDetails = schedules.map(schedule => ({
-      ...schedule.schedule,
+      id: schedule.schedule.id,
+      staffId: schedule.staff.id,
+      templateId: schedule.template.id,
+      date: schedule.schedule.date,
+      status: schedule.schedule.status,
       staff: schedule.staff,
-      template: templates.find(t => t.id === schedule.schedule.templateId)
+      template: schedule.template
     }));
 
     res.json(schedulesWithDetails);

@@ -151,6 +151,7 @@ export const serviceSlots = pgTable("service_slots", {
     enum: ["available", "booked", "blocked"]
   }).default("available"),
   isManual: boolean("is_manual").default(false),
+  conflictingSlotIds: json("conflicting_slot_ids").$type<number[]>(), // Track conflicting slots
   createdAt: timestamp("created_at").defaultNow(),
 });
 

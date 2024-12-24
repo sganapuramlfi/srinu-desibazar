@@ -713,6 +713,435 @@ interface RosterShift {
 }
 
 
+const StaffTab = ({ businessId }: { businessId: number }) => {
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [isEditingStaff, setIsEditingStaff] = useState<SalonStaff | null>(null);
+  const [staffToDelete, setStaffToDelete] = useState<SalonStaff | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const staffForm = useForm({
+    resolver: zodResolver(staffFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      specialization: "",
+      status: "active" as const,
+    },
+  });
+
+  const { data: staff = [], isLoading } = useQuery<SalonStaff[]>({
+    queryKey: [`/api/businesses/${businessId}/staff`],
+    enabled: !!businessId,
+  });
+
+  // Add staff mutation
+  const addStaffMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof staffFormSchema>) => {
+      const response = await fetch(`/api/businesses/${businessId}/staff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsAddingStaff(false);
+      staffForm.reset();
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
+      toast({
+        title: "Success",
+        description: "Staff member added successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to add staff member",
+      });
+    },
+  });
+
+  // Delete staff mutation
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (staffId: number) => {
+      const response = await fetch(`/api/businesses/${businessId}/staff/${staffId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setStaffToDelete(null);
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
+      toast({
+        title: "Success",
+        description: "Staff member deleted successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to delete staff member",
+      });
+    },
+  });
+
+  // Edit staff mutation
+  const editStaffMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof staffFormSchema> & { id: number }) => {
+      const response = await fetch(`/api/businesses/${businessId}/staff/${data.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsEditingStaff(null);
+      staffForm.reset();
+      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff`] });
+      toast({
+        title: "Success",
+        description: "Staff member updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update staff member",
+      });
+    },
+  });
+
+  // Set form values when editing
+  useEffect(() => {
+    if (isEditingStaff) {
+      staffForm.reset({
+        name: isEditingStaff.name,
+        email: isEditingStaff.email,
+        phone: isEditingStaff.phone || "",
+        specialization: isEditingStaff.specialization || "",
+        status: isEditingStaff.status || "active",
+      });
+    }
+  }, [isEditingStaff, staffForm]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="mb-6 flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Staff</h2>
+        <Button onClick={() => setIsAddingStaff(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Add Staff
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {staff.map((member) => (
+          <Card key={member.id}>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle>{member.name}</CardTitle>
+                  <CardDescription>{member.specialization}</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsEditingStaff(member)}
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setStaffToDelete(member)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>Email:</span>
+                  <span>{member.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Phone:</span>
+                  <span>{member.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Status:</span>
+                  <span className={cn(
+                    "px-2 py-1 rounded-full text-xs font-medium",
+                    member.status === "active" && "bg-green-100 text-green-800",
+                    member.status === "inactive" && "bg-gray-100 text-gray-800",
+                    member.status === "on_leave" && "bg-yellow-100 text-yellow-800"
+                  )}>
+                    {member.status}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Add Staff Dialog */}
+      <Dialog open={isAddingStaff} onOpenChange={setIsAddingStaff}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Staff Member</DialogTitle>
+            <DialogDescription>
+              Add a new staff member to your business
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...staffForm}>
+            <form onSubmit={staffForm.handleSubmit((data) => addStaffMutation.mutate(data))}>
+              <div className="space-y-4">
+                <FormField
+                  control={staffForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="specialization"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Specialization</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="on_leave">On Leave</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="flex justify-end mt-6">
+                <Button type="submit">Add Staff Member</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Dialog */}
+      <Dialog open={!!isEditingStaff} onOpenChange={(open) => !open && setIsEditingStaff(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Staff Member</DialogTitle>
+            <DialogDescription>
+              Update the staff member's details
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...staffForm}>
+            <form onSubmit={staffForm.handleSubmit((data) => 
+              isEditingStaff && editStaffMutation.mutate({ ...data, id: isEditingStaff.id })
+            )}>
+              <div className="space-y-4">
+                <FormField
+                  control={staffForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="specialization"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Specialization</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={staffForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="on_leave">On Leave</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="flex justify-end mt-6">
+                <Button type="submit">Update Staff Member</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Staff Confirmation */}
+      <AlertDialog open={!!staffToDelete} onOpenChange={(open) => !open && setStaffToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the staff member {staffToDelete?.name}.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => staffToDelete && deleteStaffMutation.mutate(staffToDelete.id)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
 function ServicesTab({ businessId }: { businessId: number }) {
   const { data: services = [], isLoading } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
@@ -1452,7 +1881,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   return (
     <div className="container mx-auto py-6">
       <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[400px]">
           <TabsTrigger value="services">
             <Package className="mr-2 h-4 w-4" />
             Services
@@ -1469,6 +1898,10 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             <CalendarDays className="mr-2 h-4 w-4" />
             Roster
           </TabsTrigger>
+          <TabsTrigger value="shift-templates">
+            <Calendar className="mr-2 h-4 w-4" />
+            Shift Templates
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="services" className="mt-6">
@@ -1476,164 +1909,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         </TabsContent>
 
         <TabsContent value="staff" className="mt-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Staff</h2>
-            <Button onClick={() => setIsAddingStaff(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Staff
-            </Button>
-          </div>
-
-          {/* Staff List */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {staff.map((member) => (
-              <Card key={member.id}>
-                <CardHeader>
-                  <div className="flex justify-between">
-                    <CardTitle>{member.name}</CardTitle>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setIsEditingStaff(member)}
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setStaffToDelete(member)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <CardDescription>{member.specialization}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span>Email:</span>
-                      <span>{member.email}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Phone:</span>
-                      <span>{member.phone}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Status:</span>
-                      <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
-                        member.status === "active" && "bg-green-100 text-green-800",
-                        member.status === "inactive" && "bg-gray-100 text-gray-800",
-                        member.status === "on_leave" && "bg-yellow-100 text-yellow-800"
-                      )}>
-                        {member.status}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Add Staff Dialog */}
-          <Dialog open={isAddingStaff} onOpenChange={setIsAddingStaff}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Staff Member</DialogTitle>
-                <DialogDescription>
-                  Add a new staff member to your business
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...staffForm}>
-                <form onSubmit={staffForm.handleSubmit((data) => addStaffMutation.mutate(data))}>
-                  <div className="space-y-4">
-                    <FormField
-                      control={staffForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="specialization"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Specialization</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={staffForm.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="inactive">Inactive</SelectItem>
-                              <SelectItem value="on_leave">On Leave</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="flex justify-end mt-6">
-                    <Button type="submit">Add Staff Member</Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+          <StaffTab businessId={businessId}/>
         </TabsContent>
 
         <TabsContent value="service-staff">
@@ -1652,10 +1928,16 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             isLoadingTemplates={isLoadingTemplates}
           />
         </TabsContent>
+        <TabsContent value="shift-templates" className="mt-6">
+          {/* Shift Templates Tab Content */}
+          <div>
+            {/*Existing Shift Templates code here*/}
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-export { ServiceStaffTab, RosterTabUpdated };
+export { ServiceStaffTab, RosterTabUpdated, StaffTab };
 export default BusinessDashboard;

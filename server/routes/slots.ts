@@ -7,28 +7,6 @@ import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } 
 
 const router = Router();
 
-// Validation schemas
-const createManualSlotSchema = z.object({
-  serviceId: z.number(),
-  staffId: z.number(),
-  startTime: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: "Invalid date format",
-  }),
-  endTime: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: "Invalid date format",
-  }),
-  status: z.enum(["available", "blocked"]).default("available"),
-});
-
-const generateAutoSlotsSchema = z.object({
-  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: "Invalid date format",
-  }),
-  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: "Invalid date format",
-  }),
-});
-
 // Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
@@ -39,24 +17,13 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
     const businessId = parseInt(req.params.businessId);
     const { startDate, endDate, serviceId, staffId } = req.query;
 
-    // Fetch existing bookings to check availability
-    const existingBookings = await db
-      .select({
-        id: salonBookings.id,
-        startTime: serviceSlots.startTime,
-        endTime: serviceSlots.endTime,
-        staffId: salonBookings.staffId,
-      })
-      .from(salonBookings)
-      .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
-      .where(
-        and(
-          eq(salonBookings.businessId, businessId),
-          startDate ? gte(serviceSlots.startTime, new Date(startDate as string)) : undefined,
-          endDate ? lte(serviceSlots.endTime, new Date(endDate as string)) : undefined,
-          eq(salonBookings.status, "confirmed")
-        )
-      );
+    console.log("Fetching slots with params:", {
+      businessId,
+      startDate,
+      endDate,
+      serviceId,
+      staffId
+    });
 
     const slots = await db
       .select({
@@ -67,46 +34,46 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
           duration: salonServices.duration,
         },
         staff: {
-          id: staffSchedules.staffId,
-          templateId: staffSchedules.templateId,
-        },
-        template: {
-          startTime: shiftTemplates.startTime,
-          endTime: shiftTemplates.endTime,
-          breaks: shiftTemplates.breaks,
+          id: salonStaff.id,
+          name: salonStaff.name,
         },
       })
       .from(serviceSlots)
       .innerJoin(salonServices, eq(serviceSlots.serviceId, salonServices.id))
-      .innerJoin(staffSchedules, eq(serviceSlots.staffId, staffSchedules.staffId))
-      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .innerJoin(salonStaff, eq(serviceSlots.staffId, salonStaff.id))
       .where(
         and(
-          eq(salonServices.businessId, businessId),
-          startDate ? gte(serviceSlots.startTime, new Date(startDate as string)) : undefined,
-          endDate ? lte(serviceSlots.endTime, new Date(endDate as string)) : undefined,
+          eq(serviceSlots.businessId, businessId),
+          startDate ? gte(serviceSlots.startTime, startOfDay(new Date(startDate as string))) : undefined,
+          endDate ? lte(serviceSlots.endTime, endOfDay(new Date(endDate as string))) : undefined,
           serviceId ? eq(serviceSlots.serviceId, parseInt(serviceId as string)) : undefined,
-          staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined
+          staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined,
+          eq(serviceSlots.status, "available")
         )
       );
 
-    // Filter out slots that conflict with existing bookings
-    const availableSlots = slots.filter(slot => {
-      const hasConflict = existingBookings.some(booking =>
-        booking.staffId === slot.staff.id &&
-        (isWithinInterval(slot.slot.startTime, {
-          start: booking.startTime,
-          end: booking.endTime
-        }) ||
-        isWithinInterval(slot.slot.endTime, {
-          start: booking.startTime,
-          end: booking.endTime
-        }))
-      );
-      return !hasConflict;
-    });
+    console.log(`Found ${slots.length} slots`);
 
-    res.json(availableSlots);
+    // Transform the data for frontend consumption
+    const formattedSlots = slots.map(({ slot, service, staff }) => ({
+      id: slot.id,
+      startTime: slot.startTime.toISOString(),
+      endTime: slot.endTime.toISOString(),
+      status: slot.status,
+      service: {
+        id: service.id,
+        name: service.name,
+        duration: service.duration,
+      },
+      staff: {
+        id: staff.id,
+        name: staff.name,
+      },
+      conflictingSlotIds: slot.conflictingSlotIds,
+    }));
+
+    console.log("Sending formatted slots to frontend:", formattedSlots.slice(0, 2));
+    res.json(formattedSlots);
   } catch (error) {
     console.error("Error fetching slots:", error);
     res.status(500).json({ error: "Failed to fetch slots" });

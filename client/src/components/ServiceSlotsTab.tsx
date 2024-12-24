@@ -84,6 +84,17 @@ export function ServiceSlotsTab({
         serviceId: selectedService,
       },
     ],
+    onSuccess: (data) => {
+      console.log("Received slots data:", data);
+    },
+    onError: (error) => {
+      console.error("Error fetching slots:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch slots. Please try again.",
+      });
+    },
     enabled: !!businessId && !!selectedDate,
   });
 

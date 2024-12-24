@@ -55,12 +55,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     );
   }
 
-  const amenities = business.amenities || [
-    { icon: "Wifi", name: "Free Wi-Fi", enabled: true },
-    { icon: "Car", name: "Free Parking", enabled: true },
-    { icon: "CreditCard", name: "Card Payment", enabled: true },
-    { icon: "Coffee", name: "Refreshments", enabled: true },
-  ];
+  const amenities = business.amenities || [];
 
   // Helper function to get icon component
   const getIconComponent = (iconName: string) => {
@@ -75,16 +70,16 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Enhanced Hero Section with Contact & Hours */}
-      <div className="relative h-[400px] bg-gradient-to-r from-primary/10 to-primary/5">
+      {/* Compact Hero Section with Info */}
+      <div className="relative bg-gradient-to-r from-primary/10 to-primary/5 pt-8 pb-4">
         <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-        <div className="absolute inset-0 p-6">
-          <div className="max-w-7xl mx-auto h-full">
-            <div className="flex flex-col h-full">
-              {/* Top Section - Business Info */}
-              <div className="flex items-center gap-6 mb-8">
-                {/* Business Logo */}
-                <div className="w-24 h-24 bg-white rounded-lg shadow-lg flex items-center justify-center overflow-hidden">
+        <div className="relative max-w-7xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            {/* Business Info */}
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-4">
+                {/* Logo */}
+                <div className="w-20 h-20 bg-white rounded-lg shadow-lg flex items-center justify-center overflow-hidden">
                   {business.logo_url ? (
                     <img
                       src={business.logo_url}
@@ -92,19 +87,19 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <AlertCircle className="w-12 h-12 text-muted-foreground" />
+                    <AlertCircle className="w-10 h-10 text-muted-foreground" />
                   )}
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold mb-1">{business.name}</h1>
+                  <h1 className="text-2xl font-bold">{business.name}</h1>
                   {business.contactInfo?.address && (
-                    <span className="flex items-center gap-1 text-muted-foreground text-sm">
+                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
                       <MapPin className="h-4 w-4" />
                       {business.contactInfo.address}
-                    </span>
+                    </div>
                   )}
                   {business.status === "active" && (
-                    <span className="flex items-center gap-1 text-green-600 text-sm mt-1">
+                    <span className="inline-flex items-center gap-1 text-green-600 text-sm mt-1">
                       <CheckCircle2 className="h-4 w-4" />
                       Verified Business
                     </span>
@@ -112,42 +107,42 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 </div>
               </div>
 
-              {/* Bottom Section - Quick Info Grid */}
-              <div className="grid grid-cols-3 gap-4 mt-auto">
-                {/* Contact Info */}
-                <Card className="bg-white/95 backdrop-blur-sm">
-                  <CardContent className="p-4 space-y-2">
-                    <h3 className="font-semibold flex items-center gap-2 mb-3">
+              {/* Quick Info Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                {/* Contact */}
+                <Card className="bg-white/90">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
                       <Phone className="h-4 w-4 text-primary" />
                       Contact
                     </h3>
-                    {business.contactInfo?.phone && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>{business.contactInfo.phone}</span>
-                      </div>
-                    )}
-                    {business.contactInfo?.email && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Mail className="h-4 w-4 text-primary" />
-                        <span>{business.contactInfo.email}</span>
-                      </div>
-                    )}
+                    <div className="space-y-1">
+                      {business.contactInfo?.phone && (
+                        <p className="text-sm">{business.contactInfo.phone}</p>
+                      )}
+                      {business.contactInfo?.email && (
+                        <p className="text-sm flex items-center gap-1">
+                          <Mail className="h-3 w-3 text-primary" />
+                          {business.contactInfo.email}
+                        </p>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Operating Hours */}
-                <Card className="bg-white/95 backdrop-blur-sm">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold flex items-center gap-2 mb-3">
+                {/* Hours */}
+                <Card className="bg-white/90">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2 mb-2">
                       <Clock className="h-4 w-4 text-primary" />
                       Hours
                     </h3>
-                    <div className="text-sm space-y-1 max-h-[120px] overflow-y-auto">
+                    <div className="text-sm space-y-1 max-h-[80px] overflow-y-auto">
                       {business.operatingHours && Object.entries(business.operatingHours).map(([day, hours]) => (
                         <div key={day} className="flex justify-between">
-                          <span className="capitalize">{day}</span>
+                          <span className="capitalize">{day.slice(0,3)}</span>
                           <span className="text-muted-foreground">
-                            {hours.isOpen ? `${hours.open} - ${hours.close}` : 'Closed'}
+                            {hours.isOpen ? `${hours.open}-${hours.close}` : 'Closed'}
                           </span>
                         </div>
                       ))}
@@ -156,15 +151,15 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 </Card>
 
                 {/* Amenities */}
-                <Card className="bg-white/95 backdrop-blur-sm">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-3">Amenities</h3>
+                <Card className="bg-white/90">
+                  <CardContent className="p-3">
+                    <h3 className="text-sm font-semibold mb-2">Amenities</h3>
                     <div className="grid grid-cols-2 gap-2">
                       {amenities.filter(amenity => amenity.enabled).map((amenity) => {
                         const IconComponent = getIconComponent(amenity.icon);
                         return (
-                          <div key={amenity.name} className="flex items-center gap-2 text-sm">
-                            <IconComponent className="h-4 w-4 text-primary" />
+                          <div key={amenity.name} className="flex items-center gap-1 text-sm">
+                            <IconComponent className="h-3 w-3 text-primary" />
                             <span>{amenity.name}</span>
                           </div>
                         );
@@ -173,6 +168,19 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+
+            {/* Quick Book Widget */}
+            <div className="w-full md:w-72">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Book Appointment</CardTitle>
+                  <CardDescription>Choose a time and service</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full">View Available Services</Button>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
@@ -260,9 +268,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
             </Card>
           </div>
 
-          {/* Right Column - Gallery and Quick Book */}
+          {/* Right Column - Gallery */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Gallery Grid */}
             {business.gallery && business.gallery.length > 0 && (
               <Card>
                 <CardHeader>
@@ -291,19 +298,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 </CardContent>
               </Card>
             )}
-
-            {/* Quick Book Widget */}
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle>Quick Book</CardTitle>
-                <CardDescription>
-                  Choose a service and book your appointment
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button className="w-full">View Available Services</Button>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>

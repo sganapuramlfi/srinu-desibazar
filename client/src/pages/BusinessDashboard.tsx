@@ -51,6 +51,7 @@ import {
   Store,
   Loader2,
   AlertCircle,
+  X,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -103,7 +104,7 @@ interface BusinessDashboardProps {
   businessId: number;
 }
 
-// Update ShiftTemplate interface
+// Update ShiftTemplate interface to match the schema
 interface ShiftTemplate {
   id: number;
   name: string;
@@ -234,8 +235,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
         startTime: isEditingTemplate.startTime,
         endTime: isEditingTemplate.endTime,
         breaks: isEditingTemplate.breaks || [],
-        daysOfWeek: isEditingTemplate.daysOfWeek || [],
-        capacity: isEditingTemplate.capacity,
         type: isEditingTemplate.type,
         isActive: isEditingTemplate.isActive,
       });
@@ -929,16 +928,21 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       </AlertDialog>
 
       {/* Shift Template Edit Dialog */}
-      <Dialog open={!!isEditingTemplate} onOpenChange={() => setIsEditingTemplate(null)}>
+      <Dialog open={!!isEditingTemplate || isAddingTemplate} 
+       onOpenChange={() => isEditingTemplate ? setIsEditingTemplate(null) : setIsAddingTemplate(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Shift Template</DialogTitle>
+            <DialogTitle>{isEditingTemplate ? 'Edit' : 'Add'} Shift Template</DialogTitle>
             <DialogDescription>
-              Update the shift template details
+              {isEditingTemplate ? 'Update the shift template details' : 'Create a new shift template'}
             </DialogDescription>
           </DialogHeader>
           <Form {...shiftTemplateForm}>
-            <form onSubmit={shiftTemplateForm.handleSubmit((data) => editTemplateMutation.mutate({ ...data, id: isEditingTemplate!.id }))} className="space-y-4">
+            <form onSubmit={shiftTemplateForm.handleSubmit((data) => 
+              isEditingTemplate 
+                ? editTemplateMutation.mutate({ ...data, id: isEditingTemplate.id })
+                : addTemplateMutation.mutate(data)
+            )} className="space-y-4">
               <FormField
                 control={shiftTemplateForm.control}
                 name="name"
@@ -1018,26 +1022,102 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               />
               <FormField
                 control={shiftTemplateForm.control}
-                name="capacity"
+                name="breaks"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Capacity</FormLabel>
+                    <FormLabel>Breaks</FormLabel>
                     <FormControl>
-                      <Input type="number" min="1" {...field} />
+                      <div className="space-y-2">
+                        {field.value.map((breakItem, index) => (
+                          <div key={index} className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Input
+                                type="time"
+                                value={breakItem.startTime}
+                                onChange={(e) => {
+                                  const newBreaks = [...field.value];
+                                  newBreaks[index] = {
+                                    ...newBreaks[index],
+                                    startTime: e.target.value,
+                                  };
+                                  field.onChange(newBreaks);
+                                }}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Input
+                                type="time"
+                                value={breakItem.endTime}
+                                onChange={(e) => {
+                                  const newBreaks = [...field.value];
+                                  newBreaks[index] = {
+                                    ...newBreaks[index],
+                                    endTime: e.target.value,
+                                  };
+                                  field.onChange(newBreaks);
+                                }}
+                              />
+                            </div>
+                            <Select
+                              value={breakItem.type}
+                              onValueChange={(value) => {
+                                const newBreaks = [...field.value];
+                                newBreaks[index] = {
+                                  ...newBreaks[index],
+                                  type: value as "lunch" | "short_break" | "other",
+                                };
+                                field.onChange(newBreaks);
+                              }}
+                            >
+                              <SelectTrigger className="w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="lunch">Lunch</SelectItem>
+                                <SelectItem value="short_break">Short Break</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const newBreaks = field.value.filter((_, i) => i !== index);
+                                field.onChange(newBreaks);
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            field.onChange([
+                              ...field.value,
+                              {
+                                startTime: "12:00",
+                                endTime: "13:00",
+                                duration: 60,
+                                type: "lunch",
+                              },
+                            ]);
+                          }}
+                        >
+                          <PlusCircle className="h-4 w-4 mr-2" />
+                          Add Break
+                        </Button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={editTemplateMutation.isPending}>
-                {editTemplateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating Template...
-                  </>
-                ) : (
-                  "Update Template"
-                )}
+              <Button type="submit" className="w-full">
+                {isEditingTemplate ? 'Update' : 'Create'} Template
               </Button>
             </form>
           </Form>
@@ -1447,31 +1527,94 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                         />
                         <FormField
                           control={shiftTemplateForm.control}
-                          name="capacity"
+                          name="breaks"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Capacity</FormLabel>
+                              <FormLabel>Breaks</FormLabel>
                               <FormControl>
-                                <Input type="number" min="1" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={shiftTemplateForm.control}
-                          name="daysOfWeek"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Days of Week</FormLabel>
-                              <FormControl>
-                                <div className="flex flex-wrap gap-2">
-                                  {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
-                                    <label key={day} className="flex items-center">
-                                      <input type="checkbox" {...field} value={day} className="mr-2" />
-                                      <span className="capitalize">{day}</span>
-                                    </label>
+                                <div className="space-y-2">
+                                  {field.value.map((breakItem, index) => (
+                                    <div key={index} className="flex gap-2 items-end">
+                                      <div className="flex-1">
+                                        <Input
+                                          type="time"
+                                          value={breakItem.startTime}
+                                          onChange={(e) => {
+                                            const newBreaks = [...field.value];
+                                            newBreaks[index] = {
+                                              ...newBreaks[index],
+                                              startTime: e.target.value,
+                                            };
+                                            field.onChange(newBreaks);
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="flex-1">
+                                        <Input
+                                          type="time"
+                                          value={breakItem.endTime}
+                                          onChange={(e) => {
+                                            const newBreaks = [...field.value];
+                                            newBreaks[index] = {
+                                              ...newBreaks[index],
+                                              endTime: e.target.value,
+                                            };
+                                            field.onChange(newBreaks);
+                                          }}
+                                        />
+                                      </div>
+                                      <Select
+                                        value={breakItem.type}
+                                        onValueChange={(value) => {
+                                          const newBreaks = [...field.value];
+                                          newBreaks[index] = {
+                                            ...newBreaks[index],
+                                            type: value as "lunch" | "short_break" | "other",
+                                          };
+                                          field.onChange(newBreaks);
+                                        }}
+                                      >
+                                        <SelectTrigger className="w-[120px]">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="lunch">Lunch</SelectItem>
+                                          <SelectItem value="short_break">Short Break</SelectItem>
+                                          <SelectItem value="other">Other</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                          const newBreaks = field.value.filter((_, i) => i !== index);
+                                          field.onChange(newBreaks);
+                                        }}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   ))}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      field.onChange([
+                                        ...field.value,
+                                        {
+                                          startTime: "12:00",
+                                          endTime: "13:00",
+                                          duration: 60,
+                                          type: "lunch",
+                                        },
+                                      ]);
+                                    }}
+                                  >
+                                    <PlusCircle className="h-4 w-4 mr-2" />
+                                    Add Break
+                                  </Button>
                                 </div>
                               </FormControl>
                               <FormMessage />

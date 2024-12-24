@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -44,6 +43,7 @@ interface StorefrontPageProps {
 export default function StorefrontPage({ params }: StorefrontPageProps) {
   const businessId = parseInt(params.businessId);
   const [, navigate] = useLocation();
+  const { user } = useUser();
 
   const { data: business, isLoading } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
@@ -51,7 +51,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
   });
 
   const queryClient = useQueryClient();
-  const { user } = useUser();
 
   const deletePhotoMutation = useMutation({
     mutationFn: async (photoIndex: number) => {
@@ -61,10 +60,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
       });
 
       if (!response.ok) {
-        if (response.status >= 500) {
-          throw new Error(`${response.status}: ${response.statusText}`);
-        }
-        throw new Error(`${response.status}: ${await response.text()}`);
+        throw new Error(await response.text());
       }
 
       return response.json();
@@ -119,6 +115,10 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                       src={business.logo_url}
                       alt={`${business.name} logo`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        img.src = 'https://via.placeholder.com/96';
+                      }}
                     />
                   ) : (
                     <AlertCircle className="w-12 h-12 text-muted-foreground" />
@@ -239,24 +239,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button className="w-full">Book Now</Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                          <DialogHeader>
-                            <DialogTitle>Book Appointment</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <Calendar
-                              mode="single"
-                              selected={new Date()}
-                              className="rounded-md border mx-auto"
-                            />
-                            <Button className="w-full">Check Available Slots</Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                      <Button className="w-full">Book Now</Button>
                     </CardContent>
                   </Card>
                 </div>
@@ -317,7 +300,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Gallery</CardTitle>
-                  {business.userId === user?.id && (
+                  {user && business.userId === user.id && (
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm">
@@ -336,6 +319,10 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                   src={image.url}
                                   alt={image.caption || `Gallery image ${index + 1}`}
                                   className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const img = e.target as HTMLImageElement;
+                                    img.src = 'https://via.placeholder.com/300';
+                                  }}
                                 />
                               </div>
                               <Button
@@ -364,6 +351,10 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                           src={image.url}
                           alt={image.caption || `Gallery image ${index + 1}`}
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.src = 'https://via.placeholder.com/300';
+                          }}
                         />
                       </div>
                     ))}

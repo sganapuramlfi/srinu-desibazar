@@ -70,10 +70,10 @@ export const businessInsertSchema = createInsertSchema(businesses).extend({
   ).optional(),
 });
 
-// Salon-specific Tables
+// Salon-specific Tables with cascade delete
 export const salonServices = pgTable("salon_services", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
+  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
   name: text("name").notNull(),
   description: text("description"),
   duration: integer("duration").notNull(), // in minutes
@@ -85,7 +85,7 @@ export const salonServices = pgTable("salon_services", {
 
 export const salonStaff = pgTable("salon_staff", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
+  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
   name: text("name").notNull(),
   email: text("email").unique().notNull(),
   phone: text("phone"),
@@ -98,8 +98,8 @@ export const salonStaff = pgTable("salon_staff", {
 
 export const staffSkills = pgTable("staff_skills", {
   id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id),
-  serviceId: integer("service_id").references(() => salonServices.id),
+  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
+  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
   proficiencyLevel: text("proficiency_level", {
     enum: ["trainee", "junior", "senior", "expert"]
   }).default("junior"),
@@ -108,7 +108,7 @@ export const staffSkills = pgTable("staff_skills", {
 
 export const shiftTemplates = pgTable("shift_templates", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
+  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
   name: text("name").notNull(),
   description: text("description"),
   startTime: text("start_time").notNull(),
@@ -129,8 +129,8 @@ export const shiftTemplates = pgTable("shift_templates", {
 
 export const staffShifts = pgTable("staff_shifts", {
   id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id),
-  templateId: integer("template_id").references(() => shiftTemplates.id),
+  staffId: integer("staff_id").references(() => salonStaff.id, {onDelete: 'cascade'}),
+  templateId: integer("template_id").references(() => shiftTemplates.id, {onDelete: 'cascade'}),
   date: timestamp("date").notNull(),
   actualStartTime: timestamp("actual_start_time"),
   actualEndTime: timestamp("actual_end_time"),
@@ -142,9 +142,9 @@ export const staffShifts = pgTable("staff_shifts", {
 
 export const serviceSlots = pgTable("service_slots", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  serviceId: integer("service_id").references(() => salonServices.id),
-  staffId: integer("staff_id").references(() => salonStaff.id),
+  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
+  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
+  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
   status: text("status", {
@@ -156,11 +156,11 @@ export const serviceSlots = pgTable("service_slots", {
 
 export const salonBookings = pgTable("salon_bookings", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id),
-  customerId: integer("customer_id").references(() => users.id),
-  slotId: integer("slot_id").references(() => serviceSlots.id),
-  serviceId: integer("service_id").references(() => salonServices.id),
-  staffId: integer("staff_id").references(() => salonStaff.id),
+  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
+  customerId: integer("customer_id").references(() => users.id, {onDelete: 'cascade'}),
+  slotId: integer("slot_id").references(() => serviceSlots.id, { onDelete: 'cascade' }),
+  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
+  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
   status: text("status", {
     enum: ["pending", "confirmed", "completed", "cancelled"]
   }).default("pending"),
@@ -212,8 +212,8 @@ export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
 // Update the staff schema to better handle schedules and template assignments
 export const staffSchedules = pgTable("staff_schedules", {
   id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id),
-  templateId: integer("template_id").references(() => shiftTemplates.id),
+  staffId: integer("staff_id").references(() => salonStaff.id, {onDelete: 'cascade'}),
+  templateId: integer("template_id").references(() => shiftTemplates.id, {onDelete: 'cascade'}),
   date: timestamp("date").notNull(),
   status: text("status", {
     enum: ["scheduled", "working", "completed", "leave", "sick", "absent"]

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json, foreignKey, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations, type InferModel } from "drizzle-orm";
 import { z } from "zod";
@@ -18,7 +18,7 @@ export const businesses = pgTable("businesses", {
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull(),
   description: text("description"),
-  logo: text("logo_url"),
+  logo_url: text("logo_url"),
   industryType: text("industry_type", {
     enum: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
   }).notNull(),
@@ -26,35 +26,35 @@ export const businesses = pgTable("businesses", {
     enum: ["pending", "active", "suspended"]
   }).default("pending"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
-  contactInfo: json("contact_info").$type<{
+  contactInfo: jsonb("contact_info").$type<{
     phone: string;
     email: string;
     address: string;
   }>(),
-  socialMedia: json("social_media").$type<{
+  socialMedia: jsonb("social_media").$type<{
     facebook?: string;
     instagram?: string;
     twitter?: string;
     website?: string;
   }>(),
-  operatingHours: json("operating_hours").$type<{
+  operatingHours: jsonb("operating_hours").$type<{
     [key: string]: {
       open: string;
       close: string;
       isOpen: boolean;
     };
   }>(),
-  amenities: json("amenities").$type<Array<{
+  amenities: jsonb("amenities").$type<Array<{
     name: string;
     icon: string;
     enabled: boolean;
   }>>(),
-  gallery: json("gallery").$type<Array<{
+  gallery: jsonb("gallery").$type<Array<{
     url: string;
     caption?: string;
     sortOrder: number;
   }>>(),
-  settings: json("settings").$type<{
+  settings: jsonb("settings").$type<{
     theme?: string;
     notifications?: boolean;
     autoConfirm?: boolean;
@@ -185,7 +185,7 @@ export const shiftTemplates = pgTable("shift_templates", {
   description: text("description"),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
-  breaks: json("breaks").$type<Array<{
+  breaks: jsonb("breaks").$type<Array<{
     startTime: string;
     endTime: string;
     duration: number;
@@ -223,7 +223,7 @@ export const serviceSlots = pgTable("service_slots", {
     enum: ["available", "booked", "blocked"]
   }).default("available"),
   isManual: boolean("is_manual").default(false),
-  conflictingSlotIds: json("conflicting_slot_ids").$type<number[]>(), // Track conflicting slots
+  conflictingSlotIds: jsonb("conflicting_slot_ids").$type<number[]>(), // Track conflicting slots
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -393,3 +393,4 @@ export type InsertSalonBooking = typeof salonBookings.$inferInsert;
 // Add types
 export type StaffSchedule = typeof staffSchedules.$inferSelect;
 export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;
+import { decimal } from "drizzle-orm/pg-core";

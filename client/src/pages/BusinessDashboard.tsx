@@ -933,7 +933,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                   <Loader2 className="mr-2 h-4 w4 animate-spin" />
                   Deleting...
                 </>
-              ) : (
+              ) :(
                 "Delete"
               )}
             </AlertDialogAction>
@@ -1505,11 +1505,11 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           </div>
         </TabsContent>
 
-        <TabsContent value="service-staff" className="space-y-4">
+        <TabsContent value="service-staff" className="p-4">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Service-Staff Mapping</h2>
           </div>
-          <ServiceStaffTab businessId={businessId} /> {/* Replaced ServiceStaffMapping */}
+          <ServiceStaffTab businessId={businessId} industryType={business?.industryType} />
         </TabsContent>
         <TabsContent value="roster" className="p-4">
           <div className="flex justify-between mb-4">
@@ -1644,7 +1644,13 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
   );
 }
 
-const ServiceStaffTab = ({ businessId }: { businessId: number }) => {
+const ServiceStaffTab = ({ 
+  businessId,
+  industryType 
+}: { 
+  businessId: number;
+  industryType?: string;
+}) => {
   const [selectedStaff, setSelectedStaff] = useState<SalonStaff | null>(null);
   const [selectedServices, setSelectedServices] = useState<Set<number>>(new Set());
   const [isUpdating, setIsUpdating] = useState(false);
@@ -1654,19 +1660,19 @@ const ServiceStaffTab = ({ businessId }: { businessId: number }) => {
   // Query for staff skills with included service details
   const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
     queryKey: [`/api/businesses/${businessId}/staff-skills`],
-    enabled: !!businessId && business?.industryType === "salon",
+    enabled: !!businessId && industryType === "salon",
   });
 
   // Query for services
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && business?.industryType === "salon",
+    enabled: !!businessId && industryType === "salon",
   });
 
   // Query for staff
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && business?.industryType === "salon",
+    enabled: !!businessId && industryType === "salon",
   });
 
   // Mutation for updating staff skills

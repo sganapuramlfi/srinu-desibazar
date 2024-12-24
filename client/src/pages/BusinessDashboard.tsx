@@ -793,10 +793,11 @@ function ServicesTab({ businessId }: { businessId: number }) {
       });
     },
     onError: (error) => {
+      console.error("Service deletion error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to delete service",
       });
     },
   });
@@ -1021,7 +1022,7 @@ function ServicesTab({ businessId }: { businessId: number }) {
             </DialogDescription>
           </DialogHeader>
           <Form {...serviceForm}>
-            <form onSubmit={serviceForm.handleSubmit((data) => 
+            <form onSubmit={serviceForm.handleSubmit((data) =>
               isEditingService && editServiceMutation.mutate({ ...data, id: isEditingService.id })
             )}>
               <div className="space-y-4">
@@ -1295,10 +1296,11 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
       });
     },
     onError: (error) => {
+      console.error("Service deletion error:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to delete service",
       });
     },
   });
@@ -1368,7 +1370,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             Update the service details
           </DialogDescription>
         </DialogHeader>
-        <Form {...serviceForm}><form onSubmit={serviceForm.handleSubmit((data) => 
+        <Form {...serviceForm}><form onSubmit={serviceForm.handleSubmit((data) =>
             isEditingService && editServiceMutation.mutate({ ...data, id: isEditingService.id })
           )}>
           <div className="space-y-4">

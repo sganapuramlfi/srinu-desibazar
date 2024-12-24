@@ -1701,15 +1701,128 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
 
     return (
       <div className="space-y-8">
-        {/* Current Assignments Section */}
-        <div className="rounded-lg border bg-card">
+        {/* Staff Selection and Service Assignment Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Staff Members</h3>
+            <div className="space-y-2">
+              {staff.map((member) => (
+                <button
+                  key={member.id}
+                  onClick={() => setSelectedStaff(member)}
+                  className={`w-full text-left p-4 rounded-lg border transition-colors ${
+                    selectedStaff?.id === member.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "hover:bg-accent/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">{member.name}</h4>
+                      <p className={`text-sm ${
+                        selectedStaff?.id === member.id
+                          ? "text-primary-foreground/80"
+                          : "text-muted-foreground"
+                      }`}>
+                        {member.specialization}
+                      </p>
+                    </div>
+                    <div className="text-xs">
+                      {getAssignedServices(member).length} services assigned
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {selectedStaff ? (
+              <>
+                <h3 className="text-lg font-semibold">
+                  Services for {selectedStaff.name}
+                </h3>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                  {services.map((service) => (
+                    <label
+                      key={service.id}
+                      className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                        selectedServices.has(service.id)
+                          ? "bg-primary/5 border-primary/50"
+                          : "hover:bg-accent/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedServices.has(service.id)}
+                        onChange={() => {
+                          const newSelected = new Set(selectedServices);
+                          if (newSelected.has(service.id)) {
+                            newSelected.delete(service.id);
+                          } else {
+                            newSelected.add(service.id);
+                          }
+                          setSelectedServices(newSelected);
+                        }}
+                        className="h-4 w-4 rounded border-primary text-primary focus:ring-primary mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{service.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {service.duration} mins • ${service.price}
+                        </p>
+                        {service.description && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {service.description}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div className="pt-4 border-t">
+                  <Button
+                    onClick={() => {
+                      updateStaffSkillsMutation.mutate({
+                        staffId: selectedStaff.id,
+                        serviceIds: Array.from(selectedServices),
+                      });
+                    }}
+                    disabled={isUpdating}
+                    className="w-full"
+                  >
+                    {isUpdating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      "Save Service Assignments"
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-4 border rounded-lg bg-muted/50">
+                <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="font-medium mb-2">No Staff Member Selected</h3>
+                <p className="text-sm text-muted-foreground">
+                  Select a staff member from the list to manage their service assignments
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Current Assignments Overview Section */}
+        <div className="border rounded-lg bg-card">
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">Current Service Assignments</h3>
-            <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {staff.map((member) => {
                 const assignedServices = getAssignedServices(member);
                 return (
-                  <Card key={member.id} className="hover:bg-accent/5 transition-colors">
+                  <Card key={member.id} className="hover:bg-accent/5">
                     <CardHeader>
                       <CardTitle className="text-base">{member.name}</CardTitle>
                       <CardDescription>{member.specialization}</CardDescription>
@@ -1727,7 +1840,9 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground">No services assigned</p>
+                        <p className="text-sm text-muted-foreground">
+                          No services assigned
+                        </p>
                       )}
                     </CardContent>
                   </Card>
@@ -1735,72 +1850,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               })}
             </div>
           </div>
-        </div>
-
-        {/* Assignment Interface Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
-            <div className="space-y-2">
-              {staff.map((member) => (
-                <div
-                  key={member.id}
-                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                    selectedStaff?.id === member.id
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-muted"
-                  }`}
-                  onClick={() => handleStaffSelect(member)}
-                >
-                  <h4 className="font-medium">{member.name}</h4>
-                  <p className="text-sm opacity-90">{member.specialization}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {selectedStaff && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                Assign Services for {selectedStaff.name}
-              </h3>
-              <div className="space-y-2">
-                {services.map((service) => (
-                  <label
-                    key={service.id}
-                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedServices.has(service.id)}
-                      onChange={() => handleServiceToggle(service.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium">{service.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {service.duration} mins • ${service.price}
-                      </p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              <Button
-                className="mt-4 w-full"
-                onClick={handleUpdateSkills}
-                disabled={isUpdating}
-              >
-                {isUpdating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  "Update Services"
-                )}
-              </Button>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -1849,8 +1898,10 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">0</div>
-              <p className="text-xs text-muted-foreground">No customers yet</p>
+              <div className="text-2xl font-bold">+12,234</div>
+              <p className="text-xs text-muted-foreground">
+                +19% from last month
+              </p>
             </CardContent>
           </Card>
         </div>

@@ -1587,8 +1587,8 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     const [selectedServices, setSelectedServices] = useState<Set<number>>(new Set());
     const [isUpdating, setIsUpdating] = useState(false);
 
-    // Query for staff skills
-    const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery({
+    // Query for staff skills with included service details
+    const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
       queryKey: [`/api/businesses/${businessId}/staff-skills`],
       enabled: !!businessId && business?.industryType === "salon",
     });
@@ -1612,6 +1612,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
           description: "Staff member's services have been updated successfully.",
         });
         setIsUpdating(false);
+        setSelectedStaff(null); // Reset selection after successful update
       },
       onError: (error) => {
         toast({
@@ -1627,10 +1628,10 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     useEffect(() => {
       if (selectedStaff) {
         const staffSkillsForMember = staffSkills.filter(
-          (skill: any) => skill.staffId === selectedStaff.id
+          (skill) => skill.staffId === selectedStaff.id
         );
         setSelectedServices(
-          new Set(staffSkillsForMember.map((skill: any) => skill.serviceId))
+          new Set(staffSkillsForMember.map((skill) => skill.serviceId))
         );
       } else {
         setSelectedServices(new Set());
@@ -1660,6 +1661,14 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       });
     };
 
+    // Helper function to get assigned services for a staff member
+    const getAssignedServices = (staffMember: SalonStaff) => {
+      return staffSkills
+        .filter((skill) => skill.staffId === staffMember.id)
+        .map((skill) => services.find((service) => service.id === skill.serviceId))
+        .filter((service): service is SalonService => service !== undefined);
+    };
+
     if (isLoadingStaff || isLoadingServices || isLoadingSkills) {
       return (
         <div className="flex items-center justify-center h-48">
@@ -1669,69 +1678,108 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
-          <div className="space-y-2">
-            {staff.map((member) => (
-              <div
-                key={member.id}
-                className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                  selectedStaff?.id === member.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                }`}
-                onClick={() => handleStaffSelect(member)}
-              >
-                <h4 className="font-medium">{member.name}</h4>
-                <p className="text-sm opacity-90">{member.specialization}</p>
-              </div>
-            ))}
+      <div className="space-y-8">
+        {/* Current Assignments Section */}
+        <div className="rounded-lg border bg-card">
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Current Service Assignments</h3>
+            <div className="space-y-4">
+              {staff.map((member) => {
+                const assignedServices = getAssignedServices(member);
+                return (
+                  <Card key={member.id}>
+                    <CardHeader>
+                      <CardTitle className="text-base">{member.name}</CardTitle>
+                      <CardDescription>{member.specialization}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {assignedServices.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {assignedServices.map((service) => (
+                            <span
+                              key={service.id}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+                            >
+                              {service.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No services assigned</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {selectedStaff && (
+        {/* Assignment Interface Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h3 className="text-lg font-semibold mb-4">
-              Assign Services for {selectedStaff.name}
-            </h3>
+            <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
             <div className="space-y-2">
-              {services.map((service) => (
-                <label
-                  key={service.id}
-                  className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
+              {staff.map((member) => (
+                <div
+                  key={member.id}
+                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                    selectedStaff?.id === member.id
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => handleStaffSelect(member)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedServices.has(service.id)}
-                    onChange={() => handleServiceToggle(service.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <div>
-                    <p className="font-medium">{service.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {service.duration} mins • ${service.price}
-                    </p>
-                  </div>
-                </label>
+                  <h4 className="font-medium">{member.name}</h4>
+                  <p className="text-sm opacity-90">{member.specialization}</p>
+                </div>
               ))}
             </div>
-            <Button
-              className="mt-4 w-full"
-              onClick={handleUpdateSkills}
-              disabled={isUpdating}
-            >
-              {isUpdating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                "Update Services"
-              )}
-            </Button>
           </div>
-        )}
+
+          {selectedStaff && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">
+                Assign Services for {selectedStaff.name}
+              </h3>
+              <div className="space-y-2">
+                {services.map((service) => (
+                  <label
+                    key={service.id}
+                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedServices.has(service.id)}
+                      onChange={() => handleServiceToggle(service.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <p className="font-medium">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {service.duration} mins • ${service.price}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <Button
+                className="mt-4 w-full"
+                onClick={handleUpdateSkills}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Services"
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     );
   };

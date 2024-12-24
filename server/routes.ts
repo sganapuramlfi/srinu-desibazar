@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth, createProtectedRouter } from "./auth";
+import { setupAuth } from "./auth";
 import { db } from "@db";
 import multer from "multer";
 import path from "path";
@@ -28,14 +28,11 @@ if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const dir = file.fieldname === 'logo' ? logosDir : galleryDir;
-    console.log('Upload destination:', dir);
     cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const filename = uniqueSuffix + path.extname(file.originalname);
-    console.log('Generated filename:', filename);
-    cb(null, filename);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
 
@@ -55,14 +52,13 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express): Server {
-  // Public Routes First - No auth required
+  // Public routes first
   app.get("/api/businesses/:businessId/profile", async (req, res) => {
     try {
       const [business] = await db
         .select()
         .from(businesses)
-        .where(eq(businesses.id, parseInt(req.params.businessId)))
-        .limit(1);
+        .where(eq(businesses.id, parseInt(req.params.businessId)));
 
       if (!business) {
         return res.status(404).json({ error: "Business not found" });
@@ -84,18 +80,16 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Register public salon routes first
+  // Register salon routes (includes both public and protected routes)
   app.use("/api", salonRouter);
 
-  // Initialize session and auth setup after public routes
+  // Setup auth middleware and register protected routes
   setupAuth(app);
 
-  // Register protected routes
-  const protectedRouter = createProtectedRouter();
-  app.use("/api", protectedRouter);
-  app.use("/api", rosterRouter);
-  app.use("/api", slotsRouter);
-  app.use("/api", bookingsRouter);
+  // Register other protected routes
+  app.use("/api/roster", rosterRouter);
+  app.use("/api/slots", slotsRouter);
+  app.use("/api/bookings", bookingsRouter);
 
   const httpServer = createServer(app);
   return httpServer;

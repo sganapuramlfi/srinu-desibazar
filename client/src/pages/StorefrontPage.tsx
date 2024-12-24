@@ -44,7 +44,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-user";
 import { useState } from "react";
 import { format } from "date-fns";
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 
 interface StorefrontPageProps {
@@ -77,13 +78,13 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     enabled: !!businessId,
   });
 
-  // Fetch services for this business
+  // Update the services query section
   const { data: services = [], isLoading: isLoadingServices } = useQuery({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId,
   });
 
-  // Updated fetchAvailableSlots query to include serviceId
+  // Update the availableSlots query section
   const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
@@ -165,20 +166,18 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
         slotId: parseInt(selectedTimeSlot),
       });
 
-    // Show success message
-    toast({
-      title: "Booking Confirmed",
-      description: `Your appointment for ${selectedService.name} has been booked.`,
-    });
-  } catch (error: any) {
-    // Show error message
-    toast({
-      title: "Booking Failed",
-      description: error.message || "Failed to book appointment. Please try again.",
-      variant: "destructive",
-    });
-    console.error('Booking failed:', error);
-  }
+      toast({
+        title: "Booking Confirmed",
+        description: `Your appointment for ${selectedService.name} has been booked.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Booking Failed",
+        description: error.message || "Failed to book appointment. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Booking failed:', error);
+    }
   };
 
   // Show loading spinner while data is being fetched

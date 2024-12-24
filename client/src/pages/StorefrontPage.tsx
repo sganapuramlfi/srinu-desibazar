@@ -232,40 +232,6 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                 </div>
               </div>
             )}
-
-            {/* Reviews Section */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">Customer Reviews</h2>
-              <div className="grid gap-6">
-                {reviews.map((review) => (
-                  <Card key={review.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <div className="flex items-center">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${
-                                  i < review.rating
-                                    ? "text-yellow-400 fill-current"
-                                    : "text-gray-300"
-                                }`}
-                              />
-                            ))}
-                          </div>
-                          <p className="text-sm font-medium mt-1">{review.author}</p>
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(review.date).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-muted-foreground">{review.content}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Right Column - Booking Widget */}

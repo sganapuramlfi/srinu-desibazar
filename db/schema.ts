@@ -30,11 +30,30 @@ export const businesses = pgTable("businesses", {
     phone: string;
     email: string;
     address: string;
+  }>(),
+  socialMedia: json("social_media").$type<{
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
     website?: string;
   }>(),
-  workingHours: json("working_hours").$type<{
-    [key: string]: { open: string; close: string };
+  operatingHours: json("operating_hours").$type<{
+    [key: string]: {
+      open: string;
+      close: string;
+      isOpen: boolean;
+    };
   }>(),
+  amenities: json("amenities").$type<Array<{
+    name: string;
+    icon: string;
+    enabled: boolean;
+  }>>(),
+  gallery: json("gallery").$type<Array<{
+    url: string;
+    caption?: string;
+    sortOrder: number;
+  }>>(),
   settings: json("settings").$type<{
     theme?: string;
     notifications?: boolean;
@@ -42,6 +61,39 @@ export const businesses = pgTable("businesses", {
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
+});
+
+// Business profile schema for form validation
+export const businessProfileSchema = z.object({
+  name: z.string().min(2, "Business name must be at least 2 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  logo: z.string().optional(),
+  socialMedia: z.object({
+    facebook: z.string().url("Please enter a valid Facebook URL").optional().or(z.literal("")),
+    instagram: z.string().url("Please enter a valid Instagram URL").optional().or(z.literal("")),
+    twitter: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
+    website: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
+  }),
+  contactInfo: z.object({
+    phone: z.string().min(10, "Phone number must be at least 10 characters"),
+    email: z.string().email("Invalid email address"),
+    address: z.string().min(5, "Address must be at least 5 characters"),
+  }),
+  operatingHours: z.record(
+    z.string(),
+    z.object({
+      open: z.string(),
+      close: z.string(),
+      isOpen: z.boolean(),
+    })
+  ),
+  amenities: z.array(
+    z.object({
+      name: z.string(),
+      icon: z.string(),
+      enabled: z.boolean(),
+    })
+  ),
 });
 
 // Schemas for user registration and business
@@ -59,13 +111,33 @@ export const businessInsertSchema = createInsertSchema(businesses).extend({
     phone: z.string().min(10),
     email: z.string().email(),
     address: z.string().min(5),
-    website: z.string().url().optional(),
   }),
-  workingHours: z.record(
+  socialMedia: z.object({
+    facebook: z.string().url().optional().or(z.literal("")),
+    instagram: z.string().url().optional().or(z.literal("")),
+    twitter: z.string().url().optional().or(z.literal("")),
+    website: z.string().url().optional().or(z.literal("")),
+  }).optional(),
+  operatingHours: z.record(
     z.string(),
     z.object({
       open: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
       close: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
+      isOpen: z.boolean(),
+    })
+  ).optional(),
+  amenities: z.array(
+    z.object({
+      name: z.string(),
+      icon: z.string(),
+      enabled: z.boolean(),
+    })
+  ).optional(),
+  gallery: z.array(
+    z.object({
+      url: z.string().url(),
+      caption: z.string().optional(),
+      sortOrder: z.number(),
     })
   ).optional(),
 });

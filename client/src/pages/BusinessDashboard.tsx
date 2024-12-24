@@ -141,9 +141,10 @@ const ServiceStaffTab = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch staff skills with service details
   const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
     queryKey: [`/api/businesses/${businessId}/staff-skills`],
-    enabled: !!businessId && !!selectedStaff,
+    enabled: !!businessId,
   });
 
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
@@ -329,15 +330,13 @@ const ServiceStaffTab = ({
         <h3 className="text-lg font-semibold mb-4">Current Service Assignments</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {staff.map((member) => {
+            const memberSkills = staffSkills.filter(skill => skill.staffId === member.id);
             const memberServices = services.filter(service => 
-              staffSkills
-                .filter(skill => skill.staffId === member.id)
-                .map(skill => skill.serviceId)
-                .includes(service.id)
+              memberSkills.map(skill => skill.serviceId).includes(service.id)
             );
 
             return (
-              <Card key={member.id}>
+              <Card key={member.id} className="h-full">
                 <CardHeader>
                   <CardTitle className="text-base">{member.name}</CardTitle>
                   <CardDescription>{member.specialization}</CardDescription>
@@ -368,6 +367,8 @@ const ServiceStaffTab = ({
     </div>
   );
 };
+
+export { ServiceStaffTab };
 
 export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
@@ -915,8 +916,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
                     <FormLabel>Service Name</FormLabel>
                     <FormControl>
                       <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
+                    </FormControl>                    <FormMessage />
                   </FormItem>
                 )}
               />

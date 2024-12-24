@@ -40,6 +40,17 @@ interface StorefrontPageProps {
   };
 }
 
+// Helper function to get icon component
+const getIconComponent = (iconName: string) => {
+  const icons: { [key: string]: typeof Wifi } = {
+    Wifi,
+    Car,
+    CreditCard,
+    Coffee,
+  };
+  return icons[iconName] || Coffee;
+};
+
 export default function StorefrontPage({ params }: StorefrontPageProps) {
   const businessId = parseInt(params.businessId);
   const [, navigate] = useLocation();
@@ -78,6 +89,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     }
   };
 
+  // Show loading spinner while data is being fetched
   if (isLoading || !business) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -86,18 +98,11 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
     );
   }
 
-  const amenities = business.amenities || [];
+  // Check if the logged-in user is the business owner
+  const isOwner = user && business.userId === user.id;
 
-  // Helper function to get icon component
-  const getIconComponent = (iconName: string) => {
-    const icons: { [key: string]: typeof Wifi } = {
-      Wifi,
-      Car,
-      CreditCard,
-      Coffee,
-    };
-    return icons[iconName] || Coffee;
-  };
+  // Get business amenities with type safety
+  const amenities = (business.amenities || []).filter((amenity: { enabled: boolean; icon: string; name: string }) => amenity.enabled);
 
   return (
     <div className="min-h-screen bg-background">
@@ -187,7 +192,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
 
                     {/* Amenities */}
                     <div className="flex flex-wrap gap-3">
-                      {amenities.filter(amenity => amenity.enabled).map((amenity) => {
+                      {amenities.map((amenity: { icon: string; name: string }) => {
                         const IconComponent = getIconComponent(amenity.icon);
                         return (
                           <div
@@ -300,7 +305,7 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Gallery</CardTitle>
-                  {user && business.userId === user.id && (
+                  {isOwner && (
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm">

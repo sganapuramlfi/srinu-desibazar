@@ -930,10 +930,10 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             >
               {deleteServiceMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
                 </>
-              ) :(
+              ) : (
                 "Delete"
               )}
             </AlertDialogAction>
@@ -942,7 +942,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
       </AlertDialog>
 
       {/* Staff Delete Confirmation */}
-      <AlertDialog open={!!staffToDelete} onOpenChange={() => setStaffToDelete(null)}>
+      <AlertDialog open={!!staffToDelete} onOpenChange={()=> setStaffToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
@@ -958,7 +958,7 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
             >
               {deleteStaffMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
                 </>
               ) : (
@@ -1657,7 +1657,7 @@ const ServiceStaffTab = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Query for staff skills with included service details
+  // Query for staff skills
   const { data: staffSkills = [], isLoading: isLoadingSkills } = useQuery<StaffSkill[]>({
     queryKey: [`/api/businesses/${businessId}/staff-skills`],
     enabled: !!businessId && industryType === "salon",
@@ -1675,7 +1675,7 @@ const ServiceStaffTab = ({
     enabled: !!businessId && industryType === "salon",
   });
 
-  // Mutation for updating staff skills
+  // Update staff skills mutation
   const updateSkillsMutation = useMutation({
     mutationFn: async (data: { staffId: number; serviceIds: number[] }) => {
       const response = await fetch(`/api/businesses/${businessId}/staff/${data.staffId}/skills`, {
@@ -1688,8 +1688,7 @@ const ServiceStaffTab = ({
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
+        throw new Error(await response.text());
       }
 
       return response.json();
@@ -1698,7 +1697,7 @@ const ServiceStaffTab = ({
       queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/staff-skills`] });
       toast({
         title: "Success",
-        description: "Services have been updated successfully.",
+        description: "Staff services have been updated successfully.",
       });
       setIsUpdating(false);
     },
@@ -1706,7 +1705,7 @@ const ServiceStaffTab = ({
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to update services",
+        description: error.message || "Failed to update staff services",
       });
       setIsUpdating(false);
     },
@@ -1715,13 +1714,18 @@ const ServiceStaffTab = ({
   // Initialize selected services when staff member is selected
   useEffect(() => {
     if (selectedStaff) {
-      const currentSkills = staffSkills.filter(skill => skill.staffId === selectedStaff.id);
-      const currentServiceIds = new Set(currentSkills.map(skill => skill.serviceId));
-      setSelectedServices(currentServiceIds);
+      const staffServiceIds = staffSkills
+        .filter(skill => skill.staffId === selectedStaff.id)
+        .map(skill => skill.serviceId);
+      setSelectedServices(new Set(staffServiceIds));
     } else {
       setSelectedServices(new Set());
     }
   }, [selectedStaff, staffSkills]);
+
+  const handleStaffSelect = (member: SalonStaff) => {
+    setSelectedStaff(member);
+  };
 
   const handleServiceToggle = (serviceId: number) => {
     setSelectedServices(prev => {
@@ -1735,17 +1739,16 @@ const ServiceStaffTab = ({
     });
   };
 
-  const handleSave = async () => {
+  const handleSaveAssignments = () => {
     if (!selectedStaff) return;
 
     setIsUpdating(true);
-    await updateSkillsMutation.mutateAsync({
+    updateSkillsMutation.mutate({
       staffId: selectedStaff.id,
       serviceIds: Array.from(selectedServices),
     });
   };
 
-  // Loading state
   if (isLoadingStaff || isLoadingServices || isLoadingSkills) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -1754,17 +1757,25 @@ const ServiceStaffTab = ({
     );
   }
 
+  // Get assigned services for display in the overview
+  const getAssignedServices = (member: SalonStaff) => {
+    const memberSkills = staffSkills.filter(skill => skill.staffId === member.id);
+    return memberSkills
+      .map(skill => services.find(s => s.id === skill.serviceId))
+      .filter((s): s is SalonService => s !== undefined);
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Staff List */}
+        {/* Staff Selection */}
         <div>
           <h3 className="text-lg font-semibold mb-4">Select Staff Member</h3>
           <div className="space-y-2">
             {staff.map((member) => (
               <button
                 key={member.id}
-                onClick={() => setSelectedStaff(member)}
+                onClick={() => handleStaffSelect(member)}
                 className={`w-full text-left p-4 rounded-lg border transition-colors ${
                   selectedStaff?.id === member.id
                     ? "bg-primary text-primary-foreground"
@@ -1779,57 +1790,63 @@ const ServiceStaffTab = ({
                 }`}>
                   {member.specialization}
                 </p>
+                <div className="mt-2 text-xs">
+                  {getAssignedServices(member).length} services assigned
+                </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Service Assignment */}
+        {/* Service Assignment Section */}
         <div>
           {selectedStaff ? (
             <>
               <h3 className="text-lg font-semibold mb-4">
                 Assign Services for {selectedStaff.name}
               </h3>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                 {services.map((service) => (
                   <label
                     key={service.id}
-                    className={`block p-4 rounded-lg border cursor-pointer ${
+                    className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
                       selectedServices.has(service.id)
                         ? "bg-primary/10 border-primary"
                         : "hover:bg-accent"
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedServices.has(service.id)}
-                        onChange={() => handleServiceToggle(service.id)}
-                        className="h-4 w-4 rounded border-primary text-primary focus:ring-primary"
-                      />
-                      <div>
-                        <p className="font-medium">{service.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {service.duration} mins • ${service.price}
+                    <input
+                      type="checkbox"
+                      checked={selectedServices.has(service.id)}
+                      onChange={() => handleServiceToggle(service.id)}
+                      className="h-4 w-4 rounded border-primary text-primary focus:ring-primary mt-1"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{service.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {service.duration} mins • ${service.price}
+                      </p>
+                      {service.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {service.description}
                         </p>
-                      </div>
+                      )}
                     </div>
                   </label>
                 ))}
               </div>
               <Button
-                onClick={handleSave}
+                onClick={handleSaveAssignments}
                 disabled={isUpdating}
                 className="w-full mt-4"
               >
                 {isUpdating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    Saving Changes...
                   </>
                 ) : (
-                  "Save Changes"
+                  "Save Service Assignments"
                 )}
               </Button>
             </>
@@ -1851,12 +1868,7 @@ const ServiceStaffTab = ({
           <h3 className="text-lg font-semibold mb-4">Current Assignments</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {staff.map((member) => {
-              const memberSkills = staffSkills.filter(
-                (skill) => skill.staffId === member.id
-              );
-              const assignedServices = memberSkills
-                .map((skill) => services.find((s) => s.id === skill.serviceId))
-                .filter((s): s is SalonService => s !== undefined);
+              const assignedServices = getAssignedServices(member);
 
               return (
                 <Card key={member.id}>
@@ -1890,4 +1902,5 @@ const ServiceStaffTab = ({
       </div>
     </div>
   );
+
 };

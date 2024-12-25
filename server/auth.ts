@@ -5,9 +5,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, businesses, userRegistrationSchema, type User as SelectUser } from "@db/schema";
+import { users, businesses, type User as SelectUser } from "@db/schema";
 import { db } from "@db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -28,29 +28,39 @@ const crypto = {
   },
 };
 
+// Define a type for sanitized user data
+type SanitizedUser = {
+  id: number;
+  username: string;
+  email: string;
+  role: "admin" | "business" | "customer";
+  createdAt: Date | null;
+  business?: {
+    id: number;
+    name: string;
+    industryType: string;
+    status: string;
+    onboardingCompleted: boolean;
+    description: string | null;
+  };
+};
+
+// Extend Express User type to match our sanitized user type
 declare global {
   namespace Express {
-    interface User extends SelectUser {
-      business?: {
-        id: number;
-        name: string;
-        industryType: string;
-        status: string;
-      };
-    }
+    interface User extends SanitizedUser {}
   }
 }
 
-async function getUserWithBusiness(userId: number) {
+async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null> {
   try {
     console.log(`[Debug] Fetching user data for ID: ${userId}`);
 
-    const result = await db
+    const results = await db
       .select({
         user: {
           id: users.id,
           username: users.username,
-          password: users.password,
           email: users.email,
           role: users.role,
           createdAt: users.createdAt,
@@ -60,6 +70,8 @@ async function getUserWithBusiness(userId: number) {
           name: businesses.name,
           industryType: businesses.industryType,
           status: businesses.status,
+          onboardingCompleted: businesses.onboardingCompleted,
+          description: businesses.description,
         },
       })
       .from(users)
@@ -67,31 +79,30 @@ async function getUserWithBusiness(userId: number) {
       .where(eq(users.id, userId))
       .limit(1);
 
-    console.log(`[Debug] Query result:`, result);
-
-    if (!result || result.length === 0) {
+    if (!results || results.length === 0) {
       console.log(`[Debug] No user found for ID: ${userId}`);
       return null;
     }
 
-    const [userWithBusiness] = result;
-    const { user, business } = userWithBusiness;
+    const { user, business } = results[0];
 
+    // If user is a business owner and has business data, include it
     if (user.role === "business" && business) {
       console.log(`[Debug] Found business for user ${userId}:`, business);
-      const userData = {
+      return {
         ...user,
         business: {
           id: business.id,
           name: business.name,
           industryType: business.industryType,
           status: business.status,
+          onboardingCompleted: business.onboardingCompleted,
+          description: business.description,
         },
       };
-      console.log(`[Debug] Returning user with business:`, userData);
-      return userData;
     }
 
+    console.log(`[Debug] Returning user without business data:`, user);
     return user;
   } catch (error) {
     console.error('[Debug] Error in getUserWithBusiness:', error);
@@ -101,25 +112,24 @@ async function getUserWithBusiness(userId: number) {
 
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
-  const sessionSettings = {
+  const sessionSettings: session.SessionOptions = {
     secret: process.env.REPL_ID || "desibazaar-secret",
-    resave: true,
-    saveUninitialized: true,
+    resave: false,
+    saveUninitialized: false,
     cookie: {
-      secure: false,
+      secure: app.get("env") === "production",
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
-      sameSite: 'lax',
-      path: '/'
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: "lax",
+      path: "/",
     },
     store: new MemoryStore({
-      checkPeriod: 86400000
+      checkPeriod: 86400000, // 24 hours
     }),
   };
 
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
-    sessionSettings.cookie.secure = true;
   }
 
   app.use(session(sessionSettings));
@@ -131,11 +141,7 @@ export function setupAuth(app: Express) {
       try {
         console.log(`[Debug] Attempting login for user: ${username}`);
 
-        if (!username || !password) {
-          console.log('[Debug] Missing credentials');
-          return done(null, false, { message: "Missing credentials" });
-        }
-
+        // Get user data
         const [user] = await db
           .select()
           .from(users)
@@ -147,6 +153,7 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect username." });
         }
 
+        // Verify password
         const isMatch = await crypto.compare(password, user.password);
         console.log(`[Debug] Password comparison result for ${username}:`, isMatch);
 
@@ -155,6 +162,7 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect password." });
         }
 
+        // Get sanitized user data with business details if applicable
         const userWithBusiness = await getUserWithBusiness(user.id);
         if (!userWithBusiness) {
           console.log(`[Debug] Failed to get user data`);
@@ -179,14 +187,14 @@ export function setupAuth(app: Express) {
     console.log(`[Debug] Serializing user:`, {
       id: user.id,
       role: user.role,
-      businessId: user.business?.id
+      business: user.business
     });
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      console.log(`[Debug] Deserializing user: ${id}`);
+      console.log(`[Debug] Deserializing user ID: ${id}`);
       const user = await getUserWithBusiness(id);
 
       if (!user) {
@@ -208,7 +216,7 @@ export function setupAuth(app: Express) {
   app.post("/api/login", (req, res, next) => {
     console.log('[Debug] Login request body:', req.body);
 
-    passport.authenticate("local", async (err: any, user: Express.User, info: IVerifyOptions) => {
+    passport.authenticate("local", (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
       if (err) {
         console.error('[Debug] Login error:', err);
         return next(err);
@@ -236,13 +244,7 @@ export function setupAuth(app: Express) {
         return res.json({
           ok: true,
           message: "Login successful",
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            business: user.business
-          }
+          user
         });
       });
     })(req, res, next);
@@ -256,9 +258,8 @@ export function setupAuth(app: Express) {
       businessId: req.user?.business?.id
     });
 
-    if (req.isAuthenticated()) {
-      const { password, ...userWithoutPassword } = req.user;
-      return res.json(userWithoutPassword);
+    if (req.isAuthenticated() && req.user) {
+      return res.json(req.user);
     }
 
     res.status(401).json({
@@ -283,6 +284,4 @@ export function setupAuth(app: Express) {
       });
     });
   });
-
-  return app;
 }

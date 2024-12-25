@@ -3,6 +3,15 @@ import { db } from "@db";
 import { businesses } from "@db/schema";
 import { eq } from "drizzle-orm";
 
+// Extend Express Request type to include business
+declare global {
+  namespace Express {
+    interface Request {
+      business?: typeof businesses.$inferSelect;
+    }
+  }
+}
+
 export async function validateBusinessOwnership(
   req: Request,
   res: Response,

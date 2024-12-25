@@ -67,8 +67,8 @@ export function ServiceSlotsTab({
   services,
 }: ServiceSlotsTabProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedStaff, setSelectedStaff] = useState<string>();
-  const [selectedService, setSelectedService] = useState<string>();
+  const [selectedStaff, setSelectedStaff] = useState<string>("all"); 
+  const [selectedService, setSelectedService] = useState<string>("all"); 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -90,8 +90,8 @@ export function ServiceSlotsTab({
       {
         startDate: format(selectedDate, "yyyy-MM-dd"),
         endDate: format(selectedDate, "yyyy-MM-dd"),
-        staffId: selectedStaff,
-        serviceId: selectedService,
+        staffId: selectedStaff === "all" ? undefined : selectedStaff,
+        serviceId: selectedService === "all" ? undefined : selectedService,
       },
     ],
     enabled: !!businessId && !!selectedDate,
@@ -208,10 +208,10 @@ export function ServiceSlotsTab({
                         onValueChange={setSelectedStaff}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="All staff members" />
+                          <SelectValue placeholder="Select staff member" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All staff members</SelectItem>
+                          <SelectItem value="all">All staff members</SelectItem>
                           {staff.map((member) => (
                             <SelectItem
                               key={member.id}
@@ -230,10 +230,10 @@ export function ServiceSlotsTab({
                         onValueChange={setSelectedService}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="All services" />
+                          <SelectValue placeholder="Select service" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All services</SelectItem>
+                          <SelectItem value="all">All services</SelectItem>
                           {services.map((service) => (
                             <SelectItem
                               key={service.id}

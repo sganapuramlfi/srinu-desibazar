@@ -19,52 +19,37 @@ function App() {
     );
   }
 
+  // If not logged in, show auth page
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  // If business user but no business associated, redirect to landing
+  if (user.role === "business" && !user.business?.id) {
+    window.location.replace("/");
+    return null;
+  }
+
   return (
     <Switch>
-      {/* Auth route outside Layout */}
-      <Route path="/auth">
-        {() => {
-          // If user is already logged in, redirect appropriately
-          if (user) {
-            if (user.role === "business") {
-              // Check if user has an associated business
-              if (user.business?.id) {
-                window.location.replace(`/dashboard/${user.business.id}`);
-              } else {
-                window.location.replace("/");
-              }
-              return null;
-            }
-            window.location.replace("/");
-            return null;
-          }
-          return <AuthPage />;
-        }}
-      </Route>
-
-      {/* All other routes inside Layout */}
+      {/* All routes inside Layout */}
       <Route>
         <Layout>
           <Switch>
+            {/* Landing page */}
             <Route path="/" component={LandingPage} />
 
-            {/* Business Dashboard Route */}
+            {/* Business Dashboard - only for business users */}
             <Route path="/dashboard/:businessId">
               {(params) => {
-                // Check for authentication and business role
-                if (!user) {
-                  window.location.replace("/auth");
-                  return null;
-                }
-
-                if (user.role !== "business") {
+                // Check for business role and ownership
+                if (user.role !== "business" || !user.business) {
                   window.location.replace("/");
                   return null;
                 }
 
-                // Additional check to ensure the user owns this business
                 const businessId = parseInt(params.businessId);
-                if (user.business?.id !== businessId) {
+                if (user.business.id !== businessId) {
                   window.location.replace("/");
                   return null;
                 }
@@ -73,8 +58,10 @@ function App() {
               }}
             </Route>
 
+            {/* Public business storefront */}
             <Route path="/business/:businessId" component={StorefrontPage} />
 
+            {/* Customer bookings - requires authentication */}
             <Route path="/my-bookings">
               {() => {
                 if (!user) {
@@ -85,23 +72,21 @@ function App() {
               }}
             </Route>
 
-            <Route component={NotFound} />
+            {/* 404 Not Found */}
+            <Route>
+              {() => (
+                <div className="min-h-screen w-full flex items-center justify-center bg-background">
+                  <div className="text-center">
+                    <h1 className="text-4xl font-bold mb-4">404 Not Found</h1>
+                    <p className="text-muted-foreground">The page you're looking for doesn't exist.</p>
+                  </div>
+                </div>
+              )}
+            </Route>
           </Switch>
         </Layout>
       </Route>
     </Switch>
-  );
-}
-
-// Fallback 404 not found page
-function NotFound() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">404 Not Found</h1>
-        <p className="text-muted-foreground">The page you're looking for doesn't exist.</p>
-      </div>
-    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Clock, AlertCircle, Filter } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 interface ServiceSlotsTabProps {
   businessId: number;
@@ -52,13 +52,13 @@ interface Slot {
     id: number;
     name: string;
     duration: number;
+    price: number;
   };
   staff: {
     id: number;
     name: string;
   };
   conflictingSlotIds?: number[];
-  displayTime?: string; // Added for time formatting
 }
 
 export function ServiceSlotsTab({
@@ -95,14 +95,6 @@ export function ServiceSlotsTab({
       },
     ],
     enabled: !!businessId && !!selectedDate,
-    onError: (error) => {
-      console.error("Error fetching slots:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch slots. Please try again.",
-      });
-    },
   });
 
   // Auto-generate slots mutation
@@ -146,93 +138,23 @@ export function ServiceSlotsTab({
     },
   });
 
-  // Manual slot creation mutation
-  const createManualSlotMutation = useMutation({
-    mutationFn: async (data: {
-      serviceId: number;
-      staffId: number;
-      startTime: string;
-      endTime: string;
-    }) => {
-      const response = await fetch(
-        `/api/businesses/${businessId}/slots/manual`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(data),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
+  // Memoize grouped slots to avoid unnecessary recalculations
+  const groupedSlots = useMemo(() => {
+    return slots.reduce((acc, slot) => {
+      const staffId = slot.staff.id;
+      if (!acc[staffId]) {
+        acc[staffId] = {
+          staff: slot.staff,
+          slots: [],
+        };
       }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [`/api/businesses/${businessId}/slots`],
+      acc[staffId].slots.push({
+        ...slot,
+        displayTime: `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`,
       });
-      toast({
-        title: "Success",
-        description: "Manual slot has been created successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to create manual slot",
-      });
-    },
-  });
-
-  const handleAutoGenerate = () => {
-    generateSlotsMutation.mutate();
-  };
-
-  const handleManualCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedService || !selectedStaff) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select both staff and service",
-      });
-      return;
-    }
-
-    // Get service duration
-    const service = services.find((s) => s.id === parseInt(selectedService));
-    if (!service) return;
-
-    // Create slot for current time + duration
-    const startTime = new Date();
-    const endTime = new Date(startTime.getTime() + service.duration * 60000);
-
-    createManualSlotMutation.mutate({
-      serviceId: parseInt(selectedService),
-      staffId: parseInt(selectedStaff),
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-    });
-  };
-
-  // Group slots by staff member
-  const groupedSlots = slots.reduce((acc, slot) => {
-    const staffId = slot.staff.id;
-    slot.displayTime = `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`; // Add displayTime
-    if (!acc[staffId]) {
-      acc[staffId] = {
-        staff: slot.staff,
-        slots: [],
-      };
-    }
-    acc[staffId].slots.push(slot);
-    return acc;
-  }, {} as Record<number, { staff: Slot['staff']; slots: Slot[] }>);
+      return acc;
+    }, {} as Record<number, { staff: Slot['staff']; slots: Array<Slot & { displayTime: string }> }>);
+  }, [slots]);
 
   if (isLoadingSlots) {
     return (
@@ -378,8 +300,7 @@ export function ServiceSlotsTab({
                                 </span>
                               </TableCell>
                               <TableCell>
-                                {slot.conflictingSlotIds &&
-                                  slot.conflictingSlotIds.length > 0 ? (
+                                {slot.conflictingSlotIds?.length ? (
                                   <span className="text-amber-600 text-sm">
                                     {slot.conflictingSlotIds.length} conflicts
                                   </span>

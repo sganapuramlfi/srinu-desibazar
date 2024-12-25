@@ -6,6 +6,7 @@ import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import StorefrontPage from "./pages/StorefrontPage";
+import BookingsPage from "./pages/BookingsPage";
 
 function App() {
   // Keep hooks at the top level
@@ -51,6 +52,15 @@ function App() {
               }}
             </Route>
             <Route path="/business/:businessId" component={StorefrontPage} />
+            <Route path="/my-bookings">
+              {() => {
+                if (!user) {
+                  window.location.replace("/auth");
+                  return null;
+                }
+                return <BookingsPage />;
+              }}
+            </Route>
             <Route component={NotFound} />
           </Switch>
         </Layout>

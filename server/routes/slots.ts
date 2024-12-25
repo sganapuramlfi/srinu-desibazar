@@ -3,9 +3,8 @@ import { db } from "@db";
 import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff, businesses } from "@db/schema";
 import { eq, and, gte, lte, not, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { addMinutes, parseISO, format, startOfDay, endOfDay, addDays } from "date-fns";
-
-const router = Router();
+import { addMinutes, parseISO, format } from "date-fns";
+import { endOfDay } from 'date-fns';
 
 // Authentication middleware
 const isAuthenticated = (req: any, res: any, next: any) => {
@@ -45,11 +44,6 @@ const isBusinessOwner = async (req: any, res: any, next: any) => {
   }
 };
 
-// Helper function to format date-time
-const formatDateTime = (date: Date) => {
-  return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
-};
-
 // Helper function to create UTC Date from time
 const createUtcDate = (dateStr: string, timeStr: string) => {
   const [hours, minutes] = timeStr.split(':').map(Number);
@@ -57,6 +51,8 @@ const createUtcDate = (dateStr: string, timeStr: string) => {
   baseDate.setUTCHours(hours, minutes, 0, 0);
   return baseDate;
 };
+
+const router = Router();
 
 // Auto-generate slots based on roster and service mappings
 router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBusinessOwner, async (req, res) => {
@@ -81,7 +77,7 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
     const { startDate } = validationResult.data;
     console.log("Processing date:", startDate);
 
-    // Get staff with their services
+    // Get active staff with their services
     console.log("Fetching staff skills and services...");
     const staffServices = await db
       .select({
@@ -101,7 +97,8 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
       .where(
         and(
           eq(salonStaff.businessId, businessId),
-          eq(salonServices.businessId, businessId)
+          eq(salonServices.businessId, businessId),
+          eq(salonServices.isActive, true)
         )
       );
 
@@ -113,7 +110,7 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
       });
     }
 
-    // Get schedules for the target date, handling timezone properly
+    // Get active schedules for the target date
     console.log("Fetching staff schedules...");
     const schedules = await db
       .select({
@@ -125,21 +122,76 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
       })
       .from(staffSchedules)
       .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .innerJoin(salonStaff, eq(staffSchedules.staffId, salonStaff.id))
       .where(
         and(
+          eq(salonStaff.businessId, businessId),
           eq(shiftTemplates.businessId, businessId),
-          sql`DATE_TRUNC('day', ${staffSchedules.date}) = DATE_TRUNC('day', ${startDate}::timestamp)`,
+          sql`DATE(${staffSchedules.date} AT TIME ZONE 'UTC') = DATE(${startDate}::timestamp AT TIME ZONE 'UTC')`,
           not(eq(shiftTemplates.type, 'leave'))
         )
       );
 
-    console.log(`Found ${schedules.length} active schedules for date ${startDate}`);
+    console.log(`Found ${schedules.length} schedules for date ${startDate}`);
 
-    // Generate slots
+    if (schedules.length === 0) {
+      // Check for staff on leave
+      const leaveSchedules = await db
+        .select({
+          staffId: staffSchedules.staffId,
+          staffName: salonStaff.name,
+        })
+        .from(staffSchedules)
+        .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+        .innerJoin(salonStaff, eq(staffSchedules.staffId, salonStaff.id))
+        .where(
+          and(
+            eq(salonStaff.businessId, businessId),
+            eq(shiftTemplates.businessId, businessId),
+            sql`DATE(${staffSchedules.date} AT TIME ZONE 'UTC') = DATE(${startDate}::timestamp AT TIME ZONE 'UTC')`,
+            eq(shiftTemplates.type, 'leave')
+          )
+        );
+
+      console.log("Found", leaveSchedules.length, "staff members on leave");
+
+      if (leaveSchedules.length > 0) {
+        const staffOnLeave = leaveSchedules.map(s => s.staffName).join(', ');
+        return res.status(400).json({
+          error: "Staff members are on leave",
+          details: `The following staff are on leave for ${startDate}: ${staffOnLeave}`
+        });
+      }
+
+      // Debug nearby schedules
+      const nearbySchedules = await db
+        .select({
+          date: staffSchedules.date,
+          staffId: staffSchedules.staffId,
+          templateId: staffSchedules.templateId,
+        })
+        .from(staffSchedules)
+        .where(
+          and(
+            eq(salonStaff.businessId, businessId),
+            sql`${staffSchedules.date} >= (${startDate}::timestamp - interval '3 days') AND 
+                ${staffSchedules.date} <= (${startDate}::timestamp + interval '3 days')`
+          )
+        )
+        .orderBy(staffSchedules.date);
+
+      console.log("Nearby schedules:", nearbySchedules);
+
+      return res.status(400).json({
+        error: "No staff schedules found",
+        details: `No schedules found for ${startDate}`
+      });
+    }
+
+    // Generate slots for each staff member and their services
     const slots = [];
     let totalSlotsGenerated = 0;
 
-    // Generate slots for each staff member and their services
     for (const { staff, service } of staffServices) {
       // Get schedules for this staff member
       const staffSchedules = schedules.filter(s => s.staffId === staff.id);
@@ -186,6 +238,7 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
       });
     }
 
+    // Insert the generated slots
     try {
       console.log("Inserting generated slots into database...");
       const createdSlots = await db.insert(serviceSlots).values(slots).returning();
@@ -342,8 +395,8 @@ router.get("/businesses/:businessId/slots", isAuthenticated, isBusinessOwner, as
       })
       .map(({ slot, service, staff, shift, schedule }) => ({
         id: slot.id,
-        startTime: formatDateTime(new Date(slot.startTime)),
-        endTime: formatDateTime(new Date(slot.endTime)),
+        startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        endTime: format(new Date(slot.endTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
         displayTime: `${format(new Date(slot.startTime), 'HH:mm')} - ${format(new Date(slot.endTime), 'HH:mm')}`,
         status: slot.status,
         service,

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations, type InferModel } from "drizzle-orm";
 import { z } from "zod";
@@ -236,8 +236,9 @@ export const salonBookings = pgTable("salon_bookings", {
   staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
   status: text("status", {
     enum: ["pending", "confirmed", "completed", "cancelled"]
-  }).default("pending"),
+  }).default("pending").notNull(),
   notes: text("notes"),
+  date: timestamp("date").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -376,6 +377,29 @@ export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
   }),
 }));
 
+export const salonBookingRelations = relations(salonBookings, ({ one }) => ({
+  business: one(businesses, {
+    fields: [salonBookings.businessId],
+    references: [businesses.id],
+  }),
+  customer: one(users, {
+    fields: [salonBookings.customerId],
+    references: [users.id],
+  }),
+  service: one(salonServices, {
+    fields: [salonBookings.serviceId],
+    references: [salonServices.id],
+  }),
+  staff: one(salonStaff, {
+    fields: [salonBookings.staffId],
+    references: [salonStaff.id],
+  }),
+  slot: one(serviceSlots, {
+    fields: [salonBookings.slotId],
+    references: [serviceSlots.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -401,4 +425,3 @@ export type InsertSalonBooking = typeof salonBookings.$inferInsert;
 // Add types
 export type StaffSchedule = typeof staffSchedules.$inferSelect;
 export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;
-import { decimal } from "drizzle-orm/pg-core";

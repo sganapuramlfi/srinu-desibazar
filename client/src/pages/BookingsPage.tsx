@@ -58,6 +58,7 @@ interface Service {
 interface Staff {
   id: number;
   name: string;
+  businessId?: string; //Added businessId to Staff interface
 }
 
 interface Booking {
@@ -97,10 +98,10 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     enabled: !!user,
   });
 
-  // Fetch available slots for rescheduling
+  // Update the availableSlots query
   const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery<AvailableSlot[]>({
     queryKey: [
-      `/api/businesses/${businessId}/slots/available`,
+      `/api/businesses/${selectedBooking?.service?.staff?.businessId}/slots/available`,
       {
         date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
         serviceId: selectedBooking?.service?.id,
@@ -144,7 +145,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     },
   });
 
-  // Reschedule booking mutation
+  // Update the rescheduleBookingMutation
   const rescheduleBookingMutation = useMutation({
     mutationFn: async ({
       bookingId,
@@ -155,7 +156,11 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       slotId: number;
       date: string;
     }) => {
-      const response = await fetch(`/api/businesses/${businessId}/bookings/${bookingId}/reschedule`, {
+      if (!selectedBooking?.service?.staff?.businessId) {
+        throw new Error('Missing business ID');
+      }
+
+      const response = await fetch(`/api/businesses/${selectedBooking.service.staff.businessId}/bookings/${bookingId}/reschedule`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,12 +177,11 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/bookings`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
       toast({
         title: "Booking Rescheduled",
         description: "Your appointment has been successfully rescheduled. You will receive an updated confirmation email shortly.",
       });
-      // Reset the dialog state
       setSelectedBooking(null);
       setSelectedDate(undefined);
       setSelectedTimeSlot(undefined);

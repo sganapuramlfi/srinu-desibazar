@@ -185,7 +185,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
     res.json(availableSlots);
   } catch (error) {
     console.error("Error fetching slots:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to fetch slots",
       details: error instanceof Error ? error.message : "Unknown error"
     });
@@ -216,9 +216,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       });
     }
 
-    const { startDate, endDate } = validationResult.data;
+    const { startDate } = validationResult.data;
     const startDateObj = startOfDay(new Date(startDate));
-    const endDateObj = endOfDay(new Date(endDate));
 
     // Get staff with their services and schedules
     console.log("Fetching staff skills and services...");
@@ -244,15 +243,15 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
         )
       );
 
+    console.log(`Found ${staffServices.length} staff-service combinations`);
+
     if (staffServices.length === 0) {
       return res.status(400).json({
         error: "No staff members with assigned services found"
       });
     }
 
-    console.log(`Found ${staffServices.length} staff-service combinations`);
-
-    // Get schedules for the date range
+    // Get schedules for the specific date
     console.log("Fetching staff schedules...");
     const schedules = await db
       .select({
@@ -264,23 +263,23 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       .where(
         and(
           eq(shiftTemplates.businessId, businessId),
-          gte(staffSchedules.date, startDateObj),
-          lte(staffSchedules.date, endDateObj),
+          eq(staffSchedules.date, startDateObj),
           not(eq(shiftTemplates.type, "leave"))
         )
       );
 
+    console.log(`Found ${schedules.length} schedules`);
+
     if (schedules.length === 0) {
       return res.status(400).json({
-        error: "No staff schedules found for the selected date range"
+        error: "No staff schedules found for the selected date",
+        details: `No schedules found for ${startDate}`
       });
     }
 
-    console.log(`Found ${schedules.length} schedules`);
-
     const slots = [];
     let totalSlotsGenerated = 0;
-    const processedStaffDates = new Set(); // Track which staff-dates we've processed
+    const processedStaffDates = new Set();
 
     // Generate slots for each staff member and their services
     for (const { staff, service } of staffServices) {
@@ -290,6 +289,11 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       const staffSchedules = schedules.filter(
         s => s.staff_schedules.staffId === staff.id
       );
+
+      if (staffSchedules.length === 0) {
+        console.log(`No schedules found for ${staff.name} on ${startDate}`);
+        continue;
+      }
 
       for (const schedule of staffSchedules) {
         const scheduleDate = format(schedule.staff_schedules.date, "yyyy-MM-dd");
@@ -347,7 +351,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
 
     if (slots.length === 0) {
       return res.status(400).json({
-        error: "No slots could be generated. Please check staff schedules and service assignments."
+        error: "No slots could be generated",
+        details: "Please check staff schedules and service assignments."
       });
     }
 

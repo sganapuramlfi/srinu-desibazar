@@ -7,27 +7,9 @@ import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } 
 
 const router = Router();
 
-// Validation schemas
-const createManualSlotSchema = z.object({
-  serviceId: z.number(),
-  staffId: z.number(),
-  startTime: z.string(),
-  endTime: z.string(),
-  status: z.enum(["available", "booked", "blocked"]).default("available"),
-});
-
-const generateAutoSlotsSchema = z.object({
-  startDate: z.string(),
-  endDate: z.string(),
-});
-
 // Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const businessId = parseInt(req.params.businessId);
     const { startDate, endDate, serviceId, staffId } = req.query;
 
@@ -39,6 +21,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       staffId
     });
 
+    // Get all slots
     const slots = await db
       .select({
         slot: serviceSlots,
@@ -46,6 +29,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
           id: salonServices.id,
           name: salonServices.name,
           duration: salonServices.duration,
+          price: salonServices.price,
         },
         staff: {
           id: salonStaff.id,
@@ -66,28 +50,50 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
         )
       );
 
-    console.log(`Found ${slots.length} slots`);
+    // Get existing bookings for these slots to check real-time availability
+    const existingBookings = await db
+      .select({
+        slotId: salonBookings.slotId,
+        status: salonBookings.status,
+      })
+      .from(salonBookings)
+      .where(
+        and(
+          eq(salonBookings.businessId, businessId),
+          not(eq(salonBookings.status, "cancelled"))
+        )
+      );
 
-    // Transform the data for frontend consumption
-    const formattedSlots = slots.map(({ slot, service, staff }) => ({
-      id: slot.id,
-      startTime: slot.startTime.toISOString(),
-      endTime: slot.endTime.toISOString(),
-      status: slot.status,
-      service: {
-        id: service.id,
-        name: service.name,
-        duration: service.duration,
-      },
-      staff: {
-        id: staff.id,
-        name: staff.name,
-      },
-      conflictingSlotIds: slot.conflictingSlotIds,
-    }));
+    // Create a map of booked slots
+    const bookedSlots = new Set(
+      existingBookings
+        .filter(booking => booking.status === "confirmed" || booking.status === "pending")
+        .map(booking => booking.slotId)
+    );
 
-    console.log("Sending formatted slots to frontend:", formattedSlots.slice(0, 2));
-    res.json(formattedSlots);
+    // Filter out booked slots and format the response
+    const availableSlots = slots
+      .filter(({ slot }) => !bookedSlots.has(slot.id))
+      .map(({ slot, service, staff }) => ({
+        id: slot.id,
+        startTime: slot.startTime.toISOString(),
+        endTime: slot.endTime.toISOString(),
+        status: slot.status,
+        service: {
+          id: service.id,
+          name: service.name,
+          duration: service.duration,
+          price: service.price,
+        },
+        staff: {
+          id: staff.id,
+          name: staff.name,
+        },
+        conflictingSlotIds: slot.conflictingSlotIds,
+      }));
+
+    console.log(`Found ${availableSlots.length} available slots out of ${slots.length} total slots`);
+    res.json(availableSlots);
   } catch (error) {
     console.error("Error fetching slots:", error);
     res.status(500).json({ error: "Failed to fetch slots" });

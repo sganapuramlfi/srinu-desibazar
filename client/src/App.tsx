@@ -9,7 +9,6 @@ import StorefrontPage from "./pages/StorefrontPage";
 import BookingsPage from "./pages/BookingsPage";
 
 function App() {
-  // Keep hooks at the top level
   const { user, isLoading } = useUser();
 
   if (isLoading) {
@@ -25,9 +24,15 @@ function App() {
       {/* Auth route outside Layout */}
       <Route path="/auth">
         {() => {
+          // If user is already logged in, redirect appropriately
           if (user) {
-            if (user.role === "business" && user.business) {
-              window.location.replace(`/dashboard/${user.business.id}`);
+            if (user.role === "business") {
+              // Check if user has an associated business
+              if (user.business?.id) {
+                window.location.replace(`/dashboard/${user.business.id}`);
+              } else {
+                window.location.replace("/");
+              }
               return null;
             }
             window.location.replace("/");
@@ -42,16 +47,34 @@ function App() {
         <Layout>
           <Switch>
             <Route path="/" component={LandingPage} />
+
+            {/* Business Dashboard Route */}
             <Route path="/dashboard/:businessId">
               {(params) => {
-                if (!user || user.role !== "business") {
+                // Check for authentication and business role
+                if (!user) {
                   window.location.replace("/auth");
                   return null;
                 }
-                return <BusinessDashboard businessId={parseInt(params.businessId)} />;
+
+                if (user.role !== "business") {
+                  window.location.replace("/");
+                  return null;
+                }
+
+                // Additional check to ensure the user owns this business
+                const businessId = parseInt(params.businessId);
+                if (user.business?.id !== businessId) {
+                  window.location.replace("/");
+                  return null;
+                }
+
+                return <BusinessDashboard businessId={businessId} />;
               }}
             </Route>
+
             <Route path="/business/:businessId" component={StorefrontPage} />
+
             <Route path="/my-bookings">
               {() => {
                 if (!user) {
@@ -61,6 +84,7 @@ function App() {
                 return <BookingsPage />;
               }}
             </Route>
+
             <Route component={NotFound} />
           </Switch>
         </Layout>

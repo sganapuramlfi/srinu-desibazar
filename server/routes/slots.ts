@@ -20,21 +20,41 @@ const createDateFromTime = (date: string, time: string) => {
   return result;
 };
 
-// Get slots for a business with enhanced filtering
+// Get slots for a business with enhanced filtering and required date parameter
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     const { startDate, endDate, serviceId, staffId } = req.query;
 
+    // Validate required date parameters
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        error: "Date range is required",
+        details: "Both startDate and endDate parameters are required"
+      });
+    }
+
+    const startDateObj = startOfDay(new Date(startDate as string));
+    const endDateObj = endOfDay(new Date(endDate as string));
+
+    // Validate date range (max 7 days to prevent performance issues)
+    const daysDiff = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 7) {
+      return res.status(400).json({
+        error: "Invalid date range",
+        details: "Date range cannot exceed 7 days"
+      });
+    }
+
     console.log("Fetching slots with params:", {
       businessId,
-      startDate,
-      endDate,
+      startDate: format(startDateObj, 'yyyy-MM-dd'),
+      endDate: format(endDateObj, 'yyyy-MM-dd'),
       serviceId,
       staffId
     });
 
-    // Get all slots with shift information
+    // Get slots with shift information, using date range filtering
     const slots = await db
       .select({
         slot: serviceSlots,
@@ -65,8 +85,8 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       .where(
         and(
           eq(serviceSlots.businessId, businessId),
-          startDate ? gte(serviceSlots.startTime, startOfDay(new Date(startDate as string))) : undefined,
-          endDate ? lte(serviceSlots.endTime, endOfDay(new Date(endDate as string))) : undefined,
+          gte(serviceSlots.startTime, startDateObj),
+          lte(serviceSlots.endTime, endDateObj),
           serviceId ? eq(serviceSlots.serviceId, parseInt(serviceId as string)) : undefined,
           staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined,
           eq(serviceSlots.status, "available")

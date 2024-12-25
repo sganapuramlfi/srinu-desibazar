@@ -7,12 +7,6 @@ import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } 
 
 const router = Router();
 
-// Validation schemas
-const generateAutoSlotsSchema = z.object({
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-});
-
 // Helper function to format date-time in 24-hour format
 const formatDateTime = (date: Date) => {
   return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -40,7 +34,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       staffId
     });
 
-    // Get all slots
+    // Get all slots with shift information
     const slots = await db
       .select({
         slot: serviceSlots,
@@ -54,10 +48,20 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
           id: salonStaff.id,
           name: salonStaff.name,
         },
+        shift: {
+          startTime: shiftTemplates.startTime,
+          endTime: shiftTemplates.endTime,
+          type: shiftTemplates.type,
+        },
+        schedule: {
+          date: staffSchedules.date,
+        }
       })
       .from(serviceSlots)
       .innerJoin(salonServices, eq(serviceSlots.serviceId, salonServices.id))
       .innerJoin(salonStaff, eq(serviceSlots.staffId, salonStaff.id))
+      .innerJoin(staffSchedules, eq(serviceSlots.staffId, staffSchedules.staffId))
+      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
       .where(
         and(
           eq(serviceSlots.businessId, businessId),
@@ -93,7 +97,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
     // Filter out booked slots and format the response with 24-hour times
     const availableSlots = slots
       .filter(({ slot }) => !bookedSlots.has(slot.id))
-      .map(({ slot, service, staff }) => {
+      .map(({ slot, service, staff, shift, schedule }) => {
         const startTime = new Date(slot.startTime);
         const endTime = new Date(slot.endTime);
 
@@ -105,6 +109,11 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
           status: slot.status,
           service,
           staff,
+          shift: {
+            ...shift,
+            displayTime: `${shift.startTime} - ${shift.endTime}`,
+          },
+          generatedFor: format(schedule.date, 'yyyy-MM-dd'),
         };
       });
 
@@ -119,7 +128,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
   }
 });
 
-// Generate automatic slots based on roster and service mappings
+// Auto-generate slots based on roster and service mappings
 router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
@@ -130,6 +139,11 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     console.log("Starting slot generation for business:", businessId);
 
     // Validate request body
+    const generateAutoSlotsSchema = z.object({
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    });
+
     const validationResult = generateAutoSlotsSchema.safeParse(req.body);
     if (!validationResult.success) {
       return res.status(400).json({
@@ -248,7 +262,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
                 staffId: staff.id,
                 startTime: currentTime,
                 endTime: slotEnd,
-                status: "available",
+                status: "available" as const,
                 isManual: false,
                 conflictingSlotIds: [],
               });

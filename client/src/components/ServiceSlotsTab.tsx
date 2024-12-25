@@ -58,6 +58,13 @@ interface Slot {
     id: number;
     name: string;
   };
+  shift: {
+    startTime: string;
+    endTime: string;
+    type: string;
+    displayTime: string;
+  };
+  generatedFor: string;
   conflictingSlotIds?: number[];
 }
 
@@ -67,8 +74,8 @@ export function ServiceSlotsTab({
   services,
 }: ServiceSlotsTabProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedStaff, setSelectedStaff] = useState<string>("all"); 
-  const [selectedService, setSelectedService] = useState<string>("all"); 
+  const [selectedStaff, setSelectedStaff] = useState<string>("all");
+  const [selectedService, setSelectedService] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -278,6 +285,8 @@ export function ServiceSlotsTab({
                             <TableHead>Time</TableHead>
                             <TableHead>Service</TableHead>
                             <TableHead>Duration</TableHead>
+                            <TableHead>Shift</TableHead>
+                            <TableHead>Generated For</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Conflicts</TableHead>
                           </TableRow>
@@ -288,6 +297,8 @@ export function ServiceSlotsTab({
                               <TableCell>{slot.displayTime}</TableCell>
                               <TableCell>{slot.service.name}</TableCell>
                               <TableCell>{slot.service.duration} min</TableCell>
+                              <TableCell>{slot.shift.displayTime}</TableCell>
+                              <TableCell>{slot.generatedFor}</TableCell>
                               <TableCell>
                                 <span
                                   className={`text-xs px-2 py-1 rounded-full ${

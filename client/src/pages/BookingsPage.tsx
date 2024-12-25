@@ -9,6 +9,7 @@ interface ServiceSlot {
   id: number;
   startTime: string;
   endTime: string;
+  displayTime: string; // Added displayTime from API
 }
 
 interface Service {
@@ -128,7 +129,8 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4" />
                   <span>
-                    {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                    {/* Use the displayTime from API which is already in 24-hour format */}
+                    {slot.displayTime || `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`}
                   </span>
                 </div>
                 {user?.role === 'business' && (

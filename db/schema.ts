@@ -238,8 +238,9 @@ export const salonBookings = pgTable("salon_bookings", {
     enum: ["pending", "confirmed", "completed", "cancelled"]
   }).default("pending").notNull(),
   notes: text("notes"),
-  date: timestamp("date").notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
 });
 
 // Relations

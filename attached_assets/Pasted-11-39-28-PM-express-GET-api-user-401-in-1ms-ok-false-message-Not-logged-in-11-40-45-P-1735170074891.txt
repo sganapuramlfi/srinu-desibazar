@@ -1,0 +1,103 @@
+11:39:28 PM [express] GET /api/user 401 in 1ms :: {"ok":false,"message":"Not logged in"}
+11:40:45 PM [express] POST /api/login 200 in 1102ms :: {"ok":true,"message":"Login successful","user"…
+11:40:45 PM [express] GET /api/businesses 304 in 212ms :: [{"id":1,"userId":3,"name":"Glamour Salon &…
+Error fetching bookings: error: column salon_bookings.date does not exist
+    at file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/DesiBazaarHub/node_modules/src/neon-serverless/session.ts:102:18)
+    at async <anonymous> (/home/runner/DesiBazaarHub/server/routes/bookings.ts:187:22) {
+  length: 117,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '31',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+11:40:47 PM [express] GET /api/bookings 500 in 224ms :: {"message":"Failed to fetch bookings"}
+Error fetching bookings: error: column salon_bookings.date does not exist
+    at file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/DesiBazaarHub/node_modules/src/neon-serverless/session.ts:102:18)
+    at async <anonymous> (/home/runner/DesiBazaarHub/server/routes/bookings.ts:187:22) {
+  length: 117,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '31',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+11:40:48 PM [express] GET /api/bookings 500 in 200ms :: {"message":"Failed to fetch bookings"}
+11:40:55 PM [express] GET /api/messages 200 in 360ms
+11:40:55 PM [express] GET /api/favorites 200 in 363ms
+Error fetching bookings: error: column salon_bookings.date does not exist
+    at file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/DesiBazaarHub/node_modules/src/neon-serverless/session.ts:102:18)
+    at async <anonymous> (/home/runner/DesiBazaarHub/server/routes/bookings.ts:187:22) {
+  length: 117,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '31',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+11:40:55 PM [express] GET /api/bookings 500 in 437ms :: {"message":"Failed to fetch bookings"}
+11:40:56 PM [express] GET /api/messages 200 in 134ms
+11:40:56 PM [express] GET /api/favorites 200 in 132ms
+Error fetching bookings: error: column salon_bookings.date does not exist
+    at file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/DesiBazaarHub/node_modules/src/neon-serverless/session.ts:102:18)
+    at async <anonymous> (/home/runner/DesiBazaarHub/server/routes/bookings.ts:187:22) {
+  length: 117,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '31',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+11:40:56 PM [express] GET /api/bookings 500 in 198ms :: {"message":"Failed to fetch bookings"}

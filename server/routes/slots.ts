@@ -88,22 +88,28 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
     // Filter out booked slots and format the response
     const availableSlots = slots
       .filter(({ slot }) => !bookedSlots.has(slot.id))
-      .map(({ slot, service, staff }) => ({
-        id: slot.id,
-        startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-        endTime: format(new Date(slot.endTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-        status: slot.status,
-        service: {
-          id: service.id,
-          name: service.name,
-          duration: service.duration,
-          price: service.price,
-        },
-        staff: {
-          id: staff.id,
-          name: staff.name,
-        },
-      }));
+      .map(({ slot, service, staff }) => {
+        // Ensure dates are properly formatted
+        const startTime = new Date(slot.startTime);
+        const endTime = new Date(slot.endTime);
+
+        return {
+          id: slot.id,
+          startTime: format(startTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+          endTime: format(endTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+          status: slot.status,
+          service: {
+            id: service.id,
+            name: service.name,
+            duration: service.duration,
+            price: service.price,
+          },
+          staff: {
+            id: staff.id,
+            name: staff.name,
+          },
+        };
+      });
 
     console.log(`Found ${availableSlots.length} available slots out of ${slots.length} total slots`);
     res.json(availableSlots);

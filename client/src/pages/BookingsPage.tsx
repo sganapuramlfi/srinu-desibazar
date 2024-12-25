@@ -5,31 +5,45 @@ import { Loader2, CalendarIcon, Clock, User } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useUser } from "@/hooks/use-user";
 
+interface ServiceSlot {
+  id: number;
+  startTime: string;
+  endTime: string;
+}
+
+interface Service {
+  id: number;
+  name: string;
+  duration: number;
+  price: number;
+}
+
+interface Staff {
+  id: number;
+  name: string;
+}
+
 interface Booking {
-  booking: {
-    id: number;
-    status: string;
-    date: string;
-  };
-  service: {
-    name: string;
-    duration: number;
-    price: number;
-  };
-  slot: {
-    startTime: string;
-    endTime: string;
-  };
-  staff: {
-    name: string;
-  };
+  id: number;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  notes?: string;
+  slot: ServiceSlot;
+  service: Service;
+  staff: Staff;
+}
+
+interface BookingResponse {
+  booking: Booking;
+  service: Service;
+  slot: ServiceSlot;
+  staff: Staff;
 }
 
 export default function BookingsPage({ businessId }: { businessId?: string }) {
   const { user } = useUser();
 
   // Fetch bookings based on user role
-  const { data: bookings, isLoading } = useQuery<Booking[]>({
+  const { data: bookings, isLoading } = useQuery<BookingResponse[]>({
     queryKey: [businessId ? `/api/businesses/${businessId}/bookings` : `/api/bookings`],
     enabled: !!user,
   });
@@ -50,6 +64,8 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
         return 'bg-yellow-500 text-white';
       case 'cancelled':
         return 'bg-red-500 text-white';
+      case 'completed':
+        return 'bg-blue-500 text-white';
       default:
         return 'bg-gray-500 text-white';
     }

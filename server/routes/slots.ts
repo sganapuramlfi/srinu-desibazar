@@ -4,10 +4,8 @@ import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplate
 import { eq, and, gte, lte, not, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { addMinutes, parseISO, format, startOfDay, endOfDay, addDays } from "date-fns";
-import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
 
 const router = Router();
-const TIMEZONE = 'UTC'; // Use UTC for consistency
 
 // Helper function to format date-time in 24-hour format with timezone
 const formatDateTime = (date: Date) => {
@@ -18,12 +16,21 @@ const formatDateTime = (date: Date) => {
 const createDateFromTime = (date: string, time: string) => {
   const [hours, minutes] = time.split(':').map(Number);
   const baseDate = new Date(date);
-  baseDate.setHours(hours, minutes, 0, 0);
+  baseDate.setUTCHours(hours, minutes, 0, 0);
   return baseDate;
 };
 
+// Authentication middleware
+const isAuthenticated = (req: any, res: any, next: any) => {
+  if (!req.isAuthenticated()) {
+    console.error("Authentication failed: User not authenticated");
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+};
+
 // Get slots for a business with enhanced filtering
-router.get("/businesses/:businessId/slots", async (req, res) => {
+router.get("/businesses/:businessId/slots", isAuthenticated, async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     let { startDate, endDate, serviceId, staffId } = req.query;
@@ -46,7 +53,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       staffId
     });
 
-    // First get all valid schedules for the date range
+    // Get schedules for the date range
     const schedules = await db
       .select({
         staffId: staffSchedules.staffId,
@@ -115,7 +122,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
         )
       );
 
-    // Get existing bookings for these slots
+    // Get existing bookings
     const existingBookings = await db
       .select({
         slotId: salonBookings.slotId,
@@ -136,18 +143,15 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
         .map(booking => booking.slotId)
     );
 
-    // Filter out booked slots and slots outside of valid schedules
+    // Filter and format available slots
     const availableSlots = slots
       .filter(({ slot, staff, schedule }) => {
-        // Check if slot is not booked
         if (bookedSlots.has(slot.id)) return false;
 
-        // Check if slot is within a valid schedule
         const dateKey = format(schedule.date, 'yyyy-MM-dd');
         const staffSchedule = validSchedules.get(dateKey)?.get(staff.id);
         if (!staffSchedule) return false;
 
-        // Check if slot time is within shift hours
         const slotStart = new Date(slot.startTime);
         const shiftStart = createDateFromTime(dateKey, staffSchedule.shiftStartTime);
         const shiftEnd = createDateFromTime(dateKey, staffSchedule.shiftEndTime);
@@ -186,14 +190,10 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
 });
 
 // Auto-generate slots based on roster and service mappings
-router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
+router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const businessId = parseInt(req.params.businessId);
-    console.log("Starting slot generation for business:", businessId);
+    console.log("\nStarting slot generation for business:", businessId);
 
     // Validate request body
     const generateAutoSlotsSchema = z.object({
@@ -213,7 +213,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     const startDateObj = startOfDay(new Date(startDate));
     console.log("Processing date:", format(startDateObj, 'yyyy-MM-dd'));
 
-    // Get staff with their services and schedules
+    // Get staff with their services
     console.log("Fetching staff skills and services...");
     const staffServices = await db
       .select({
@@ -249,30 +249,50 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     console.log("Fetching staff schedules...");
     const schedules = await db
       .select({
-        staff_schedules: staffSchedules,
-        shift_templates: shiftTemplates,
+        staffSchedule: staffSchedules,
+        shiftTemplate: shiftTemplates,
       })
       .from(staffSchedules)
-      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .innerJoin(
+        shiftTemplates,
+        and(
+          eq(staffSchedules.templateId, shiftTemplates.id),
+          eq(shiftTemplates.businessId, businessId),
+          not(eq(shiftTemplates.type, "leave"))
+        )
+      )
       .where(
         and(
-          eq(shiftTemplates.businessId, businessId),
-          eq(staffSchedules.date, startDateObj),
-          not(eq(shiftTemplates.type, "leave"))
+          eq(staffSchedules.date, startDateObj)
         )
       );
 
-    console.log(`Found ${schedules.length} schedules for date ${format(startDateObj, 'yyyy-MM-dd')}`);
+    console.log("Schedules found:", schedules.map(s => ({
+      date: format(s.staffSchedule.date, 'yyyy-MM-dd'),
+      staffId: s.staffSchedule.staffId,
+      templateId: s.staffSchedule.templateId,
+      shiftType: s.shiftTemplate.type,
+      shiftTime: `${s.shiftTemplate.startTime}-${s.shiftTemplate.endTime}`
+    })));
 
     if (schedules.length === 0) {
-      // Additional debug query to check schedules around this date
+      // Debug: Check nearby schedules
       const nearbySchedules = await db
         .select({
           date: staffSchedules.date,
           staffId: staffSchedules.staffId,
           templateId: staffSchedules.templateId,
+          shiftType: shiftTemplates.type,
         })
         .from(staffSchedules)
+        .innerJoin(
+          shiftTemplates,
+          and(
+            eq(staffSchedules.templateId, shiftTemplates.id),
+            eq(shiftTemplates.businessId, businessId),
+            not(eq(shiftTemplates.type, "leave"))
+          )
+        )
         .where(
           and(
             gte(staffSchedules.date, startOfDay(new Date(startDate))),
@@ -280,7 +300,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
           )
         );
 
-      console.log("Nearby schedules:", nearbySchedules);
+      console.log("Debug - Nearby schedules:", nearbySchedules);
 
       return res.status(400).json({
         error: "No staff schedules found for the selected date",
@@ -297,9 +317,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       console.log(`Processing slots for ${staff.name} - ${service.name}`);
 
       // Get schedules for this staff member
-      const staffSchedules = schedules.filter(
-        s => s.staff_schedules.staffId === staff.id && s.shift_templates.type !== "leave"
-      );
+      const staffSchedules = schedules.filter(s => s.staffSchedule.staffId === staff.id);
 
       if (staffSchedules.length === 0) {
         console.log(`No schedules found for ${staff.name} on ${startDate}`);
@@ -307,25 +325,23 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       }
 
       for (const schedule of staffSchedules) {
-        const scheduleDate = format(schedule.staff_schedules.date, "yyyy-MM-dd");
+        const scheduleDate = format(schedule.staffSchedule.date, "yyyy-MM-dd");
         const staffDateKey = `${staff.id}-${scheduleDate}`;
 
-        // Skip if we've already processed this staff member for this date
         if (processedStaffDates.has(staffDateKey)) {
           console.log(`Already processed slots for ${staff.name} on ${scheduleDate}`);
           continue;
         }
 
-        console.log(`Generating slots for ${scheduleDate} from ${schedule.shift_templates.startTime} to ${schedule.shift_templates.endTime}`);
+        console.log(`Generating slots for ${scheduleDate} from ${schedule.shiftTemplate.startTime} to ${schedule.shiftTemplate.endTime}`);
 
-        const shiftStart = createDateFromTime(scheduleDate, schedule.shift_templates.startTime);
-        const shiftEnd = createDateFromTime(scheduleDate, schedule.shift_templates.endTime);
+        const shiftStart = createDateFromTime(scheduleDate, schedule.shiftTemplate.startTime);
+        const shiftEnd = createDateFromTime(scheduleDate, schedule.shiftTemplate.endTime);
 
         let currentTime = shiftStart;
         while (currentTime < shiftEnd) {
           const slotEnd = addMinutes(currentTime, service.duration);
 
-          // Only create slot if it fits within shift
           if (slotEnd <= shiftEnd) {
             slots.push({
               businessId,
@@ -340,11 +356,9 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
             totalSlotsGenerated++;
           }
 
-          // Move to next potential slot start time (15-minute increments)
           currentTime = addMinutes(currentTime, 15);
         }
 
-        // Mark this staff-date combination as processed
         processedStaffDates.add(staffDateKey);
       }
     }
@@ -359,7 +373,6 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     try {
-      // Insert all generated slots
       console.log("Inserting generated slots into database...");
       const createdSlots = await db.insert(serviceSlots).values(slots).returning();
       console.log(`Successfully inserted ${createdSlots.length} slots`);

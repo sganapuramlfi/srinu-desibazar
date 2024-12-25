@@ -1,3 +1,7 @@
+function createUtcDate(date: string, time: string): Date {
+  return new Date(`${date}T${time}:00Z`);
+}
+
 import { Router } from "express";
 import { db } from "@db";
 import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff, businesses } from "@db/schema";

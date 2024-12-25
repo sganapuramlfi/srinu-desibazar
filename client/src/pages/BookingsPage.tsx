@@ -55,18 +55,23 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     }
   };
 
+  // Helper function to safely format dates
   const formatDate = (dateString: string) => {
     try {
-      return format(parseISO(dateString), 'MMMM d, yyyy');
+      if (!dateString) return 'Invalid date';
+      return format(new Date(dateString), 'MMMM d, yyyy');
     } catch (error) {
       console.error('Error formatting date:', dateString, error);
       return 'Invalid date';
     }
   };
 
+  // Helper function to safely format times
   const formatTime = (timeString: string) => {
     try {
-      return format(parseISO(timeString), 'HH:mm');
+      if (!timeString) return 'Invalid time';
+      const date = parseISO(timeString);
+      return format(date, 'HH:mm');
     } catch (error) {
       console.error('Error formatting time:', timeString, error);
       return 'Invalid time';
@@ -101,9 +106,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
               <div className="grid gap-2">
                 <div className="flex items-center gap-2 text-sm">
                   <CalendarIcon className="h-4 w-4" />
-                  <span>
-                    {formatDate(booking.date)}
-                  </span>
+                  <span>{formatDate(booking.date)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4" />

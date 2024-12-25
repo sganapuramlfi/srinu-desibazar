@@ -59,7 +59,8 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
   const formatDate = (dateString: string) => {
     try {
       if (!dateString) return 'Invalid date';
-      return format(new Date(dateString), 'MMMM d, yyyy');
+      const date = parseISO(dateString);
+      return format(date, 'MMMM d, yyyy');
     } catch (error) {
       console.error('Error formatting date:', dateString, error);
       return 'Invalid date';
@@ -106,7 +107,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
               <div className="grid gap-2">
                 <div className="flex items-center gap-2 text-sm">
                   <CalendarIcon className="h-4 w-4" />
-                  <span>{formatDate(booking.date)}</span>
+                  <span>{formatDate(slot.startTime)}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4" />

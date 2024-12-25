@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CalendarIcon, Clock, User } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { useUser } from "@/hooks/use-user";
 
 interface Booking {
@@ -55,6 +55,24 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), 'MMMM d, yyyy');
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid date';
+    }
+  };
+
+  const formatTime = (timeString: string) => {
+    try {
+      return format(parseISO(timeString), 'HH:mm');
+    } catch (error) {
+      console.error('Error formatting time:', timeString, error);
+      return 'Invalid time';
+    }
+  };
+
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
@@ -84,13 +102,13 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                 <div className="flex items-center gap-2 text-sm">
                   <CalendarIcon className="h-4 w-4" />
                   <span>
-                    {format(new Date(booking.date), 'MMMM d, yyyy')}
+                    {formatDate(booking.date)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-4 w-4" />
                   <span>
-                    {format(new Date(slot.startTime), 'HH:mm')} - {format(new Date(slot.endTime), 'HH:mm')}
+                    {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                   </span>
                 </div>
                 {user?.role === 'business' && (

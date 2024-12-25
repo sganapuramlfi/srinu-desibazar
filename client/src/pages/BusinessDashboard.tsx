@@ -12,13 +12,14 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings } from "lucide-react";
+import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings, Bookmark } from "lucide-react";
 import { StaffTab } from "../components/StaffTab";
 import { ServiceStaffTab } from "../components/ServiceStaffTab";
 import { RosterTabUpdated } from "../components/RosterTabUpdated";
 import { ServicesTab } from "../components/ServicesTab";
 import { ServiceSlotsTab } from "../components/ServiceSlotsTab";
 import { BusinessProfileTab } from "../components/BusinessProfileTab";
+import BookingsPage from "../pages/BookingsPage";
 import type { SalonStaff, ShiftTemplate, SalonService } from "../types/salon";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,7 +47,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const { user } = useUser();
   const { toast } = useToast();
 
-  // Fetch business profile data
   const { data: business, error: businessError, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
@@ -61,7 +61,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     }
   });
 
-  // Fetch staff data
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
     enabled: !!businessId && !!user,
@@ -76,7 +75,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     }
   });
 
-  // Fetch services data
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
     enabled: !!businessId && !!user,
@@ -91,14 +89,12 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     }
   });
 
-  // Fetch templates data
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
     enabled: !!businessId && !!user,
     retry: 1
   });
 
-  // Authentication check effect
   useEffect(() => {
     if (!user) {
       navigate("/auth");
@@ -115,7 +111,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     }
   }, [user, navigate, toast]);
 
-  // Loading state
   if (isLoadingBusiness) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -124,7 +119,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     );
   }
 
-  // Error state
   if (businessError) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
@@ -143,7 +137,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     );
   }
 
-  // Not found state
   if (!business) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
@@ -166,13 +159,13 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">{business.name}</h1>
-          <p className="text-muted-foreground">{business.description || 'Manage your business operations'}</p>
+          <h1 className="text-3xl font-bold">{business?.name}</h1>
+          <p className="text-muted-foreground">{business?.description || 'Manage your business operations'}</p>
         </div>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="profile">
             <Settings className="w-4 h-4 mr-2" />
             Profile
@@ -197,6 +190,10 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             <Calendar className="w-4 h-4 mr-2" />
             Service Slots
           </TabsTrigger>
+          <TabsTrigger value="bookings">
+            <Bookmark className="w-4 h-4 mr-2" />
+            Bookings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -220,7 +217,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         <TabsContent value="service-staff">
           <ServiceStaffTab
             businessId={businessId}
-            industryType={business.industryType}
+            industryType={business?.industryType}
           />
         </TabsContent>
         <TabsContent value="slots">
@@ -229,6 +226,9 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
             staff={staff}
             services={services}
           />
+        </TabsContent>
+        <TabsContent value="bookings">
+          <BookingsPage businessId={businessId.toString()} />
         </TabsContent>
       </Tabs>
     </div>

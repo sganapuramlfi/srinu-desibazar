@@ -28,7 +28,7 @@ const crypto = {
   },
 };
 
-// Define types for user data
+// Define types for business data
 type BusinessData = {
   id: number;
   name: string;
@@ -57,44 +57,59 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
   try {
     console.log(`[Debug] Fetching user data for ID: ${userId}`);
 
-    // Get user and business data in a single query
-    const [result] = await db
+    // Get user data without password
+    const [user] = await db
       .select({
         id: users.id,
         username: users.username,
         email: users.email,
         role: users.role,
-        createdAt: users.createdAt,
-        business: businesses
+        createdAt: users.createdAt
       })
       .from(users)
-      .leftJoin(businesses, eq(users.id, businesses.userId))
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (!result) {
+    if (!user) {
       console.log(`[Debug] No user found for ID: ${userId}`);
       return null;
     }
 
-    const { business, ...user } = result;
-
-    // Create base sanitized user
+    // Create sanitized user object without password
     const sanitizedUser: SanitizedUser = {
       ...user
     };
 
-    // Add business data if user is a business owner and has business data
-    if (user.role === "business" && business) {
-      console.log(`[Debug] Found business data for user ${userId}:`, business);
-      sanitizedUser.business = {
-        id: business.id,
-        name: business.name,
-        industryType: business.industryType,
-        status: business.status,
-        onboardingCompleted: business.onboardingCompleted ?? false,
-        description: business.description,
-      };
+    // If user is a business owner, fetch business data
+    if (user.role === "business") {
+      console.log(`[Debug] User is a business owner, fetching business data`);
+
+      const [business] = await db
+        .select({
+          id: businesses.id,
+          name: businesses.name,
+          industryType: businesses.industryType,
+          status: businesses.status,
+          onboardingCompleted: businesses.onboardingCompleted,
+          description: businesses.description
+        })
+        .from(businesses)
+        .where(eq(businesses.userId, userId))
+        .limit(1);
+
+      if (business) {
+        console.log(`[Debug] Found business data:`, business);
+        sanitizedUser.business = {
+          id: business.id,
+          name: business.name,
+          industryType: business.industryType,
+          status: business.status,
+          onboardingCompleted: business.onboardingCompleted || false,
+          description: business.description
+        };
+      } else {
+        console.log(`[Debug] No business found for user ${userId}`);
+      }
     }
 
     console.log(`[Debug] Returning sanitized user:`, sanitizedUser);
@@ -137,18 +152,18 @@ export function setupAuth(app: Express) {
         console.log(`[Debug] Attempting login for user: ${username}`);
 
         // Get user with password for verification
-        const [user] = await db
+        const [userWithPassword] = await db
           .select()
           .from(users)
           .where(eq(users.username, username))
           .limit(1);
 
-        if (!user) {
+        if (!userWithPassword) {
           console.log(`[Debug] User not found: ${username}`);
           return done(null, false, { message: "Incorrect username." });
         }
 
-        const isMatch = await crypto.compare(password, user.password);
+        const isMatch = await crypto.compare(password, userWithPassword.password);
         console.log(`[Debug] Password verification result:`, isMatch);
 
         if (!isMatch) {
@@ -156,8 +171,8 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect password." });
         }
 
-        // Get sanitized user data
-        const sanitizedUser = await getUserWithBusiness(user.id);
+        // Get sanitized user data with business details
+        const sanitizedUser = await getUserWithBusiness(userWithPassword.id);
         if (!sanitizedUser) {
           console.log(`[Debug] Failed to get sanitized user data`);
           return done(null, false, { message: "Failed to load user data." });
@@ -198,7 +213,7 @@ export function setupAuth(app: Express) {
   app.post("/api/login", (req, res, next) => {
     console.log('[Debug] Login request body:', req.body);
 
-    passport.authenticate("local", (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
+    passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
       if (err) {
         console.error('[Debug] Login error:', err);
         return next(err);
@@ -219,7 +234,6 @@ export function setupAuth(app: Express) {
         }
 
         console.log(`[Debug] Login successful:`, user);
-
         return res.json({
           ok: true,
           message: "Login successful",
@@ -256,7 +270,7 @@ export function setupAuth(app: Express) {
     console.log('[Debug] User session check:', {
       isAuthenticated: req.isAuthenticated(),
       userId: req.user?.id,
-      userRole: req.user?.role,
+      role: req.user?.role,
       businessId: req.user?.business?.id
     });
 
@@ -267,15 +281,8 @@ export function setupAuth(app: Express) {
       });
     }
 
-    // Return sanitized user data
+    // Return sanitized user data without password
     const { id, username, email, role, createdAt, business } = req.user;
-    return res.json({
-      id,
-      username,
-      email,
-      role,
-      createdAt,
-      business
-    });
+    res.json({ id, username, email, role, createdAt, business });
   });
 }

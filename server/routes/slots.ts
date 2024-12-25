@@ -26,6 +26,14 @@ const formatDateTime = (date: Date) => {
   return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
 };
 
+// Helper function to create a proper Date object
+const createDateFromTime = (date: string, time: string) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  const result = new Date(date);
+  result.setHours(hours, minutes, 0, 0);
+  return result;
+};
+
 // Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
@@ -228,8 +236,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
         const scheduleDate = format(schedule.staff_schedules.date, "yyyy-MM-dd");
 
         // Convert template times to full datetime
-        const shiftStart = parseISO(`${scheduleDate}T${schedule.shift_templates.startTime}`);
-        const shiftEnd = parseISO(`${scheduleDate}T${schedule.shift_templates.endTime}`);
+        const shiftStart = createDateFromTime(scheduleDate, schedule.shift_templates.startTime);
+        const shiftEnd = createDateFromTime(scheduleDate, schedule.shift_templates.endTime);
 
         console.log(`Generating slots for ${scheduleDate} from ${schedule.shift_templates.startTime} to ${schedule.shift_templates.endTime}`);
 
@@ -237,8 +245,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
         while (currentTime < shiftEnd) {
           // Check for breaks
           const isBreakTime = schedule.shift_templates.breaks?.some(breakTime => {
-            const breakStart = parseISO(`${scheduleDate}T${breakTime.startTime}`);
-            const breakEnd = parseISO(`${scheduleDate}T${breakTime.endTime}`);
+            const breakStart = createDateFromTime(scheduleDate, breakTime.startTime);
+            const breakEnd = createDateFromTime(scheduleDate, breakTime.endTime);
             return isWithinInterval(currentTime, { start: breakStart, end: breakEnd });
           }) ?? false;
 
@@ -251,8 +259,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
                 businessId,
                 serviceId: service.id,
                 staffId: staff.id,
-                startTime: formatDateTime(currentTime),
-                endTime: formatDateTime(slotEnd),
+                startTime: new Date(currentTime),
+                endTime: new Date(slotEnd),
                 status: "available",
                 isManual: false,
                 conflictingSlotIds: [],
@@ -292,82 +300,6 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     console.error("Error generating slots:", error);
     res.status(500).json({
       error: "Failed to generate slots",
-      details: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-});
-
-// Create a manual slot
-router.post("/businesses/:businessId/slots/manual", async (req, res) => {
-  try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const businessId = parseInt(req.params.businessId);
-
-    // Validate request body
-    const validationResult = createManualSlotSchema.safeParse(req.body);
-    if (!validationResult.success) {
-      return res.status(400).json({
-        error: "Invalid input",
-        details: validationResult.error.errors,
-      });
-    }
-
-    const { serviceId, staffId, startTime, endTime, status } = validationResult.data;
-
-    // Verify staff is qualified for the service
-    const [staffSkill] = await db
-      .select()
-      .from(staffSkills)
-      .where(
-        and(
-          eq(staffSkills.staffId, staffId),
-          eq(staffSkills.serviceId, serviceId)
-        )
-      );
-
-    if (!staffSkill) {
-      return res.status(400).json({ error: "Staff is not qualified for this service" });
-    }
-
-    // Check for schedule conflict
-    const startDate = startOfDay(new Date(startTime));
-    const [schedule] = await db
-      .select()
-      .from(staffSchedules)
-      .where(
-        and(
-          eq(staffSchedules.staffId, staffId),
-          eq(staffSchedules.date, startDate)
-        )
-      );
-
-    if (!schedule) {
-      return res.status(400).json({ error: "Staff is not scheduled for this time" });
-    }
-
-    // Create the slot
-    const [slot] = await db
-      .insert(serviceSlots)
-      .values({
-        businessId,
-        serviceId,
-        staffId,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        status,
-        isManual: true,
-        conflictingSlotIds: [],
-      })
-      .returning();
-
-    res.json(slot);
-  } catch (error) {
-    console.error("Error creating manual slot:", error);
-    res.status(500).json({
-      error: "Failed to create slot",
       details: error instanceof Error ? error.message : "Unknown error"
     });
   }

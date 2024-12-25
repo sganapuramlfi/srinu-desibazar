@@ -19,25 +19,56 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
 
     console.log('Business access check:', { businessId, userId, path: req.path });
 
-    if (!businessId || !userId) {
-      console.log('Missing businessId or userId:', { businessId, userId });
-      return res.status(400).json({ error: "Invalid business ID or user not authenticated" });
+    if (!businessId || isNaN(businessId)) {
+      console.log('Missing or invalid businessId');
+      return res.status(400).json({ error: "Invalid business ID" });
     }
 
-    // Get business and check ownership
-    const business = await db
+    // Get business
+    const [business] = await db
       .select()
       .from(businesses)
-      .where(eq(businesses.id, businessId))
-      .then(results => results[0]);
+      .where(eq(businesses.id, businessId));
 
     if (!business) {
       console.log('Business not found:', businessId);
       return res.status(404).json({ error: "Business not found" });
     }
 
-    // Set business owner flag
-    req.isBusinessOwner = business.userId === userId;
+    // Set business owner flag if user is authenticated
+    if (userId) {
+      req.isBusinessOwner = business.userId === userId;
+    }
+
+    // Public routes that don't require full business access
+    const publicEndpoints = [
+      'profile',
+      'services',
+      'staff'
+    ];
+
+    // Check if this is a public endpoint
+    const pathSegments = req.path.split('/').filter(Boolean);
+    const lastSegment = pathSegments[pathSegments.length - 1];
+    const secondToLastSegment = pathSegments[pathSegments.length - 2];
+
+    // Allow slot-related operations without business ownership
+    if (lastSegment === 'slots' || secondToLastSegment === 'slots') {
+      console.log('Access granted - Slot operation:', lastSegment);
+      return next();
+    }
+
+    // Allow other public endpoints
+    if (publicEndpoints.includes(lastSegment)) {
+      console.log('Access granted - Public endpoint:', lastSegment);
+      return next();
+    }
+
+    // For non-public endpoints, require authentication
+    if (!userId) {
+      console.log('Authentication required for protected endpoint');
+      return res.status(401).json({ error: "Authentication required" });
+    }
 
     // Business owners have full access
     if (req.isBusinessOwner) {
@@ -45,31 +76,26 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
       return next();
     }
 
-    // Get the path for easier matching
-    const path = req.path.split('/').filter(Boolean);
-    console.log('Processing path segments:', path);
+    // Check if this is a booking-related operation
+    const bookingSegmentIndex = pathSegments.indexOf('bookings');
+    if (bookingSegmentIndex !== -1) {
+      // Get booking ID if it exists in the path
+      const bookingId = bookingSegmentIndex + 1 < pathSegments.length 
+        ? parseInt(pathSegments[bookingSegmentIndex + 1]) 
+        : null;
 
-    // Handle booking-specific operations
-    if (path.includes('bookings')) {
-      const bookingIdIndex = path.indexOf('bookings') + 1;
-      const bookingId = path[bookingIdIndex];
-      const operation = path[bookingIdIndex + 1]; // 'reschedule', 'cancel', etc.
-
-      console.log('Booking operation:', { bookingId, operation, path });
-
-      // If it's a specific booking operation
-      if (bookingId) {
-        const booking = await db
+      if (bookingId && !isNaN(bookingId)) {
+        // Check if user owns this specific booking
+        const [booking] = await db
           .select()
           .from(salonBookings)
           .where(
             and(
-              eq(salonBookings.id, parseInt(bookingId)),
+              eq(salonBookings.id, bookingId),
               eq(salonBookings.businessId, businessId),
               eq(salonBookings.customerId, userId)
             )
-          )
-          .then(results => results[0]);
+          );
 
         if (booking) {
           console.log('Access granted - Booking owner:', { userId, bookingId });
@@ -78,34 +104,28 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
         }
       }
 
-      // Check if it's a public booking endpoint
-      const publicBookingEndpoints = ['bookings', 'slots', 'slots/available'];
-      if (path.length === 1 && publicBookingEndpoints.includes(path[0])) {
-        console.log('Access granted - Public booking endpoint:', path[0]);
+      // For general booking access, check if user has any bookings
+      const [existingBooking] = await db
+        .select()
+        .from(salonBookings)
+        .where(
+          and(
+            eq(salonBookings.businessId, businessId),
+            eq(salonBookings.customerId, userId)
+          )
+        )
+        .limit(1);
+
+      if (existingBooking) {
+        console.log('Access granted - Has existing bookings:', { userId, businessId });
+        req.hasBookingAccess = true;
         return next();
       }
     }
 
-    // Check if user has any existing bookings with this business
-    const existingBookings = await db
-      .select()
-      .from(salonBookings)
-      .where(
-        and(
-          eq(salonBookings.businessId, businessId),
-          eq(salonBookings.customerId, userId)
-        )
-      );
+    console.log('Access denied - Not authorized:', { userId, businessId });
+    return res.status(403).json({ error: "Not authorized to access this business" });
 
-    req.hasBookingAccess = existingBookings.length > 0;
-
-    if (!req.hasBookingAccess) {
-      console.log('Access denied - No existing bookings:', { userId, businessId });
-      return res.status(403).json({ error: "Not authorized to access this business" });
-    }
-
-    console.log('Access granted - Has existing bookings:', { userId, businessId });
-    next();
   } catch (error) {
     console.error('Error in business access middleware:', error);
     res.status(500).json({ error: "Failed to verify business access" });

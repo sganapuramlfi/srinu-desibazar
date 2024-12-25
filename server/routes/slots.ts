@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@db";
-import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff } from "@db/schema";
+import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff, businesses } from "@db/schema";
 import { eq, and, gte, lte, not, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { addMinutes, parseISO, format, startOfDay, endOfDay, addDays } from "date-fns";
@@ -15,31 +15,51 @@ const isAuthenticated = (req: any, res: any, next: any) => {
   next();
 };
 
-// Helper function to format date-time in UTC
+// Business ownership middleware
+const isBusinessOwner = async (req: any, res: any, next: any) => {
+  const businessId = parseInt(req.params.businessId);
+  const userId = req.user?.id;
+
+  if (!businessId || !userId) {
+    return res.status(400).json({ error: "Invalid business ID or user not authenticated" });
+  }
+
+  try {
+    const [business] = await db
+      .select()
+      .from(businesses)
+      .where(and(
+        eq(businesses.id, businessId),
+        eq(businesses.userId, userId)
+      ))
+      .limit(1);
+
+    if (!business) {
+      return res.status(403).json({ error: "Not authorized to access this business" });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Business ownership check error:", error);
+    res.status(500).json({ error: "Failed to verify business ownership" });
+  }
+};
+
+// Helper function to format date-time
 const formatDateTime = (date: Date) => {
   return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
-};
-
-// Helper function to normalize date to start of day in UTC
-const normalizeDate = (date: Date): Date => {
-  return startOfDay(new Date(date.toISOString().split('T')[0]));
-};
-
-// Helper function to check if two dates are the same day
-const isSameDay = (date1: Date, date2: Date): boolean => {
-  return format(date1, 'yyyy-MM-dd') === format(date2, 'yyyy-MM-dd');
 };
 
 // Helper function to create UTC Date from time
 const createUtcDate = (dateStr: string, timeStr: string) => {
   const [hours, minutes] = timeStr.split(':').map(Number);
-  const baseDate = startOfDay(new Date(dateStr));
+  const baseDate = new Date(dateStr);
   baseDate.setUTCHours(hours, minutes, 0, 0);
   return baseDate;
 };
 
 // Auto-generate slots based on roster and service mappings
-router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, async (req, res) => {
+router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBusinessOwner, async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     console.log("\nStarting slot generation for business:", businessId);
@@ -59,8 +79,7 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, asyn
     }
 
     const { startDate } = validationResult.data;
-    const targetDate = normalizeDate(new Date(startDate));
-    console.log("Processing date:", format(targetDate, 'yyyy-MM-dd'));
+    console.log("Processing date:", startDate);
 
     // Get staff with their services
     console.log("Fetching staff skills and services...");
@@ -94,93 +113,47 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, asyn
       });
     }
 
-    // Get all schedules for the target date without filtering leave
+    // Get schedules for the target date, handling timezone properly
     console.log("Fetching staff schedules...");
-    const allSchedules = await db
-      .select()
+    const schedules = await db
+      .select({
+        staffId: staffSchedules.staffId,
+        templateId: staffSchedules.templateId,
+        type: shiftTemplates.type,
+        startTime: shiftTemplates.startTime,
+        endTime: shiftTemplates.endTime,
+      })
       .from(staffSchedules)
       .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
       .where(
         and(
           eq(shiftTemplates.businessId, businessId),
-          sql`DATE(${staffSchedules.date}) = ${sql.raw('?')}::date`,
-          targetDate.toISOString().split('T')[0]
+          sql`DATE_TRUNC('day', ${staffSchedules.date}) = DATE_TRUNC('day', ${startDate}::timestamp)`,
+          not(eq(shiftTemplates.type, 'leave'))
         )
       );
 
-    console.log(`Found ${allSchedules.length} total schedules for date ${startDate}`);
+    console.log(`Found ${schedules.length} active schedules for date ${startDate}`);
 
-    // Filter out staff on leave
-    const schedules = allSchedules.filter(schedule => schedule.shiftTemplates.type !== 'leave');
-    const staffOnLeave = allSchedules
-      .filter(schedule => schedule.shiftTemplates.type === 'leave')
-      .map(schedule => schedule.staffSchedules.staffId);
-
-    console.log(`Found ${schedules.length} active schedules (${staffOnLeave.length} staff on leave)`);
-
-    if (schedules.length === 0) {
-      // Get nearby schedules to help with debugging
-      const nearbySchedules = await db
-        .select({
-          date: staffSchedules.date,
-          staffId: staffSchedules.staffId,
-          templateId: staffSchedules.templateId,
-        })
-        .from(staffSchedules)
-        .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
-        .where(
-          and(
-            eq(shiftTemplates.businessId, businessId),
-            sql`DATE(${staffSchedules.date}) >= ${sql.raw('?')}::date`,
-            sql`DATE(${staffSchedules.date}) <= ${sql.raw('?')}::date`,
-            targetDate.toISOString().split('T')[0],
-            addDays(targetDate, 7).toISOString().split('T')[0]
-          )
-        );
-
-      console.log("Nearby schedules:", nearbySchedules);
-
-      return res.status(400).json({
-        error: "No active staff schedules found for the selected date",
-        details: `No schedules found for ${startDate}. ${staffOnLeave.length} staff member(s) are on leave.`
-      });
-    }
-
+    // Generate slots
     const slots = [];
     let totalSlotsGenerated = 0;
-    const processedStaffDates = new Set();
 
     // Generate slots for each staff member and their services
     for (const { staff, service } of staffServices) {
-      console.log(`Processing slots for ${staff.name} - ${service.name}`);
-
-      // Skip if staff is on leave
-      if (staffOnLeave.includes(staff.id)) {
-        console.log(`Skipping ${staff.name} as they are on leave`);
-        continue;
-      }
-
       // Get schedules for this staff member
-      const staffSchedules = schedules.filter(s => s.staffSchedules.staffId === staff.id);
+      const staffSchedules = schedules.filter(s => s.staffId === staff.id);
 
       if (staffSchedules.length === 0) {
-        console.log(`No schedules found for ${staff.name} on ${startDate}`);
+        console.log(`No active schedules found for ${staff.name} on ${startDate}`);
         continue;
       }
 
       for (const schedule of staffSchedules) {
-        const scheduleDate = format(schedule.staffSchedules.date, "yyyy-MM-dd");
-        const staffDateKey = `${staff.id}-${scheduleDate}`;
+        console.log(`Generating slots for ${staff.name} on ${startDate} from ${schedule.startTime} to ${schedule.endTime}`);
 
-        if (processedStaffDates.has(staffDateKey)) {
-          console.log(`Already processed slots for ${staff.name} on ${scheduleDate}`);
-          continue;
-        }
-
-        console.log(`Generating slots for ${scheduleDate} from ${schedule.shiftTemplates.startTime} to ${schedule.shiftTemplates.endTime}`);
-
-        const shiftStart = createUtcDate(scheduleDate, schedule.shiftTemplates.startTime);
-        const shiftEnd = createUtcDate(scheduleDate, schedule.shiftTemplates.endTime);
+        const shiftStart = createUtcDate(startDate, schedule.startTime);
+        const shiftEnd = createUtcDate(startDate, schedule.endTime);
 
         let currentTime = shiftStart;
         while (currentTime < shiftEnd) {
@@ -201,8 +174,6 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, asyn
 
           currentTime = addMinutes(currentTime, 15); // 15-minute intervals
         }
-
-        processedStaffDates.add(staffDateKey);
       }
     }
 
@@ -236,8 +207,21 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, asyn
   }
 });
 
+// Helper function to check if two dates are the same day
+const isSameDay = (date1: Date, date2: Date): boolean => {
+  return format(date1, 'yyyy-MM-dd') === format(date2, 'yyyy-MM-dd');
+};
+
+// Helper function to normalize date to UTC midnight
+const normalizeDate = (date: Date): Date => {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+};
+
+
 // Get slots for a business with enhanced filtering
-router.get("/businesses/:businessId/slots", isAuthenticated, async (req, res) => {
+router.get("/businesses/:businessId/slots", isAuthenticated, isBusinessOwner, async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     let { startDate, endDate, serviceId, staffId } = req.query;
@@ -259,7 +243,7 @@ router.get("/businesses/:businessId/slots", isAuthenticated, async (req, res) =>
       staffId
     });
 
-    // Get schedules for the date range using SQL DATE() function
+    // Get schedules for the date range
     const schedules = await db
       .select({
         staffId: staffSchedules.staffId,
@@ -273,11 +257,8 @@ router.get("/businesses/:businessId/slots", isAuthenticated, async (req, res) =>
       .where(
         and(
           eq(shiftTemplates.businessId, businessId),
-          sql`DATE(${staffSchedules.date}) >= ${sql.raw('?')}::date`,
-          sql`DATE(${staffSchedules.date}) <= ${sql.raw('?')}::date`,
+          sql`DATE(${staffSchedules.date}) >= ${startDateObj.toISOString().split('T')[0]}::date AND DATE(${staffSchedules.date}) <= ${endDateObj.toISOString().split('T')[0]}::date`,
           not(eq(shiftTemplates.type, "leave")),
-          startDateObj.toISOString().split('T')[0],
-          endDateObj.toISOString().split('T')[0]
         )
       );
 
@@ -312,13 +293,10 @@ router.get("/businesses/:businessId/slots", isAuthenticated, async (req, res) =>
       .where(
         and(
           eq(serviceSlots.businessId, businessId),
-          sql`DATE(${serviceSlots.startTime}) >= ${sql.raw('?')}::date`,
-          sql`DATE(${serviceSlots.endTime}) <= ${sql.raw('?')}::date`,
+          sql`DATE(${serviceSlots.startTime}) >= ${startDateObj.toISOString().split('T')[0]}::date AND DATE(${serviceSlots.endTime}) <= ${endDateObj.toISOString().split('T')[0]}::date`,
           serviceId ? eq(serviceSlots.serviceId, parseInt(serviceId as string)) : undefined,
           staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined,
           eq(serviceSlots.status, "available"),
-          startDateObj.toISOString().split('T')[0],
-          endDateObj.toISOString().split('T')[0]
         )
       );
 
@@ -349,8 +327,8 @@ router.get("/businesses/:businessId/slots", isAuthenticated, async (req, res) =>
         if (bookedSlots.has(slot.id)) return false;
 
         const scheduleDate = format(schedule.date, 'yyyy-MM-dd');
-        const staffSchedule = schedules.find(s => 
-          s.staffId === staff.id && 
+        const staffSchedule = schedules.find(s =>
+          s.staffId === staff.id &&
           isSameDay(s.date, schedule.date)
         );
 

@@ -1,26 +1,28 @@
 import { Router } from "express";
 import { db } from "@db";
 import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff } from "@db/schema";
-import { eq, and, gte, lte, not } from "drizzle-orm";
+import { eq, and, gte, lte, not, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay, addDays } from "date-fns";
+import { addMinutes, parseISO, format, startOfDay, endOfDay, addDays } from "date-fns";
+import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
 
 const router = Router();
+const TIMEZONE = 'UTC'; // Use UTC for consistency
 
-// Helper function to format date-time in 24-hour format
+// Helper function to format date-time in 24-hour format with timezone
 const formatDateTime = (date: Date) => {
   return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
 };
 
-// Helper function to create a proper Date object
+// Helper function to create a proper Date object with timezone
 const createDateFromTime = (date: string, time: string) => {
   const [hours, minutes] = time.split(':').map(Number);
-  const result = new Date(date);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
+  const baseDate = new Date(date);
+  baseDate.setHours(hours, minutes, 0, 0);
+  return baseDate;
 };
 
-// Get slots for a business with enhanced filtering and required date parameter
+// Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
@@ -35,15 +37,6 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
 
     const startDateObj = startOfDay(new Date(startDate as string));
     const endDateObj = endOfDay(new Date(endDate as string));
-
-    // Validate date range (max 7 days to prevent performance issues)
-    const daysDiff = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff > 7) {
-      return res.status(400).json({
-        error: "Invalid date range",
-        details: "Date range cannot exceed 7 days"
-      });
-    }
 
     console.log("Fetching slots with params:", {
       businessId,
@@ -83,7 +76,7 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       validSchedules.get(dateKey).set(schedule.staffId, schedule);
     });
 
-    // Get slots with shift information, using date range filtering
+    // Get slots with shift information
     const slots = await db
       .select({
         slot: serviceSlots,
@@ -264,7 +257,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       .where(
         and(
           eq(shiftTemplates.businessId, businessId),
-          eq(staffSchedules.date, startDateObj)
+          eq(staffSchedules.date, startDateObj),
+          not(eq(shiftTemplates.type, "leave"))
         )
       );
 
@@ -304,7 +298,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
 
       // Get schedules for this staff member
       const staffSchedules = schedules.filter(
-        s => s.staff_schedules.staffId === staff.id
+        s => s.staff_schedules.staffId === staff.id && s.shift_templates.type !== "leave"
       );
 
       if (staffSchedules.length === 0) {

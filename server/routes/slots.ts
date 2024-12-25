@@ -1,22 +1,12 @@
 import { Router } from "express";
 import { db } from "@db";
-import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff, businesses } from "@db/schema";
-import { eq, and, gte, lte, not, or, isNull, sql } from "drizzle-orm";
+import { serviceSlots, salonServices, salonStaff, salonBookings } from "@db/schema";
+import { eq, and, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { addMinutes, parseISO, format } from "date-fns";
-import { endOfDay } from 'date-fns';
+import { format, endOfDay } from "date-fns";
 import { requireAuth, hasBusinessAccess } from "../middleware/businessAccess";
 
-function createUtcDate(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00Z`);
-}
-
 const router = Router();
-
-// Helper function to check if two dates are the same day
-const isSameDay = (date1: Date, date2: Date): boolean => {
-  return format(date1, 'yyyy-MM-dd') === format(date2, 'yyyy-MM-dd');
-};
 
 // Helper function to normalize date to UTC midnight
 const normalizeDate = (date: Date): Date => {
@@ -26,7 +16,7 @@ const normalizeDate = (date: Date): Date => {
 };
 
 // Get slots for a business with enhanced filtering
-router.get("/businesses/:businessId/slots", requireAuth, hasBusinessAccess, async (req, res) => {
+router.get("/businesses/:businessId/slots", requireAuth, async (req, res) => {
   try {
     console.log("Fetching slots for business:", req.params);
     const businessId = parseInt(req.params.businessId);
@@ -36,6 +26,10 @@ router.get("/businesses/:businessId/slots", requireAuth, hasBusinessAccess, asyn
       const currentDate = format(new Date(), "yyyy-MM-dd");
       startDate = currentDate;
       endDate = currentDate;
+    }
+
+    if (!businessId || isNaN(businessId)) {
+      return res.status(400).json({ error: "Invalid business ID" });
     }
 
     const startDateObj = normalizeDate(new Date(startDate as string));
@@ -49,34 +43,31 @@ router.get("/businesses/:businessId/slots", requireAuth, hasBusinessAccess, asyn
       staffId
     });
 
-    // Get available slots with service, staff and booking info
-    const availableSlots = await db
+    // Get available slots with service and staff info
+    const slots = await db
       .select({
-        slot: serviceSlots,
+        slot: {
+          id: serviceSlots.id,
+          startTime: serviceSlots.startTime,
+          endTime: serviceSlots.endTime,
+          status: serviceSlots.status,
+          serviceId: serviceSlots.serviceId,
+          staffId: serviceSlots.staffId
+        },
         service: {
           id: salonServices.id,
           name: salonServices.name,
           duration: salonServices.duration,
-          price: salonServices.price,
+          price: salonServices.price
         },
         staff: {
           id: salonStaff.id,
-          name: salonStaff.name,
-        },
-        shift: {
-          startTime: shiftTemplates.startTime,
-          endTime: shiftTemplates.endTime,
-          type: shiftTemplates.type,
-        },
-        schedule: {
-          date: staffSchedules.date,
+          name: salonStaff.name
         }
       })
       .from(serviceSlots)
       .innerJoin(salonServices, eq(serviceSlots.serviceId, salonServices.id))
       .innerJoin(salonStaff, eq(serviceSlots.staffId, salonStaff.id))
-      .innerJoin(staffSchedules, eq(serviceSlots.staffId, staffSchedules.staffId))
-      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
       .where(
         and(
           eq(serviceSlots.businessId, businessId),
@@ -84,16 +75,19 @@ router.get("/businesses/:businessId/slots", requireAuth, hasBusinessAccess, asyn
           sql`DATE(${serviceSlots.endTime}) <= ${endDateObj.toISOString().split('T')[0]}::date`,
           serviceId ? eq(serviceSlots.serviceId, parseInt(serviceId as string)) : undefined,
           staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined,
-          eq(serviceSlots.status, "available"),
-          not(eq(shiftTemplates.type, "leave"))
+          eq(serviceSlots.status, "available")
         )
       );
 
+    if (!slots.length) {
+      return res.json([]);
+    }
+
     // Get existing bookings to filter out booked slots
-    const existingBookings = await db
+    const bookings = await db
       .select({
         slotId: salonBookings.slotId,
-        status: salonBookings.status,
+        status: salonBookings.status
       })
       .from(salonBookings)
       .where(
@@ -107,28 +101,31 @@ router.get("/businesses/:businessId/slots", requireAuth, hasBusinessAccess, asyn
       );
 
     // Create a set of booked slots
-    const bookedSlots = new Set(existingBookings.map(booking => booking.slotId));
+    const bookedSlots = new Set(bookings.map(booking => booking.slotId));
 
     // Filter and format available slots
-    const formattedSlots = availableSlots
+    const availableSlots = slots
       .filter(({ slot }) => !bookedSlots.has(slot.id))
-      .map(({ slot, service, staff, shift, schedule }) => ({
+      .map(({ slot, service, staff }) => ({
         id: slot.id,
         startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
         endTime: format(new Date(slot.endTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-        displayTime: `${format(new Date(slot.startTime), 'HH:mm')} - ${format(new Date(slot.endTime), 'HH:mm')}`,
+        displayTime: `${format(new Date(slot.startTime), 'h:mm a')} - ${format(new Date(slot.endTime), 'h:mm a')}`,
         status: slot.status,
-        service,
-        staff,
-        shift: {
-          ...shift,
-          displayTime: `${shift.startTime} - ${shift.endTime}`,
+        service: {
+          id: service.id,
+          name: service.name,
+          duration: service.duration,
+          price: service.price
         },
-        generatedFor: format(schedule.date, 'yyyy-MM-dd'),
+        staff: {
+          id: staff.id,
+          name: staff.name
+        }
       }));
 
-    console.log(`Found ${formattedSlots.length} available slots`);
-    res.json(formattedSlots);
+    console.log(`Found ${availableSlots.length} available slots`);
+    res.json(availableSlots);
   } catch (error) {
     console.error("Error fetching slots:", error);
     res.status(500).json({
@@ -139,15 +136,19 @@ router.get("/businesses/:businessId/slots", requireAuth, hasBusinessAccess, asyn
 });
 
 // Get available slots for rescheduling
-router.get("/businesses/:businessId/slots/available", requireAuth, hasBusinessAccess, async (req, res) => {
+router.get("/businesses/:businessId/slots/available", requireAuth, async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     const { date, serviceId, staffId } = req.query;
 
     if (!date) {
       return res.status(400).json({
-        error: "Date is required",
+        error: "Date is required"
       });
+    }
+
+    if (!businessId || isNaN(businessId)) {
+      return res.status(400).json({ error: "Invalid business ID" });
     }
 
     const startDateObj = normalizeDate(new Date(date as string));
@@ -161,18 +162,25 @@ router.get("/businesses/:businessId/slots/available", requireAuth, hasBusinessAc
     });
 
     // Get available slots with service and staff info
-    const availableSlots = await db
+    const slots = await db
       .select({
-        slot: serviceSlots,
+        slot: {
+          id: serviceSlots.id,
+          startTime: serviceSlots.startTime,
+          endTime: serviceSlots.endTime,
+          status: serviceSlots.status,
+          serviceId: serviceSlots.serviceId,
+          staffId: serviceSlots.staffId
+        },
         service: {
           id: salonServices.id,
           name: salonServices.name,
           duration: salonServices.duration,
-          price: salonServices.price,
+          price: salonServices.price
         },
         staff: {
           id: salonStaff.id,
-          name: salonStaff.name,
+          name: salonStaff.name
         }
       })
       .from(serviceSlots)
@@ -188,11 +196,15 @@ router.get("/businesses/:businessId/slots/available", requireAuth, hasBusinessAc
         )
       );
 
+    if (!slots.length) {
+      return res.json([]);
+    }
+
     // Get existing bookings to filter out booked slots
-    const existingBookings = await db
+    const bookings = await db
       .select({
         slotId: salonBookings.slotId,
-        status: salonBookings.status,
+        status: salonBookings.status
       })
       .from(salonBookings)
       .where(
@@ -206,22 +218,30 @@ router.get("/businesses/:businessId/slots/available", requireAuth, hasBusinessAc
       );
 
     // Create a set of booked slots
-    const bookedSlots = new Set(existingBookings.map(booking => booking.slotId));
+    const bookedSlots = new Set(bookings.map(booking => booking.slotId));
 
     // Filter and format available slots
-    const formattedSlots = availableSlots
+    const availableSlots = slots
       .filter(({ slot }) => !bookedSlots.has(slot.id))
       .map(({ slot, service, staff }) => ({
         id: slot.id,
         startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
         endTime: format(new Date(slot.endTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
         displayTime: `${format(new Date(slot.startTime), 'h:mm a')} - ${format(new Date(slot.endTime), 'h:mm a')}`,
-        service,
-        staff,
+        service: {
+          id: service.id,
+          name: service.name,
+          duration: service.duration,
+          price: service.price
+        },
+        staff: {
+          id: staff.id,
+          name: staff.name
+        }
       }));
 
-    console.log(`Found ${formattedSlots.length} available slots for rescheduling`);
-    res.json(formattedSlots);
+    console.log(`Found ${availableSlots.length} available slots for rescheduling`);
+    res.json(availableSlots);
   } catch (error) {
     console.error("Error fetching available slots:", error);
     res.status(500).json({

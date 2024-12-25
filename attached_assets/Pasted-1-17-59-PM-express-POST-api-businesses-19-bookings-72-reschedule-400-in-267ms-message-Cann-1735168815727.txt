@@ -1,0 +1,92 @@
+1:17:59 PM [express] POST /api/businesses/19/bookings/72/reschedule 400 in 267ms :: {"message":"Cann…
+11:19:28 PM [express] POST /api/logout 200 in 282ms :: {"ok":true,"message":"Logout successful"}
+11:19:28 PM [express] GET /api/businesses 304 in 108ms :: [{"id":1,"userId":3,"name":"Glamour Salon &…
+11:19:30 PM [express] POST /api/login 200 in 170ms :: {"ok":true,"message":"Login successful","user":…
+Error cancelling booking: error: invalid input syntax for type integer: "NaN"
+    at un.parseErrorMessage (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at un.handlePacket (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at un.parse (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/DesiBazaarHub/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/DesiBazaarHub/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/DesiBazaarHub/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/DesiBazaarHub/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 146,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $2 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'numutils.c',
+  line: '617',
+  routine: 'pg_strtoint32_safe'
+}
+11:19:47 PM [express] POST /api/businesses/undefined/bookings/8/cancel 500 in 541ms :: {"message":"Fa…
+Error cancelling booking: error: invalid input syntax for type integer: "NaN"
+    at un.parseErrorMessage (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at un.handlePacket (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at un.parse (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/DesiBazaarHub/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/DesiBazaarHub/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/DesiBazaarHub/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/DesiBazaarHub/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/DesiBazaarHub/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 146,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $2 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'numutils.c',
+  line: '617',
+  routine: 'pg_strtoint32_safe'
+}
+11:19:48 PM [express] POST /api/businesses/undefined/bookings/8/cancel 500 in 325ms :: {"message":"Fa…

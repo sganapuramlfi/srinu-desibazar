@@ -11,6 +11,7 @@ import {
   users,
   salonServices,
   salonStaff,
+  staffSkills,
   businessProfileSchema
 } from "@db/schema";
 import { eq } from "drizzle-orm";
@@ -22,7 +23,7 @@ import bookingsRouter from "./routes/bookings";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure uploads directories exist
+// Configure multer storage and upload settings
 const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
 const logosDir = path.join(uploadsDir, 'logos');
 const galleryDir = path.join(uploadsDir, 'gallery');
@@ -31,17 +32,14 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(logosDir)) fs.mkdirSync(logosDir, { recursive: true });
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
 
-// Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const dir = file.fieldname === 'logo' ? logosDir : galleryDir;
-    console.log('Upload destination:', dir);
     cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const filename = uniqueSuffix + path.extname(file.originalname);
-    console.log('Generated filename:', filename);
     cb(null, filename);
   }
 });
@@ -49,7 +47,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 5 * 1024 * 1024
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -70,13 +68,17 @@ export function registerRoutes(app: Express): Server {
   app.use("/api", slotsRouter);
   app.use("/api", bookingsRouter);
 
+  // Middleware to check authentication
+  const requireAuth = (req: any, res: Response, next: NextFunction) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    next();
+  };
+
   // Middleware to check business ownership
   const checkBusinessOwnership = async (req: any, res: Response, next: NextFunction) => {
     try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
       const businessId = parseInt(req.params.businessId);
       const [business] = await db
         .select()
@@ -100,7 +102,7 @@ export function registerRoutes(app: Express): Server {
     }
   };
 
-  // Business Profile Routes (Protected for write, public for read)
+  // Business Profile Routes
   app.get("/api/businesses/:businessId/profile", async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
@@ -122,7 +124,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Protected Services Route
-  app.get("/api/businesses/:businessId/services", checkBusinessOwnership, async (req, res) => {
+  app.get("/api/businesses/:businessId/services", requireAuth, checkBusinessOwnership, async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
       const servicesList = await db
@@ -138,8 +140,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Staff Routes (Protected)
-  app.get("/api/businesses/:businessId/staff", checkBusinessOwnership, async (req, res) => {
+  // Staff Routes with Skills
+  app.get("/api/businesses/:businessId/staff", requireAuth, checkBusinessOwnership, async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
       const staffMembers = await db
@@ -147,8 +149,23 @@ export function registerRoutes(app: Express): Server {
         .from(salonStaff)
         .where(eq(salonStaff.businessId, businessId));
 
-      console.log('Fetched staff for business:', businessId, staffMembers);
-      res.json(staffMembers);
+      // Fetch staff skills
+      const staffWithSkills = await Promise.all(
+        staffMembers.map(async (staff) => {
+          const skills = await db
+            .select()
+            .from(staffSkills)
+            .where(eq(staffSkills.staffId, staff.id));
+
+          return {
+            ...staff,
+            skills
+          };
+        })
+      );
+
+      console.log('Fetched staff with skills for business:', businessId, staffWithSkills);
+      res.json(staffWithSkills);
     } catch (error) {
       console.error('Error fetching staff:', error);
       res.status(500).json({ message: "Failed to fetch staff" });
@@ -266,12 +283,8 @@ export function registerRoutes(app: Express): Server {
 
 
   // Protected Business Routes
-  app.post("/api/businesses", async (req, res) => {
+  app.post("/api/businesses", requireAuth, async (req, res) => {
     try {
-      if (!req.user) {
-        return res.status(401).send("Unauthorized");
-      }
-
       const [business] = await db
         .insert(businesses)
         .values({ ...req.body, userId: req.user.id })
@@ -301,7 +314,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Protected Gallery Management
-  app.delete("/api/businesses/:businessId/gallery/:photoIndex", checkBusinessOwnership, async (req, res) => {
+  app.delete("/api/businesses/:businessId/gallery/:photoIndex", requireAuth, checkBusinessOwnership, async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
       const photoIndex = parseInt(req.params.photoIndex);

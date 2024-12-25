@@ -4,12 +4,8 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: async ({ queryKey }) => {
-        const isPublicEndpoint = 
-          queryKey[0].toString().includes('/services') || 
-          queryKey[0].toString().includes('/profile');
-
         const res = await fetch(queryKey[0] as string, {
-          credentials: isPublicEndpoint ? 'omit' : 'include',
+          credentials: 'include',
           headers: {
             "Content-Type": "application/json",
           },
@@ -29,7 +25,7 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: 1,
     },
     mutations: {
       retry: false,

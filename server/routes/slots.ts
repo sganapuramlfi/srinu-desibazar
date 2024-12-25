@@ -11,8 +11,8 @@ const router = Router();
 const createManualSlotSchema = z.object({
   serviceId: z.number(),
   staffId: z.number(),
-  startTime: z.string(),
-  endTime: z.string(),
+  startTime: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/),
+  endTime: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/),
   status: z.enum(["available", "blocked"]).default("available"),
 });
 
@@ -20,6 +20,11 @@ const generateAutoSlotsSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
+
+// Helper function to format date-time in 24-hour format
+const formatDateTime = (date: Date) => {
+  return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
+};
 
 // Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", async (req, res) => {
@@ -85,18 +90,18 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
         .map(booking => booking.slotId)
     );
 
-    // Filter out booked slots and format the response
+    // Filter out booked slots and format the response with 24-hour times
     const availableSlots = slots
       .filter(({ slot }) => !bookedSlots.has(slot.id))
       .map(({ slot, service, staff }) => {
-        // Ensure dates are properly formatted
         const startTime = new Date(slot.startTime);
         const endTime = new Date(slot.endTime);
 
         return {
           id: slot.id,
-          startTime: format(startTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-          endTime: format(endTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+          startTime: formatDateTime(startTime),
+          endTime: formatDateTime(endTime),
+          displayTime: `${format(startTime, 'HH:mm')} - ${format(endTime, 'HH:mm')}`,
           status: slot.status,
           service: {
             id: service.id,
@@ -246,8 +251,8 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
                 businessId,
                 serviceId: service.id,
                 staffId: staff.id,
-                startTime: currentTime,
-                endTime: slotEnd,
+                startTime: formatDateTime(currentTime),
+                endTime: formatDateTime(slotEnd),
                 status: "available",
                 isManual: false,
                 conflictingSlotIds: [],

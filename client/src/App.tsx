@@ -7,6 +7,7 @@ import AuthPage from "./pages/AuthPage";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import StorefrontPage from "./pages/StorefrontPage";
 import BookingsPage from "./pages/BookingsPage";
+import ConsumerDashboard from "./pages/ConsumerDashboard";
 
 function App() {
   const { user, isLoading } = useUser();
@@ -54,6 +55,17 @@ function App() {
             }
 
             return <BusinessDashboard businessId={parseInt(params.businessId)} />;
+          }}
+        </Route>
+
+        {/* Consumer Dashboard - requires authentication */}
+        <Route path="/my-dashboard">
+          {() => {
+            if (!user) {
+              window.location.href = "/auth";
+              return null;
+            }
+            return <ConsumerDashboard />;
           }}
         </Route>
 

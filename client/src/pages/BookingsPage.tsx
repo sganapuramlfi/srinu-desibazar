@@ -22,7 +22,7 @@ import {
   AlertCircle,
   RotateCcw,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, endOfDay } from "date-fns";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -102,11 +102,13 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
-        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
-        serviceId: selectedBooking?.service?.id, // Safely access service.id
+        startDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
+        endDate: selectedDate ? format(endOfDay(selectedDate), 'yyyy-MM-dd') : undefined,
+        serviceId: selectedBooking?.service?.id,
+        staffId: selectedBooking?.staff?.id,
       }
     ],
-    enabled: !!selectedDate && !!selectedBooking?.service?.id, // Only run query when we have both date and service
+    enabled: !!selectedDate && !!selectedBooking?.service?.id,
   });
 
   // Cancel booking mutation

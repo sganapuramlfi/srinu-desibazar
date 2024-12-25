@@ -55,8 +55,6 @@ declare global {
 
 async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null> {
   try {
-    console.log(`[Debug] Fetching user data for ID: ${userId}`);
-
     // Get user data without password
     const [user] = await db
       .select({
@@ -64,7 +62,7 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
         username: users.username,
         email: users.email,
         role: users.role,
-        createdAt: users.createdAt
+        createdAt: users.createdAt,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -75,15 +73,17 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
       return null;
     }
 
-    // Create sanitized user object without password
+    // Create sanitized user object
     const sanitizedUser: SanitizedUser = {
-      ...user
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt
     };
 
     // If user is a business owner, fetch business data
     if (user.role === "business") {
-      console.log(`[Debug] User is a business owner, fetching business data`);
-
       const [business] = await db
         .select({
           id: businesses.id,
@@ -91,14 +91,13 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
           industryType: businesses.industryType,
           status: businesses.status,
           onboardingCompleted: businesses.onboardingCompleted,
-          description: businesses.description
+          description: businesses.description,
         })
         .from(businesses)
         .where(eq(businesses.userId, userId))
         .limit(1);
 
       if (business) {
-        console.log(`[Debug] Found business data:`, business);
         sanitizedUser.business = {
           id: business.id,
           name: business.name,
@@ -107,12 +106,9 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
           onboardingCompleted: business.onboardingCompleted || false,
           description: business.description
         };
-      } else {
-        console.log(`[Debug] No business found for user ${userId}`);
       }
     }
 
-    console.log(`[Debug] Returning sanitized user:`, sanitizedUser);
     return sanitizedUser;
   } catch (error) {
     console.error('[Debug] Error in getUserWithBusiness:', error);
@@ -149,8 +145,6 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        console.log(`[Debug] Attempting login for user: ${username}`);
-
         // Get user with password for verification
         const [userWithPassword] = await db
           .select()
@@ -159,68 +153,50 @@ export function setupAuth(app: Express) {
           .limit(1);
 
         if (!userWithPassword) {
-          console.log(`[Debug] User not found: ${username}`);
           return done(null, false, { message: "Incorrect username." });
         }
 
         const isMatch = await crypto.compare(password, userWithPassword.password);
-        console.log(`[Debug] Password verification result:`, isMatch);
-
         if (!isMatch) {
-          console.log(`[Debug] Password mismatch for user: ${username}`);
           return done(null, false, { message: "Incorrect password." });
         }
 
-        // Get sanitized user data with business details
+        // Get sanitized user data
         const sanitizedUser = await getUserWithBusiness(userWithPassword.id);
         if (!sanitizedUser) {
-          console.log(`[Debug] Failed to get sanitized user data`);
           return done(null, false, { message: "Failed to load user data." });
         }
 
-        console.log(`[Debug] Login successful:`, sanitizedUser);
         return done(null, sanitizedUser);
       } catch (err) {
-        console.error('[Debug] Login error:', err);
         return done(err);
       }
     })
   );
 
   passport.serializeUser((user, done) => {
-    console.log(`[Debug] Serializing user:`, user);
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      console.log(`[Debug] Deserializing user ID: ${id}`);
       const user = await getUserWithBusiness(id);
-
       if (!user) {
-        console.log(`[Debug] User not found during deserialization: ${id}`);
         return done(null, false);
       }
-
-      console.log(`[Debug] Successfully deserialized user:`, user);
       done(null, user);
     } catch (err) {
-      console.error('[Debug] Deserialization error:', err);
       done(err);
     }
   });
 
   app.post("/api/login", (req, res, next) => {
-    console.log('[Debug] Login request body:', req.body);
-
     passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
       if (err) {
-        console.error('[Debug] Login error:', err);
         return next(err);
       }
 
       if (!user) {
-        console.log('[Debug] Login failed:', info.message);
         return res.status(400).json({
           ok: false,
           message: info.message ?? "Login failed"
@@ -229,21 +205,13 @@ export function setupAuth(app: Express) {
 
       req.logIn(user, (err) => {
         if (err) {
-          console.error('[Debug] Session creation failed:', err);
           return next(err);
         }
 
-        console.log(`[Debug] Login successful:`, user);
         return res.json({
           ok: true,
           message: "Login successful",
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            business: user.business
-          }
+          user
         });
       });
     })(req, res, next);
@@ -252,7 +220,6 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        console.error('[Debug] Logout error:', err);
         return res.status(500).json({
           ok: false,
           message: "Logout failed"
@@ -267,13 +234,6 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
-    console.log('[Debug] User session check:', {
-      isAuthenticated: req.isAuthenticated(),
-      userId: req.user?.id,
-      role: req.user?.role,
-      businessId: req.user?.business?.id
-    });
-
     if (!req.isAuthenticated()) {
       return res.status(401).json({
         ok: false,
@@ -281,8 +241,9 @@ export function setupAuth(app: Express) {
       });
     }
 
-    // Return sanitized user data without password
-    const { id, username, email, role, createdAt, business } = req.user;
-    res.json({ id, username, email, role, createdAt, business });
+    res.json({
+      ok: true,
+      user: req.user
+    });
   });
 }

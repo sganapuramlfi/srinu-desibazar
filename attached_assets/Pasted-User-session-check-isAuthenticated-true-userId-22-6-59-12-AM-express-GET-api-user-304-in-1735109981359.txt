@@ -1,0 +1,66 @@
+User session check: { isAuthenticated: true, userId: 22 }
+6:59:12 AM [express] GET /api/user 304 in 131ms :: {"id":22,"username":"stest","password":"398a17c2f…
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+6:59:12 AM [express] GET /api/businesses/19/profile 304 in 206ms :: {"id":19,"userId":22,"name":"Sal…
+6:59:12 AM [express] GET /api/businesses/19/shift-templates 304 in 219ms :: [{"id":1,"businessId":19…
+6:59:12 AM [express] GET /api/businesses/19/services 304 in 206ms :: [{"id":6,"businessId":19,"name"…
+6:59:12 AM [express] GET /api/businesses/19/staff 304 in 291ms :: [{"id":5,"businessId":19,"name":"E…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 40 available slots out of 400 total slots
+6:59:17 AM [express] GET /api/businesses/19/slots 304 in 544ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 40 available slots out of 400 total slots
+6:59:23 AM [express] GET /api/businesses/19/slots 304 in 509ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Processing date: 2024-12-26
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+Found 0 schedules for date 2024-12-26
+Nearby schedules: [
+  { date: 2024-12-26T13:00:00.000Z, staffId: 5, templateId: 2 },
+  { date: 2024-12-26T13:00:00.000Z, staffId: 6, templateId: 2 },
+  { date: 2024-12-26T13:00:00.000Z, staffId: 9, templateId: 3 },
+  { date: 2024-12-28T13:00:00.000Z, staffId: 5, templateId: 3 },
+  { date: 2024-12-28T13:00:00.000Z, staffId: 6, templateId: 3 },
+  { date: 2024-12-28T13:00:00.000Z, staffId: 9, templateId: 3 },
+  { date: 2024-12-29T13:00:00.000Z, staffId: 5, templateId: 2 },
+  { date: 2024-12-29T13:00:00.000Z, staffId: 6, templateId: 1 },
+  { date: 2024-12-29T13:00:00.000Z, staffId: 9, templateId: 1 },
+  { date: 2024-12-30T13:00:00.000Z, staffId: 5, templateId: 2 },
+  { date: 2024-12-30T13:00:00.000Z, staffId: 6, templateId: 2 },
+  { date: 2024-12-30T13:00:00.000Z, staffId: 9, templateId: 1 },
+  { date: 2024-12-31T13:00:00.000Z, staffId: 5, templateId: 1 },
+  { date: 2024-12-31T13:00:00.000Z, staffId: 6, templateId: 2 },
+  { date: 2024-12-31T13:00:00.000Z, staffId: 9, templateId: 3 },
+  { date: 2024-12-27T13:00:00.000Z, staffId: 5, templateId: 2 },
+  { date: 2024-12-27T13:00:00.000Z, staffId: 6, templateId: 1 },
+  { date: 2024-12-27T13:00:00.000Z, staffId: 9, templateId: 2 }
+]
+6:59:27 AM [express] POST /api/businesses/19/slots/auto-generate 400 in 333ms :: {"error":"No staff …

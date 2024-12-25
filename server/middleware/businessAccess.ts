@@ -1,9 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@db";
 import { businesses, salonBookings } from "@db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-// Extend Express Request type to include our custom properties
 declare global {
   namespace Express {
     interface Request {
@@ -13,7 +12,6 @@ declare global {
   }
 }
 
-// Business access middleware that allows both owners and customers
 export const hasBusinessAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const businessId = parseInt(req.params.businessId);
@@ -23,7 +21,6 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
       return res.status(400).json({ error: "Invalid business ID or user not authenticated" });
     }
 
-    // First check if user is business owner
     const [business] = await db
       .select()
       .from(businesses)
@@ -34,34 +31,59 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
       return res.status(404).json({ error: "Business not found" });
     }
 
-    // Set a flag to indicate if the user is the business owner
+    // Set flag for business owner
     req.isBusinessOwner = business.userId === userId;
 
-    // If not business owner, check if user has any bookings with this business
-    if (!req.isBusinessOwner) {
-      const [booking] = await db
-        .select()
-        .from(salonBookings)
-        .where(
-          and(
-            eq(salonBookings.businessId, businessId),
-            eq(salonBookings.customerId, userId)
+    // Business owners have full access
+    if (req.isBusinessOwner) {
+      return next();
+    }
+
+    // Get the path without the businessId parameter for easier matching
+    const path = req.path.replace(`/${businessId}`, '');
+
+    // Check if this is a booking operation for an existing booking
+    if (path.startsWith('/bookings/')) {
+      const bookingId = parseInt(path.split('/')[2]); // Extract booking ID from path
+      if (bookingId) {
+        const [booking] = await db
+          .select()
+          .from(salonBookings)
+          .where(
+            and(
+              eq(salonBookings.id, bookingId),
+              eq(salonBookings.customerId, userId)
+            )
           )
+          .limit(1);
+
+        if (booking) {
+          return next();
+        }
+      }
+    }
+
+    // Always allow access to slots and bookings list endpoints
+    if (path === '/slots' || path === '/slots/available' || path === '/bookings') {
+      return next();
+    }
+
+    // For other operations, check if user has any bookings with this business
+    const [existingBooking] = await db
+      .select()
+      .from(salonBookings)
+      .where(
+        and(
+          eq(salonBookings.businessId, businessId),
+          eq(salonBookings.customerId, userId)
         )
-        .limit(1);
+      )
+      .limit(1);
 
-      req.hasBookingAccess = !!booking;
+    req.hasBookingAccess = !!existingBooking;
 
-      // For safe routes like viewing slots or managing own bookings, allow access
-      if (req.method === 'GET' || req.path.includes('/bookings/')) {
-        next();
-        return;
-      }
-
-      // For other operations, require booking access
-      if (!req.hasBookingAccess) {
-        return res.status(403).json({ error: "Not authorized to access this business" });
-      }
+    if (!req.hasBookingAccess) {
+      return res.status(403).json({ error: "Not authorized to access this business" });
     }
 
     next();
@@ -71,7 +93,6 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
   }
 };
 
-// Authentication check middleware
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Unauthorized" });

@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
@@ -66,23 +66,59 @@ export function registerRoutes(app: Express): Server {
 
   // Register salon-specific routes
   app.use("/api", salonRouter);
-
-  // Register roster routes
   app.use("/api", rosterRouter);
-
-  // Register slots management routes
   app.use("/api", slotsRouter);
-
-  // Register booking routes
   app.use("/api", bookingsRouter);
 
-  // Staff Routes (Protected)
-  app.get("/api/businesses/:businessId/staff", async (req, res) => {
+  // Middleware to check business ownership
+  const checkBusinessOwnership = async (req: any, res: Response, next: NextFunction) => {
     try {
       if (!req.isAuthenticated()) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
+      const businessId = parseInt(req.params.businessId);
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      if (business.userId !== req.user.id) {
+        return res.status(403).json({ error: "Not authorized to access this business" });
+      }
+
+      req.business = business;
+      next();
+    } catch (error) {
+      console.error('Error in business ownership check:', error);
+      res.status(500).json({ error: "Server error" });
+    }
+  };
+
+  // Protected Services Route
+  app.get("/api/businesses/:businessId/services", checkBusinessOwnership, async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      const servicesList = await db
+        .select()
+        .from(salonServices)
+        .where(eq(salonServices.businessId, businessId));
+
+      res.json(servicesList);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Staff Routes (Protected)
+  app.get("/api/businesses/:businessId/staff", checkBusinessOwnership, async (req, res) => {
+    try {
       const businessId = parseInt(req.params.businessId);
       const staffMembers = await db
         .select()
@@ -96,8 +132,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Business Profile Routes (Public)
-  app.get("/api/businesses/:businessId/profile", async (req, res) => {
+  // Business Profile Routes (Protected for write, public for read)
+  app.get("/api/businesses/:businessId", async (req, res) => {
     try {
       const [business] = await db
         .select()
@@ -111,8 +147,8 @@ export function registerRoutes(app: Express): Server {
 
       res.json(business);
     } catch (error) {
-      console.error('Error fetching business profile:', error);
-      res.status(500).json({ error: "Failed to fetch business profile" });
+      console.error('Error fetching business:', error);
+      res.status(500).json({ error: "Failed to fetch business" });
     }
   });
 
@@ -206,30 +242,9 @@ export function registerRoutes(app: Express): Server {
   );
 
   // Public Services Route
-  app.get("/api/businesses/:businessId/services", async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
+  //This route is now handled above with middleware
+  // app.get("/api/businesses/:businessId/services", async (req, res) => { ... });
 
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-      let servicesList = await db
-        .select()
-        .from(salonServices)
-        .where(eq(salonServices.businessId, businessId));
-
-      res.json(servicesList);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      res.status(500).json({ error: "Failed to fetch services" });
-    }
-  });
 
   // Protected Business Routes
   app.post("/api/businesses", async (req, res) => {
@@ -267,12 +282,8 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Protected Gallery Management
-  app.delete("/api/businesses/:businessId/gallery/:photoIndex", async (req, res) => {
+  app.delete("/api/businesses/:businessId/gallery/:photoIndex", checkBusinessOwnership, async (req, res) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
       const businessId = parseInt(req.params.businessId);
       const photoIndex = parseInt(req.params.photoIndex);
 
@@ -286,9 +297,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ error: "Business not found" });
       }
 
-      if (business.userId !== req.user.id) {
-        return res.status(403).json({ error: "Not authorized to update this business" });
-      }
 
       // Get current gallery
       const gallery = business.gallery || [];

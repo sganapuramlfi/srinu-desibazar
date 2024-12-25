@@ -53,6 +53,36 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       staffId
     });
 
+    // First get all valid schedules for the date range
+    const schedules = await db
+      .select({
+        staffId: staffSchedules.staffId,
+        date: staffSchedules.date,
+        shiftStartTime: shiftTemplates.startTime,
+        shiftEndTime: shiftTemplates.endTime,
+        shiftType: shiftTemplates.type,
+      })
+      .from(staffSchedules)
+      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .where(
+        and(
+          eq(shiftTemplates.businessId, businessId),
+          gte(staffSchedules.date, startDateObj),
+          lte(staffSchedules.date, endDateObj),
+          not(eq(shiftTemplates.type, "leave"))
+        )
+      );
+
+    // Create a map of valid schedules by date and staff
+    const validSchedules = new Map();
+    schedules.forEach(schedule => {
+      const dateKey = format(schedule.date, 'yyyy-MM-dd');
+      if (!validSchedules.has(dateKey)) {
+        validSchedules.set(dateKey, new Map());
+      }
+      validSchedules.get(dateKey).set(schedule.staffId, schedule);
+    });
+
     // Get slots with shift information, using date range filtering
     const slots = await db
       .select({
@@ -113,9 +143,24 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
         .map(booking => booking.slotId)
     );
 
-    // Filter out booked slots and format the response with 24-hour times
+    // Filter out booked slots and slots outside of valid schedules
     const availableSlots = slots
-      .filter(({ slot }) => !bookedSlots.has(slot.id))
+      .filter(({ slot, staff, schedule }) => {
+        // Check if slot is not booked
+        if (bookedSlots.has(slot.id)) return false;
+
+        // Check if slot is within a valid schedule
+        const dateKey = format(schedule.date, 'yyyy-MM-dd');
+        const staffSchedule = validSchedules.get(dateKey)?.get(staff.id);
+        if (!staffSchedule) return false;
+
+        // Check if slot time is within shift hours
+        const slotStart = new Date(slot.startTime);
+        const shiftStart = createDateFromTime(dateKey, staffSchedule.shiftStartTime);
+        const shiftEnd = createDateFromTime(dateKey, staffSchedule.shiftEndTime);
+
+        return slotStart >= shiftStart && slotStart <= shiftEnd;
+      })
       .map(({ slot, service, staff, shift, schedule }) => {
         const startTime = new Date(slot.startTime);
         const endTime = new Date(slot.endTime);

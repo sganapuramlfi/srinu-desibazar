@@ -1,0 +1,146 @@
+6:05:33 AM [express] GET /api/businesses 304 in 200ms :: [{"id":1,"userId":3,"name":"Glamour Salon &…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:06:33 AM [express] GET /api/businesses/19/slots 304 in 703ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+Found 2 schedules
+Processing slots for EMP3 - Test Haircut
+Generating slots for 2024-12-26 from 14:00 to 20:00
+Processing slots for EMP3 - TestCuts
+Already processed slots for EMP3 on 2024-12-26
+Processing slots for EMP3 - Test Nail Cuts
+Already processed slots for EMP3 on 2024-12-26
+Processing slots for EMP2 - Test Haircut
+Generating slots for 2024-12-26 from 14:00 to 20:00
+Processing slots for EMP2 - TestCuts
+Already processed slots for EMP2 on 2024-12-26
+Processing slots for EMP2 - Test Nail Cuts
+Already processed slots for EMP2 on 2024-12-26
+Processing slots for EMP4 - Test Haircut
+Processing slots for EMP4 - TestCuts
+Generated 36 total slots
+Inserting generated slots into database...
+Successfully inserted 36 slots
+6:06:35 AM [express] POST /api/businesses/19/slots/auto-generate 200 in 379ms :: [{"id":1713,"busine…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:06:36 AM [express] GET /api/businesses/19/slots 304 in 497ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:06:51 AM [express] GET /api/businesses/19/slots 304 in 670ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+Found 2 schedules
+Processing slots for EMP3 - Test Haircut
+Generating slots for 2024-12-27 from 14:00 to 20:00
+Processing slots for EMP3 - TestCuts
+Already processed slots for EMP3 on 2024-12-27
+Processing slots for EMP3 - Test Nail Cuts
+Already processed slots for EMP3 on 2024-12-27
+Processing slots for EMP2 - Test Haircut
+Generating slots for 2024-12-27 from 09:00 to 17:00
+Processing slots for EMP2 - TestCuts
+Already processed slots for EMP2 on 2024-12-27
+Processing slots for EMP2 - Test Nail Cuts
+Already processed slots for EMP2 on 2024-12-27
+Processing slots for EMP4 - Test Haircut
+Processing slots for EMP4 - TestCuts
+Generated 40 total slots
+Inserting generated slots into database...
+Successfully inserted 40 slots
+6:06:54 AM [express] POST /api/businesses/19/slots/auto-generate 200 in 376ms :: [{"id":1749,"busine…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:06:55 AM [express] GET /api/businesses/19/slots 304 in 452ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:07:10 AM [express] GET /api/businesses/19/slots 304 in 663ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:07:26 AM [express] GET /api/businesses/19/slots 304 in 667ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+6:07:27 AM [express] POST /api/businesses/19/slots/auto-generate 400 in 308ms :: {"error":"No staff …
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:07:42 AM [express] GET /api/businesses/19/slots 304 in 662ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 400 available slots out of 400 total slots
+6:07:45 AM [express] GET /api/businesses/19/slots 304 in 465ms :: [{"id":1694,"startTime":"2024-12-2…

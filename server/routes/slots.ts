@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { db } from "@db";
 import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff } from "@db/schema";
-import { eq, and, gte, lte, not, or } from "drizzle-orm";
+import { eq, and, gte, lte, not } from "drizzle-orm";
 import { z } from "zod";
-import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay, isSameDay, set } from "date-fns";
+import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 
 const router = Router();
 
@@ -17,8 +17,8 @@ const createManualSlotSchema = z.object({
 });
 
 const generateAutoSlotsSchema = z.object({
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 // Get slots for a business with enhanced filtering
@@ -26,6 +26,14 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     const { startDate, endDate, serviceId, staffId } = req.query;
+
+    console.log("Fetching slots with params:", {
+      businessId,
+      startDate,
+      endDate,
+      serviceId,
+      staffId
+    });
 
     // Get all slots
     const slots = await db
@@ -82,8 +90,8 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
       .filter(({ slot }) => !bookedSlots.has(slot.id))
       .map(({ slot, service, staff }) => ({
         id: slot.id,
-        startTime: slot.startTime.toISOString(),
-        endTime: slot.endTime.toISOString(),
+        startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        endTime: format(new Date(slot.endTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
         status: slot.status,
         service: {
           id: service.id,
@@ -95,13 +103,16 @@ router.get("/businesses/:businessId/slots", async (req, res) => {
           id: staff.id,
           name: staff.name,
         },
-        conflictingSlotIds: slot.conflictingSlotIds,
       }));
 
+    console.log(`Found ${availableSlots.length} available slots out of ${slots.length} total slots`);
     res.json(availableSlots);
   } catch (error) {
     console.error("Error fetching slots:", error);
-    res.status(500).json({ error: "Failed to fetch slots" });
+    res.status(500).json({ 
+      error: "Failed to fetch slots",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 });
 
@@ -125,30 +136,62 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     const { startDate, endDate } = validationResult.data;
+    console.log("Date range:", { startDate, endDate });
+
     const startDateObj = startOfDay(new Date(startDate));
     const endDateObj = endOfDay(new Date(endDate));
 
-    // Get all staff schedules and their service capabilities
-    const schedules = await db
+    // Get staff with their services
+    console.log("Fetching staff and their services...");
+    const staffServices = await db
       .select({
-        schedule: staffSchedules,
-        template: shiftTemplates,
-        staff: salonStaff,
-        skills: staffSkills,
-        service: salonServices,
+        staff: {
+          id: salonStaff.id,
+          name: salonStaff.name,
+        },
+        service: {
+          id: salonServices.id,
+          name: salonServices.name,
+          duration: salonServices.duration,
+        },
       })
-      .from(staffSchedules)
-      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
-      .innerJoin(salonStaff, eq(staffSchedules.staffId, salonStaff.id))
-      .innerJoin(staffSkills, eq(salonStaff.id, staffSkills.staffId))
+      .from(staffSkills)
+      .innerJoin(salonStaff, eq(staffSkills.staffId, salonStaff.id))
       .innerJoin(salonServices, eq(staffSkills.serviceId, salonServices.id))
       .where(
         and(
-          eq(salonServices.businessId, businessId),
-          gte(staffSchedules.date, startDateObj),
-          lte(staffSchedules.date, endDateObj)
+          eq(salonStaff.businessId, businessId),
+          eq(salonServices.businessId, businessId)
         )
       );
+
+    console.log(`Found ${staffServices.length} staff-service combinations`);
+
+    if (staffServices.length === 0) {
+      return res.status(400).json({
+        error: "No staff members with assigned services found for this business",
+      });
+    }
+
+    // Get schedules for the date range
+    console.log("Fetching staff schedules...");
+    const schedules = await db
+      .select({
+        staff_schedules: staffSchedules,
+        shift_templates: shiftTemplates,
+      })
+      .from(staffSchedules)
+      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .where(
+        and(
+          eq(shiftTemplates.businessId, businessId),
+          gte(staffSchedules.date, startDateObj),
+          lte(staffSchedules.date, endDateObj),
+          not(eq(shiftTemplates.type, "leave"))
+        )
+      );
+
+    console.log(`Found ${schedules.length} schedules`);
 
     if (schedules.length === 0) {
       return res.status(400).json({
@@ -157,71 +200,63 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     }
 
     const slots = [];
+    let totalSlotsGenerated = 0;
 
-    for (const { schedule, template, staff, service } of schedules) {
-      // Skip if it's a leave template
-      if (template.type === "leave") continue;
+    // Generate slots for each staff member and their services
+    for (const { staff, service } of staffServices) {
+      console.log(`Processing slots for ${staff.name} - ${service.name}`);
 
-      const scheduleDate = format(schedule.date, "yyyy-MM-dd");
+      // Get schedules for this staff member
+      const staffSchedules = schedules.filter(
+        s => s.staff_schedules.staffId === staff.id
+      );
 
-      // Convert template times to full datetime
-      const shiftStart = parseISO(`${scheduleDate}T${template.startTime}`);
-      const shiftEnd = parseISO(`${scheduleDate}T${template.endTime}`);
+      console.log(`Found ${staffSchedules.length} schedules for ${staff.name}`);
 
-      console.log(`Generating slots for ${staff.name} on ${scheduleDate} from ${template.startTime} to ${template.endTime}`);
+      for (const schedule of staffSchedules) {
+        const scheduleDate = format(schedule.staff_schedules.date, "yyyy-MM-dd");
 
-      let currentTime = shiftStart;
-      while (currentTime < shiftEnd) {
-        // Check for breaks
-        const isBreakTime = template.breaks?.some(breakTime => {
-          const breakStart = parseISO(`${scheduleDate}T${breakTime.startTime}`);
-          const breakEnd = parseISO(`${scheduleDate}T${breakTime.endTime}`);
-          return isWithinInterval(currentTime, { start: breakStart, end: breakEnd });
-        }) ?? false;
+        // Convert template times to full datetime
+        const shiftStart = parseISO(`${scheduleDate}T${schedule.shift_templates.startTime}`);
+        const shiftEnd = parseISO(`${scheduleDate}T${schedule.shift_templates.endTime}`);
 
-        if (!isBreakTime) {
-          const slotEnd = addMinutes(currentTime, service.duration);
+        console.log(`Generating slots for ${scheduleDate} from ${schedule.shift_templates.startTime} to ${schedule.shift_templates.endTime}`);
 
-          // Only create slot if it fits within shift
-          if (slotEnd <= shiftEnd) {
-            const newSlot = {
-              businessId,
-              serviceId: service.id,
-              staffId: staff.id,
-              startTime: currentTime,
-              endTime: slotEnd,
-              status: "available" as const,
-              isManual: false,
-              conflictingSlotIds: [] as number[],
-            };
+        let currentTime = shiftStart;
+        while (currentTime < shiftEnd) {
+          // Check for breaks
+          const isBreakTime = schedule.shift_templates.breaks?.some(breakTime => {
+            const breakStart = parseISO(`${scheduleDate}T${breakTime.startTime}`);
+            const breakEnd = parseISO(`${scheduleDate}T${breakTime.endTime}`);
+            return isWithinInterval(currentTime, { start: breakStart, end: breakEnd });
+          }) ?? false;
 
-            // Check for overlapping slots
-            const existingOverlappingSlots = slots.filter(existingSlot =>
-              existingSlot.staffId === newSlot.staffId &&
-              (isWithinInterval(newSlot.startTime, {
-                start: existingSlot.startTime,
-                end: existingSlot.endTime
-              }) ||
-              isWithinInterval(newSlot.endTime, {
-                start: existingSlot.startTime,
-                end: existingSlot.endTime
-              }))
-            );
+          if (!isBreakTime) {
+            const slotEnd = addMinutes(currentTime, service.duration);
 
-            if (existingOverlappingSlots.length > 0) {
-              newSlot.conflictingSlotIds = existingOverlappingSlots.map(slot => slot.id);
-              // Still add the slot but mark conflicts
-              slots.push(newSlot);
-            } else {
-              slots.push(newSlot);
+            // Only create slot if it fits within shift
+            if (slotEnd <= shiftEnd) {
+              slots.push({
+                businessId,
+                serviceId: service.id,
+                staffId: staff.id,
+                startTime: currentTime,
+                endTime: slotEnd,
+                status: "available",
+                isManual: false,
+                conflictingSlotIds: [],
+              });
+              totalSlotsGenerated++;
             }
           }
-        }
 
-        // Move to next potential slot start time (15-minute increments)
-        currentTime = addMinutes(currentTime, 15);
+          // Move to next potential slot start time (15-minute increments)
+          currentTime = addMinutes(currentTime, 15);
+        }
       }
     }
+
+    console.log(`Generated ${totalSlotsGenerated} total slots`);
 
     if (slots.length === 0) {
       return res.status(400).json({
@@ -229,14 +264,25 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       });
     }
 
-    // Insert all generated slots
-    const createdSlots = await db.insert(serviceSlots).values(slots).returning();
-    console.log(`Successfully inserted ${createdSlots.length} slots`);
-
-    res.json(createdSlots);
+    try {
+      // Insert all generated slots
+      console.log("Inserting generated slots into database...");
+      const createdSlots = await db.insert(serviceSlots).values(slots).returning();
+      console.log(`Successfully inserted ${createdSlots.length} slots`);
+      res.json(createdSlots);
+    } catch (insertError) {
+      console.error("Error inserting slots:", insertError);
+      res.status(500).json({
+        error: "Failed to save generated slots",
+        details: insertError instanceof Error ? insertError.message : "Unknown error"
+      });
+    }
   } catch (error) {
     console.error("Error generating slots:", error);
-    res.status(500).json({ error: "Failed to generate slots" });
+    res.status(500).json({
+      error: "Failed to generate slots",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 });
 
@@ -309,7 +355,10 @@ router.post("/businesses/:businessId/slots/manual", async (req, res) => {
     res.json(slot);
   } catch (error) {
     console.error("Error creating manual slot:", error);
-    res.status(500).json({ error: "Failed to create slot" });
+    res.status(500).json({
+      error: "Failed to create slot",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 });
 

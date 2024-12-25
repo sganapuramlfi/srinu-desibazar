@@ -9,7 +9,7 @@ import {
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
 import { Button } from "@/components/ui/button";
-import { Store, LogIn, LogOut, Menu } from "lucide-react";
+import { Store, LogIn, LogOut, Menu, User, Calendar } from "lucide-react";
 
 export function Navbar() {
   const [, navigate] = useLocation();
@@ -26,6 +26,8 @@ export function Navbar() {
   const handleDashboardClick = () => {
     if (user?.role === "business" && user.business?.id) {
       navigate(`/dashboard/${user.business.id}`);
+    } else if (user?.role === "customer") {
+      navigate("/my-dashboard");
     }
   };
 
@@ -76,7 +78,7 @@ export function Navbar() {
         <div className="flex items-center space-x-4">
           {user ? (
             <>
-              {user.role === "business" && user.business?.id && (
+              {user.role === "business" && user.business?.id ? (
                 <Button
                   variant="ghost"
                   onClick={handleDashboardClick}
@@ -85,7 +87,26 @@ export function Navbar() {
                   <Store className="mr-2 h-4 w-4" />
                   Business Dashboard
                 </Button>
-              )}
+              ) : user.role === "customer" ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    onClick={handleDashboardClick}
+                    className="hidden md:flex"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    My Dashboard
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate("/my-bookings")}
+                    className="hidden md:flex"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    My Bookings
+                  </Button>
+                </>
+              ) : null}
               <Button variant="ghost" onClick={handleLogout} className="hidden md:flex">
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
@@ -133,7 +154,7 @@ export function Navbar() {
 
             {user ? (
               <>
-                {user.role === "business" && user.business?.id && (
+                {user.role === "business" && user.business?.id ? (
                   <Button
                     variant="ghost"
                     onClick={handleDashboardClick}
@@ -142,7 +163,26 @@ export function Navbar() {
                     <Store className="mr-2 h-4 w-4" />
                     Business Dashboard
                   </Button>
-                )}
+                ) : user.role === "customer" ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={handleDashboardClick}
+                      className="w-full justify-start"
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      My Dashboard
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigate("/my-bookings")}
+                      className="w-full justify-start"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      My Bookings
+                    </Button>
+                  </>
+                ) : null}
                 <Button
                   variant="ghost"
                   onClick={handleLogout}

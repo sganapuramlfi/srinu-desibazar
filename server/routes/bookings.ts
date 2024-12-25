@@ -3,6 +3,7 @@ import { db } from "@db";
 import { eq, and, not, or } from "drizzle-orm";
 import { z } from "zod";
 import { salonBookings, serviceSlots, salonServices, salonStaff, users } from "@db/schema";
+import { format } from 'date-fns';
 
 const router = Router();
 
@@ -18,10 +19,11 @@ const cancelBookingSchema = z.object({
   notes: z.string().min(1, "Please provide a reason for cancellation"),
 });
 
-// Reschedule booking schema
+// Update the rescheduleBookingSchema to include notes
 const rescheduleBookingSchema = z.object({
   slotId: z.number(),
   date: z.string(),
+  notes: z.string().optional(),
 });
 
 // Get user's bookings with enhanced details
@@ -326,7 +328,7 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req
       });
     }
 
-    const { slotId, date } = validationResult.data;
+    const { slotId, date, notes } = validationResult.data;
 
     // Begin transaction
     const result = await db.transaction(async (tx) => {
@@ -360,8 +362,21 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req
 
       // Check if new slot is available
       const [newSlot] = await tx
-        .select()
+        .select({
+          slot: serviceSlots,
+          service: {
+            id: salonServices.id,
+            name: salonServices.name,
+            duration: salonServices.duration,
+          },
+          staff: {
+            id: salonStaff.id,
+            name: salonStaff.name,
+          },
+        })
         .from(serviceSlots)
+        .innerJoin(salonServices, eq(serviceSlots.serviceId, salonServices.id))
+        .innerJoin(salonStaff, eq(serviceSlots.staffId, salonStaff.id))
         .where(
           and(
             eq(serviceSlots.id, slotId),
@@ -390,9 +405,10 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req
       const [updatedBooking] = await tx
         .update(salonBookings)
         .set({
-          status: "rescheduled",
           slotId,
           date: new Date(date),
+          status: "rescheduled",
+          notes: notes || `Rescheduled from ${format(currentBooking.booking.date, 'yyyy-MM-dd HH:mm')} to ${format(new Date(date), 'yyyy-MM-dd HH:mm')}`,
         })
         .where(eq(salonBookings.id, bookingId))
         .returning();
@@ -400,6 +416,9 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req
       return {
         ...updatedBooking,
         customer: currentBooking.customer,
+        service: newSlot.service,
+        staff: newSlot.staff,
+        slot: newSlot.slot,
       };
     });
 

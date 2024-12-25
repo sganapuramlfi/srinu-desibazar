@@ -397,7 +397,7 @@ router.get("/businesses/:businessId/slots", isAuthenticated, isBusinessOwner, as
   }
 });
 
-// Add new route for available slots specifically for rescheduling
+// Update the available slots endpoint for rescheduling
 router.get("/businesses/:businessId/slots/available", isAuthenticated, async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
@@ -419,6 +419,24 @@ router.get("/businesses/:businessId/slots/available", isAuthenticated, async (re
       staffId
     });
 
+    // Get staff schedules for the date
+    const schedules = await db
+      .select({
+        staffId: staffSchedules.staffId,
+        date: staffSchedules.date,
+        shiftStartTime: shiftTemplates.startTime,
+        shiftEndTime: shiftTemplates.endTime,
+      })
+      .from(staffSchedules)
+      .innerJoin(shiftTemplates, eq(staffSchedules.templateId, shiftTemplates.id))
+      .where(
+        and(
+          eq(shiftTemplates.businessId, businessId),
+          sql`DATE(${staffSchedules.date}) = ${startDateObj.toISOString().split('T')[0]}::date`,
+          not(eq(shiftTemplates.type, "leave"))
+        )
+      );
+
     // Get slots with staff and service information
     const slots = await db
       .select({
@@ -432,6 +450,7 @@ router.get("/businesses/:businessId/slots/available", isAuthenticated, async (re
         staff: {
           id: salonStaff.id,
           name: salonStaff.name,
+          businessId: salonStaff.businessId,
         },
       })
       .from(serviceSlots)
@@ -443,7 +462,7 @@ router.get("/businesses/:businessId/slots/available", isAuthenticated, async (re
           sql`DATE(${serviceSlots.startTime}) = ${startDateObj.toISOString().split('T')[0]}::date`,
           serviceId ? eq(serviceSlots.serviceId, parseInt(serviceId as string)) : undefined,
           staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined,
-          eq(serviceSlots.status, "available"),
+          eq(serviceSlots.status, "available")
         )
       );
 
@@ -468,9 +487,25 @@ router.get("/businesses/:businessId/slots/available", isAuthenticated, async (re
         .map(booking => booking.slotId)
     );
 
-    // Filter out booked slots and format the response
+    // Filter and format available slots
     const availableSlots = slots
-      .filter(({ slot }) => !bookedSlots.has(slot.id))
+      .filter(({ slot, staff }) => {
+        if (bookedSlots.has(slot.id)) return false;
+
+        // Check if staff member has a schedule for this date
+        const staffSchedule = schedules.find(s =>
+          s.staffId === staff.id &&
+          isSameDay(new Date(s.date), startDateObj)
+        );
+
+        if (!staffSchedule) return false;
+
+        const slotStart = new Date(slot.startTime);
+        const shiftStart = createUtcDate(format(startDateObj, 'yyyy-MM-dd'), staffSchedule.shiftStartTime);
+        const shiftEnd = createUtcDate(format(startDateObj, 'yyyy-MM-dd'), staffSchedule.shiftEndTime);
+
+        return slotStart >= shiftStart && slotStart <= shiftEnd;
+      })
       .map(({ slot, service, staff }) => ({
         id: slot.id,
         startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),

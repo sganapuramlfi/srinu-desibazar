@@ -1,4 +1,4 @@
-import type { Express, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
@@ -6,19 +6,13 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import {
-  businesses,
-  users,
-  salonServices,
-  salonStaff,
-  staffSkills,
-  businessProfileSchema
-} from "@db/schema";
+import { businesses } from "@db/schema";
 import { eq } from "drizzle-orm";
 import salonRouter from "./routes/salon";
 import rosterRouter from "./routes/roster";
 import slotsRouter from "./routes/slots";
 import bookingsRouter from "./routes/bookings";
+import { requireAuth, hasBusinessAccess } from "./middleware/businessAccess";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,49 +54,19 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express): Server {
+  // Set up authentication first
   setupAuth(app);
 
-  // Register industry-specific routes
+  // Apply global middleware before route registration
+  app.use('/api/businesses/:businessId/*', requireAuth, hasBusinessAccess);
+
+  // Register all business-related routes with proper middleware
   app.use("/api", salonRouter);
   app.use("/api", rosterRouter);
   app.use("/api", slotsRouter);
   app.use("/api", bookingsRouter);
 
-  // Middleware to check authentication
-  const requireAuth = (req: any, res: Response, next: NextFunction) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    next();
-  };
-
-  // Middleware to check business ownership
-  const checkBusinessOwnership = async (req: any, res: Response, next: NextFunction) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ message: "Business not found" });
-      }
-
-      if (business.userId !== req.user.id) {
-        return res.status(403).json({ message: "Not authorized to access this business" });
-      }
-
-      req.business = business;
-      next();
-    } catch (error) {
-      console.error('Error in business ownership check:', error);
-      res.status(500).json({ message: "Server error" });
-    }
-  };
-
-  // Business Profile Routes
+  // Public Business Routes
   app.get("/api/businesses/:businessId/profile", async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
@@ -113,7 +77,7 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (!business) {
-        return res.status(404).json({ message: "Business not found" });
+        return res.status(404).json({ error: "Business not found" });
       }
 
       res.json(business);
@@ -123,86 +87,105 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Protected Services Route
-  app.get("/api/businesses/:businessId/services", requireAuth, checkBusinessOwnership, async (req, res) => {
+  // Protected Business Routes
+  app.post("/api/businesses", requireAuth, async (req, res) => {
     try {
-      const businessId = parseInt(req.params.businessId);
-      const servicesList = await db
-        .select()
-        .from(salonServices)
-        .where(eq(salonServices.businessId, businessId));
+      const [business] = await db
+        .insert(businesses)
+        .values({ ...req.body, userId: req.user!.id })
+        .returning();
 
-      console.log('Fetched services for business:', businessId, servicesList);
-      res.json(servicesList);
+      res.json(business);
     } catch (error) {
-      console.error('Error fetching services:', error);
-      res.status(500).json({ message: "Failed to fetch services" });
+      res.status(500).json({ error: "Failed to create business" });
     }
   });
 
-  // Staff Routes with Skills
-  app.get("/api/businesses/:businessId/staff", requireAuth, checkBusinessOwnership, async (req, res) => {
+  // Public Business Listing
+  app.get("/api/businesses", async (req, res) => {
     try {
-      const businessId = parseInt(req.params.businessId);
-      const staffMembers = await db
+      const result = await db
         .select()
-        .from(salonStaff)
-        .where(eq(salonStaff.businessId, businessId));
-
-      // Fetch staff skills
-      const staffWithSkills = await Promise.all(
-        staffMembers.map(async (staff) => {
-          const skills = await db
-            .select()
-            .from(staffSkills)
-            .where(eq(staffSkills.staffId, staff.id));
-
-          return {
-            ...staff,
-            skills
-          };
-        })
-      );
-
-      console.log('Fetched staff with skills for business:', businessId, staffWithSkills);
-      res.json(staffWithSkills);
+        .from(businesses);
+      res.json(result);
     } catch (error) {
-      console.error('Error fetching staff:', error);
-      res.status(500).json({ message: "Failed to fetch staff" });
+      res.status(500).json({ error: "Failed to fetch businesses" });
     }
   });
 
-  // Business Profile Routes (Protected for write, public for read)
-  app.get("/api/businesses/:businessId", async (req, res) => {
+  // Protected Gallery Management
+  app.delete("/api/businesses/:businessId/gallery/:photoIndex", requireAuth, hasBusinessAccess, async (req: any, res) => {
     try {
+      if (!req.isBusinessOwner) {
+        return res.status(403).json({ error: "Not authorized to update this business" });
+      }
+
+      const businessId = parseInt(req.params.businessId);
+      const photoIndex = parseInt(req.params.photoIndex);
+
       const [business] = await db
         .select()
         .from(businesses)
-        .where(eq(businesses.id, parseInt(req.params.businessId)))
+        .where(eq(businesses.id, businessId))
         .limit(1);
 
       if (!business) {
         return res.status(404).json({ error: "Business not found" });
       }
 
-      res.json(business);
-    } catch (error) {
-      console.error('Error fetching business:', error);
-      res.status(500).json({ error: "Failed to fetch business" });
+      // Get current gallery
+      const gallery = business.gallery || [];
+      if (photoIndex < 0 || photoIndex >= gallery.length) {
+        return res.status(400).json({ error: "Invalid photo index" });
+      }
+
+      // Get photo to delete
+      const photoToDelete = gallery[photoIndex];
+
+      // Delete file from filesystem
+      if (photoToDelete?.url) {
+        const filePath = path.join(__dirname, '..', 'public', photoToDelete.url);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+
+      // Remove photo from gallery array
+      gallery.splice(photoIndex, 1);
+
+      // Update business with new gallery
+      const [updatedBusiness] = await db
+        .update(businesses)
+        .set({
+          gallery: gallery,
+          updatedAt: new Date()
+        })
+        .where(eq(businesses.id, businessId))
+        .returning();
+
+      res.json(updatedBusiness);
+    } catch (error: any) {
+      console.error('Error deleting photo:', error);
+      res.status(500).json({
+        error: "Failed to delete photo",
+        details: error.message
+      });
     }
   });
 
   // Protected profile update route
   app.put(
     "/api/businesses/:businessId/profile",
+    requireAuth,
+    hasBusinessAccess,
     upload.fields([
       { name: 'logo', maxCount: 1 },
       { name: 'gallery', maxCount: 10 }
     ]),
-    async (req, res) => {
+    async (req: any, res) => {
       try {
-        if (!req.user) {
-          return res.status(401).json({ error: "Unauthorized" });
+        if (!req.isBusinessOwner) {
+          return res.status(403).json({ error: "Not authorized to update this business" });
         }
 
         const businessId = parseInt(req.params.businessId);
@@ -216,21 +199,9 @@ export function registerRoutes(app: Express): Server {
           return res.status(404).json({ error: "Business not found" });
         }
 
-        if (business.userId !== req.user.id) {
-          return res.status(403).json({ error: "Not authorized to update this business" });
-        }
-
         // Parse the form data
         const formData = JSON.parse(req.body.data || '{}');
         console.log('Received form data:', formData);
-
-        const result = businessProfileSchema.safeParse(formData);
-        if (!result.success) {
-          return res.status(400).json({
-            error: "Invalid input",
-            details: result.error.issues
-          });
-        }
 
         // Handle file uploads
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -280,95 +251,6 @@ export function registerRoutes(app: Express): Server {
       }
     }
   );
-
-
-  // Protected Business Routes
-  app.post("/api/businesses", requireAuth, async (req, res) => {
-    try {
-      const [business] = await db
-        .insert(businesses)
-        .values({ ...req.body, userId: req.user.id })
-        .returning();
-
-      res.json(business);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create business" });
-    }
-  });
-
-  // Public Business Listing
-  app.get("/api/businesses", async (req, res) => {
-    try {
-      const { industryType } = req.query;
-      let query = db.select().from(businesses);
-
-      if (industryType) {
-        query = query.where(eq(businesses.industryType, industryType as string));
-      }
-
-      const result = await query;
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch businesses" });
-    }
-  });
-
-  // Protected Gallery Management
-  app.delete("/api/businesses/:businessId/gallery/:photoIndex", requireAuth, checkBusinessOwnership, async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const photoIndex = parseInt(req.params.photoIndex);
-
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({ error: "Business not found" });
-      }
-
-
-      // Get current gallery
-      const gallery = business.gallery || [];
-      if (photoIndex < 0 || photoIndex >= gallery.length) {
-        return res.status(400).json({ error: "Invalid photo index" });
-      }
-
-      // Get photo to delete
-      const photoToDelete = gallery[photoIndex];
-
-      // Delete file from filesystem
-      if (photoToDelete?.url) {
-        const filePath = path.join(__dirname, '..', 'public', photoToDelete.url);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      }
-
-      // Remove photo from gallery array
-      gallery.splice(photoIndex, 1);
-
-      // Update business with new gallery
-      const [updatedBusiness] = await db
-        .update(businesses)
-        .set({
-          gallery: gallery,
-          updatedAt: new Date()
-        })
-        .where(eq(businesses.id, businessId))
-        .returning();
-
-      res.json(updatedBusiness);
-    } catch (error: any) {
-      console.error('Error deleting photo:', error);
-      res.status(500).json({
-        error: "Failed to delete photo",
-        details: error.message
-      });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;

@@ -44,14 +44,6 @@ const isBusinessOwner = async (req: any, res: any, next: any) => {
   }
 };
 
-// Helper function to create UTC Date from time
-const createUtcDate = (dateStr: string, timeStr: string) => {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  const baseDate = new Date(dateStr);
-  baseDate.setUTCHours(hours, minutes, 0, 0);
-  return baseDate;
-};
-
 const router = Router();
 
 // Auto-generate slots based on roster and service mappings
@@ -127,7 +119,7 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
         and(
           eq(salonStaff.businessId, businessId),
           eq(shiftTemplates.businessId, businessId),
-          sql`DATE(${staffSchedules.date} AT TIME ZONE 'UTC') = DATE(${startDate}::timestamp AT TIME ZONE 'UTC')`,
+          sql`DATE(${staffSchedules.date}) = ${startDate}::date`,
           not(eq(shiftTemplates.type, 'leave'))
         )
       );
@@ -148,7 +140,7 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
           and(
             eq(salonStaff.businessId, businessId),
             eq(shiftTemplates.businessId, businessId),
-            sql`DATE(${staffSchedules.date} AT TIME ZONE 'UTC') = DATE(${startDate}::timestamp AT TIME ZONE 'UTC')`,
+            sql`DATE(${staffSchedules.date}) = ${startDate}::date`,
             eq(shiftTemplates.type, 'leave')
           )
         );
@@ -162,25 +154,6 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
           details: `The following staff are on leave for ${startDate}: ${staffOnLeave}`
         });
       }
-
-      // Debug nearby schedules
-      const nearbySchedules = await db
-        .select({
-          date: staffSchedules.date,
-          staffId: staffSchedules.staffId,
-          templateId: staffSchedules.templateId,
-        })
-        .from(staffSchedules)
-        .where(
-          and(
-            eq(salonStaff.businessId, businessId),
-            sql`${staffSchedules.date} >= (${startDate}::timestamp - interval '3 days') AND 
-                ${staffSchedules.date} <= (${startDate}::timestamp + interval '3 days')`
-          )
-        )
-        .orderBy(staffSchedules.date);
-
-      console.log("Nearby schedules:", nearbySchedules);
 
       return res.status(400).json({
         error: "No staff schedules found",
@@ -204,8 +177,9 @@ router.post("/businesses/:businessId/slots/auto-generate", isAuthenticated, isBu
       for (const schedule of staffSchedules) {
         console.log(`Generating slots for ${staff.name} on ${startDate} from ${schedule.startTime} to ${schedule.endTime}`);
 
-        const shiftStart = createUtcDate(startDate, schedule.startTime);
-        const shiftEnd = createUtcDate(startDate, schedule.endTime);
+        // Create UTC dates for shift start and end
+        const shiftStart = new Date(`${startDate}T${schedule.startTime}:00Z`);
+        const shiftEnd = new Date(`${startDate}T${schedule.endTime}:00Z`);
 
         let currentTime = shiftStart;
         while (currentTime < shiftEnd) {

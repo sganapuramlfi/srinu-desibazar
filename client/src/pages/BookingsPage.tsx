@@ -100,15 +100,14 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
   // Fetch available slots for rescheduling
   const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery<AvailableSlot[]>({
     queryKey: [
-      `/api/businesses/${businessId}/slots`,
+      `/api/businesses/${businessId}/slots/available`,
       {
-        startDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
-        endDate: selectedDate ? format(endOfDay(selectedDate), 'yyyy-MM-dd') : undefined,
+        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
         serviceId: selectedBooking?.service?.id,
         staffId: selectedBooking?.staff?.id,
       }
     ],
-    enabled: !!selectedDate && !!selectedBooking?.service?.id,
+    enabled: !!selectedDate && !!selectedBooking?.service?.id && !!selectedBooking?.staff?.id,
   });
 
   // Cancel booking mutation
@@ -166,7 +165,8 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to reschedule booking');
       }
 
       return response.json();
@@ -177,6 +177,10 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
         title: "Booking Rescheduled",
         description: "Your appointment has been successfully rescheduled. You will receive an updated confirmation email shortly.",
       });
+      // Reset the dialog state
+      setSelectedBooking(null);
+      setSelectedDate(undefined);
+      setSelectedTimeSlot(undefined);
     },
     onError: (error: Error) => {
       toast({
@@ -449,7 +453,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                                           ) : (
                                             availableSlots.map((slot) => (
                                               <SelectItem key={slot.id} value={slot.id.toString()}>
-                                                {slot.displayTime}
+                                                {format(parseISO(slot.startTime), 'h:mm a')}
                                               </SelectItem>
                                             ))
                                           )}

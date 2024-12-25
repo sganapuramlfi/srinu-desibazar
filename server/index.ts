@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import { setupAuth } from "./auth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,20 +12,15 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Serve uploaded files from public directory
-app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
-
 // CORS middleware for API routes
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
-    // Get the actual origin from the request
     const origin = req.headers.origin || '*';
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization'); // Added Authorization header
 
-    // Handle preflight requests
     if (req.method === 'OPTIONS') {
       return res.status(200).end();
     }
@@ -63,6 +59,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Initialize authentication after basic middleware but before routes
+setupAuth(app);
+
+// Serve uploaded files from public directory
+app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
+
 (async () => {
   const server = registerRoutes(app);
 
@@ -88,7 +90,6 @@ app.use((req, res, next) => {
     }
   });
 
-  // Setup Vite or serve static files
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {

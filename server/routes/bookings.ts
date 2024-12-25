@@ -13,6 +13,17 @@ const createBookingSchema = z.object({
   date: z.string(),
 });
 
+// Cancel booking schema
+const cancelBookingSchema = z.object({
+  notes: z.string().min(1, "Please provide a reason for cancellation"),
+});
+
+// Reschedule booking schema
+const rescheduleBookingSchema = z.object({
+  slotId: z.number(),
+  date: z.string(),
+});
+
 // Create a new booking with enhanced validation
 router.post("/businesses/:businessId/bookings", async (req, res) => {
   try {
@@ -79,7 +90,6 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
     }
 
     // Begin transaction
-    // Create booking and update slot status atomically
     const booking = await db.transaction(async (tx) => {
       const [newBooking] = await tx
         .insert(salonBookings)
@@ -144,12 +154,8 @@ router.get("/bookings", async (req, res) => {
       .innerJoin(salonServices, eq(salonBookings.serviceId, salonServices.id))
       .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
       .innerJoin(salonStaff, eq(salonBookings.staffId, salonStaff.id))
-      .where(
-        and(
-          eq(salonBookings.customerId, customerId),
-          not(eq(salonBookings.status, "cancelled"))
-        )
-      );
+      .where(eq(salonBookings.customerId, customerId))
+      .orderBy(serviceSlots.startTime);
 
     res.json(bookings);
   } catch (error) {
@@ -158,7 +164,7 @@ router.get("/bookings", async (req, res) => {
   }
 });
 
-// Get business bookings
+// Get business bookings with enhanced filtering
 router.get("/businesses/:businessId/bookings", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
@@ -166,8 +172,9 @@ router.get("/businesses/:businessId/bookings", async (req, res) => {
     }
 
     const businessId = parseInt(req.params.businessId);
+    const { status } = req.query;
 
-    const bookings = await db
+    let query = db
       .select({
         booking: salonBookings,
         service: {
@@ -186,9 +193,13 @@ router.get("/businesses/:businessId/bookings", async (req, res) => {
       .innerJoin(salonServices, eq(salonBookings.serviceId, salonServices.id))
       .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
       .innerJoin(salonStaff, eq(salonBookings.staffId, salonStaff.id))
-      .where(eq(salonBookings.businessId, businessId))
-      .orderBy(serviceSlots.startTime);
+      .where(eq(salonBookings.businessId, businessId));
 
+    if (status) {
+      query = query.where(eq(salonBookings.status, status as string));
+    }
+
+    const bookings = await query.orderBy(serviceSlots.startTime);
     res.json(bookings);
   } catch (error) {
     console.error("Error fetching business bookings:", error);
@@ -196,7 +207,7 @@ router.get("/businesses/:businessId/bookings", async (req, res) => {
   }
 });
 
-// Cancel booking with proper cleanup
+// Cancel booking with notes
 router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
@@ -206,6 +217,17 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
     const businessId = parseInt(req.params.businessId);
     const bookingId = parseInt(req.params.bookingId);
     const userId = req.user!.id;
+
+    // Validate cancellation notes
+    const validationResult = cancelBookingSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        details: validationResult.error.errors,
+      });
+    }
+
+    const { notes } = validationResult.data;
 
     // Begin transaction
     const result = await db.transaction(async (tx) => {
@@ -230,10 +252,13 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
         throw new Error("Booking not found or already cancelled");
       }
 
-      // Update booking status
+      // Update booking status and add notes
       const [updatedBooking] = await tx
         .update(salonBookings)
-        .set({ status: "cancelled" })
+        .set({
+          status: "cancelled",
+          notes,
+        })
         .where(eq(salonBookings.id, bookingId))
         .returning();
 
@@ -256,6 +281,106 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
       res.status(404).json({ message: error.message });
     } else {
       res.status(500).json({ message: "Failed to cancel booking" });
+    }
+  }
+});
+
+// Reschedule booking
+router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+    const bookingId = parseInt(req.params.bookingId);
+    const userId = req.user!.id;
+
+    // Validate request body
+    const validationResult = rescheduleBookingSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        details: validationResult.error.errors,
+      });
+    }
+
+    const { slotId, date } = validationResult.data;
+
+    // Begin transaction
+    const result = await db.transaction(async (tx) => {
+      // Get current booking
+      const [currentBooking] = await tx
+        .select()
+        .from(salonBookings)
+        .where(
+          and(
+            eq(salonBookings.id, bookingId),
+            eq(salonBookings.businessId, businessId),
+            or(
+              eq(salonBookings.customerId, userId),
+              eq(salonBookings.businessId, businessId)
+            ),
+            not(eq(salonBookings.status, "cancelled"))
+          )
+        );
+
+      if (!currentBooking) {
+        throw new Error("Booking not found or cannot be rescheduled");
+      }
+
+      // Check if new slot is available
+      const [newSlot] = await tx
+        .select()
+        .from(serviceSlots)
+        .where(
+          and(
+            eq(serviceSlots.id, slotId),
+            eq(serviceSlots.businessId, businessId),
+            eq(serviceSlots.status, "available")
+          )
+        );
+
+      if (!newSlot) {
+        throw new Error("Selected slot is not available");
+      }
+
+      // Release old slot
+      await tx
+        .update(serviceSlots)
+        .set({ status: "available" })
+        .where(eq(serviceSlots.id, currentBooking.slotId));
+
+      // Book new slot
+      await tx
+        .update(serviceSlots)
+        .set({ status: "booked" })
+        .where(eq(serviceSlots.id, slotId));
+
+      // Update booking
+      const [updatedBooking] = await tx
+        .update(salonBookings)
+        .set({
+          status: "rescheduled",
+          slotId,
+          date: new Date(date),
+        })
+        .where(eq(salonBookings.id, bookingId))
+        .returning();
+
+      return updatedBooking;
+    });
+
+    res.json({
+      message: "Booking rescheduled successfully",
+      booking: result,
+    });
+  } catch (error) {
+    console.error("Error rescheduling booking:", error);
+    if (error instanceof Error) {
+      res.status(400).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: "Failed to reschedule booking" });
     }
   }
 });

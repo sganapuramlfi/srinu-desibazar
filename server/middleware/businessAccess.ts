@@ -54,11 +54,11 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
 
     // Allow slot-related operations without business ownership
     if (lastSegment === 'slots' || secondToLastSegment === 'slots') {
-      console.log('Access granted - Slot operation:', lastSegment);
+      console.log('Access granted - Slot operation');
       return next();
     }
 
-    // Allow other public endpoints
+    // Allow public endpoints
     if (publicEndpoints.includes(lastSegment)) {
       console.log('Access granted - Public endpoint:', lastSegment);
       return next();
@@ -72,20 +72,18 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
 
     // Business owners have full access
     if (req.isBusinessOwner) {
-      console.log('Access granted - Business owner:', { userId, businessName: business.name });
+      console.log('Access granted - Business owner');
       return next();
     }
 
-    // Check if this is a booking-related operation
-    const bookingSegmentIndex = pathSegments.indexOf('bookings');
-    if (bookingSegmentIndex !== -1) {
-      // Get booking ID if it exists in the path
-      const bookingId = bookingSegmentIndex + 1 < pathSegments.length 
-        ? parseInt(pathSegments[bookingSegmentIndex + 1]) 
-        : null;
+    // Handle booking-specific operations
+    if (pathSegments.includes('bookings')) {
+      // Get booking ID if exists in path
+      const bookingIdIndex = pathSegments.indexOf('bookings') + 1;
+      const bookingId = bookingIdIndex < pathSegments.length ? parseInt(pathSegments[bookingIdIndex]) : null;
 
+      // If accessing a specific booking
       if (bookingId && !isNaN(bookingId)) {
-        // Check if user owns this specific booking
         const [booking] = await db
           .select()
           .from(salonBookings)
@@ -104,7 +102,7 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
         }
       }
 
-      // For general booking access, check if user has any bookings
+      // For general booking operations, check if user has any bookings with this business
       const [existingBooking] = await db
         .select()
         .from(salonBookings)
@@ -117,13 +115,13 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
         .limit(1);
 
       if (existingBooking) {
-        console.log('Access granted - Has existing bookings:', { userId, businessId });
+        console.log('Access granted - Has existing bookings:', { userId });
         req.hasBookingAccess = true;
         return next();
       }
     }
 
-    console.log('Access denied - Not authorized:', { userId, businessId });
+    console.log('Access denied - Not authorized');
     return res.status(403).json({ error: "Not authorized to access this business" });
 
   } catch (error) {

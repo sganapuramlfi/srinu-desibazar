@@ -35,6 +35,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+interface Customer {
+  id: number;
+  username: string;
+  email: string;
+}
+
 interface ServiceSlot {
   id: number;
   startTime: string;
@@ -58,6 +64,7 @@ interface Booking {
   id: number;
   status: "pending" | "confirmed" | "completed" | "cancelled" | "rescheduled";
   notes?: string;
+  customer: Customer;
   slot: ServiceSlot;
   service: Service;
   staff: Staff;
@@ -96,10 +103,10 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       `/api/businesses/${businessId}/slots`,
       {
         date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
-        serviceId: selectedBooking?.service.id,
+        serviceId: selectedBooking?.service?.id, // Safely access service.id
       }
     ],
-    enabled: !!selectedDate && !!selectedBooking?.service.id,
+    enabled: !!selectedDate && !!selectedBooking?.service?.id, // Only run query when we have both date and service
   });
 
   // Cancel booking mutation
@@ -264,16 +271,6 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     }
   };
 
-  // Group bookings by status
-  const bookingsByStatus = bookings.reduce((acc, { booking, service, slot, staff }) => {
-    const status = booking.status.toLowerCase();
-    if (!acc[status]) {
-      acc[status] = [];
-    }
-    acc[status].push({ booking, service, slot, staff });
-    return acc;
-  }, {} as Record<string, BookingResponse[]>);
-
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
@@ -311,6 +308,11 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                           <p className="text-sm text-muted-foreground">
                             with {staff.name}
                           </p>
+                          {businessId && booking.customer && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Booked by: {booking.customer.username} ({booking.customer.email})
+                            </p>
+                          )}
                         </div>
                         <Badge className={`flex items-center gap-1 ${getStatusColor(booking.status)}`}>
                           {getStatusIcon(booking.status)}

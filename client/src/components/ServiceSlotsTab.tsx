@@ -327,7 +327,13 @@ export function ServiceSlotsTab({
                               <TableCell>{slot.service.name}</TableCell>
                               <TableCell>{slot.service.duration} min</TableCell>
                               <TableCell>{slot.shift.displayTime}</TableCell>
-                              <TableCell>{slot.generatedFor}</TableCell>
+                              <TableCell>
+                                {new Date(slot.generatedFor).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </TableCell>
                               <TableCell>
                                 <span
                                   className={`text-xs px-2 py-1 rounded-full ${

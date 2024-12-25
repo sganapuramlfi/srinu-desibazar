@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db } from "@db";
-import { eq, and, not, or } from "drizzle-orm";
+import { eq, and, not } from "drizzle-orm";
 import { z } from "zod";
-import { salonBookings, serviceSlots, salonServices, salonStaff, users } from "@db/schema";
+import { salonBookings, serviceSlots, salonServices, salonStaff } from "@db/schema";
 import { format } from 'date-fns';
 import { requireAuth, hasBusinessAccess } from "../middleware/businessAccess";
 
@@ -259,10 +259,6 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
           and(
             eq(salonBookings.id, bookingId),
             eq(salonBookings.businessId, businessId),
-            or(
-              eq(salonBookings.customerId, userId),
-              eq(salonBookings.businessId, businessId)
-            ),
             not(eq(salonBookings.status, "cancelled"))
           )
         );
@@ -307,13 +303,21 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
 
 // Reschedule a booking
 router.post("/businesses/:businessId/bookings/:bookingId/reschedule", requireAuth, hasBusinessAccess, async (req, res) => {
+  const businessId = parseInt(req.params.businessId);
+  const bookingId = parseInt(req.params.bookingId);
+  const userId = req.user!.id;
+
   try {
-    const businessId = parseInt(req.params.businessId);
-    const bookingId = parseInt(req.params.bookingId);
-    const userId = req.user!.id;
+    console.log('Starting reschedule request:', {
+      businessId,
+      bookingId,
+      userId,
+      body: req.body
+    });
 
     const validationResult = rescheduleBookingSchema.safeParse(req.body);
     if (!validationResult.success) {
+      console.log('Validation failed:', validationResult.error.errors);
       return res.status(400).json({
         message: "Invalid input",
         details: validationResult.error.errors,
@@ -322,113 +326,129 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", requireAut
 
     const { slotId, date, notes } = validationResult.data;
 
+    // Transaction for atomic operations
     const result = await db.transaction(async (tx) => {
-      // Get the current booking with all related information
-      const [currentBooking] = await tx
-        .select({
-          booking: salonBookings,
-          service: {
-            id: salonServices.id,
-            name: salonServices.name,
-            duration: salonServices.duration,
-          },
-          currentSlot: {
-            id: serviceSlots.id,
-            startTime: serviceSlots.startTime,
-            endTime: serviceSlots.endTime,
-          },
-        })
+      // 1. Get and validate existing booking
+      const booking = await tx
+        .select()
         .from(salonBookings)
-        .innerJoin(salonServices, eq(salonBookings.serviceId, salonServices.id))
-        .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
         .where(
           and(
             eq(salonBookings.id, bookingId),
             eq(salonBookings.businessId, businessId),
-            not(eq(salonBookings.status, "cancelled")),
-            or(
-              eq(salonBookings.customerId, userId),
-              req.isBusinessOwner ? eq(salonBookings.businessId, businessId) : undefined
-            )
+            not(eq(salonBookings.status, "cancelled"))
           )
-        );
+        )
+        .then(results => results[0]);
 
-      if (!currentBooking) {
-        throw new Error("Booking not found or you don't have permission to reschedule it");
+      if (!booking) {
+        throw new Error("Booking not found or already cancelled");
       }
 
-      // Get the new slot with staff information
-      const [newSlot] = await tx
+      // Verify ownership
+      if (!req.isBusinessOwner && booking.customerId !== userId) {
+        throw new Error("Not authorized to modify this booking");
+      }
+
+      // 2. Get and validate new slot
+      const newSlot = await tx
         .select({
           slot: serviceSlots,
-          staff: {
-            id: salonStaff.id,
-            name: salonStaff.name,
-          },
+          staff: salonStaff,
+          service: salonServices
         })
         .from(serviceSlots)
         .innerJoin(salonStaff, eq(serviceSlots.staffId, salonStaff.id))
+        .innerJoin(salonServices, eq(serviceSlots.serviceId, salonServices.id))
         .where(
           and(
             eq(serviceSlots.id, slotId),
             eq(serviceSlots.businessId, businessId),
-            eq(serviceSlots.status, "available"),
-            eq(serviceSlots.serviceId, currentBooking.service.id)
+            eq(serviceSlots.status, "available")
           )
-        );
+        )
+        .then(results => results[0]);
 
       if (!newSlot) {
-        throw new Error("Selected slot is not available or incompatible with current service");
+        throw new Error("Selected slot is not available");
       }
 
-      // Release the old slot
+      // 3. Release old slot
       await tx
         .update(serviceSlots)
         .set({ status: "available" })
-        .where(eq(serviceSlots.id, currentBooking.currentSlot.id));
+        .where(eq(serviceSlots.id, booking.slotId));
 
-      // Book the new slot
+      // 4. Book new slot
       await tx
         .update(serviceSlots)
         .set({ status: "booked" })
         .where(eq(serviceSlots.id, slotId));
 
-      // Update the booking
-      const [updatedBooking] = await tx
+      // 5. Update booking
+      const updatedBooking = await tx
         .update(salonBookings)
         .set({
           slotId: newSlot.slot.id,
           staffId: newSlot.staff.id,
           date: new Date(date),
           status: "pending",
-          notes: notes || `Rescheduled from ${format(new Date(currentBooking.currentSlot.startTime), 'PP p')} to ${format(new Date(newSlot.slot.startTime), 'PP p')}`,
+          notes: notes || `Rescheduled to ${format(new Date(newSlot.slot.startTime), 'PPp')}`
         })
         .where(eq(salonBookings.id, bookingId))
-        .returning();
+        .returning()
+        .then(results => results[0]);
+
+      if (!updatedBooking) {
+        throw new Error("Failed to update booking");
+      }
 
       return {
-        ...updatedBooking,
-        service: currentBooking.service,
-        staff: newSlot.staff,
-        slot: {
-          id: newSlot.slot.id,
-          startTime: newSlot.slot.startTime,
-          endTime: newSlot.slot.endTime,
-        },
+        booking: updatedBooking,
+        slot: newSlot.slot,
+        service: newSlot.service,
+        staff: newSlot.staff
       };
+    });
+
+    console.log('Rescheduling successful:', {
+      bookingId: result.booking.id,
+      newSlotId: result.slot.id,
+      staffId: result.staff.id
     });
 
     res.json({
       message: "Booking rescheduled successfully",
-      booking: result,
+      booking: {
+        id: result.booking.id,
+        status: result.booking.status,
+        notes: result.booking.notes,
+        date: result.booking.date,
+        service: {
+          id: result.service.id,
+          name: result.service.name,
+          duration: result.service.duration
+        },
+        slot: {
+          id: result.slot.id,
+          startTime: result.slot.startTime,
+          endTime: result.slot.endTime
+        },
+        staff: {
+          id: result.staff.id,
+          name: result.staff.name
+        }
+      }
     });
   } catch (error) {
-    console.error("Error rescheduling booking:", error);
+    console.error('Error in reschedule endpoint:', error);
     if (error instanceof Error) {
-      res.status(400).json({ message: error.message });
-    } else {
-      res.status(500).json({ message: "Failed to reschedule booking" });
+      return res.status(400).json({ message: error.message });
     }
+    res.status(500).json({
+      message: "An unexpected error occurred",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 });
 

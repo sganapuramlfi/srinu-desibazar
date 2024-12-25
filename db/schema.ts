@@ -15,7 +15,7 @@ export const users = pgTable("users", {
 
 export const businesses = pgTable("businesses", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: text("name").notNull(),
   description: text("description"),
   logo_url: text("logo_url"),
@@ -24,7 +24,7 @@ export const businesses = pgTable("businesses", {
   }).notNull(),
   status: text("status", {
     enum: ["pending", "active", "suspended"]
-  }).default("pending"),
+  }).default("pending").notNull(),
   onboardingCompleted: boolean("onboarding_completed").default(false),
   contactInfo: jsonb("contact_info").$type<{
     phone: string;
@@ -246,6 +246,14 @@ export const businessRelations = relations(businesses, ({ one }) => ({
   owner: one(users, {
     fields: [businesses.userId],
     references: [users.id],
+    relationName: "business",
+  }),
+}));
+
+export const userRelations = relations(users, ({ one }) => ({
+  business: one(businesses, {
+    fields: [users.id],
+    references: [businesses.userId],
   }),
 }));
 

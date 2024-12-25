@@ -3,7 +3,7 @@ import { db } from "@db";
 import { serviceSlots, salonServices, staffSkills, staffSchedules, shiftTemplates, salonBookings, salonStaff } from "@db/schema";
 import { eq, and, gte, lte, not } from "drizzle-orm";
 import { z } from "zod";
-import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { addMinutes, parseISO, format, isWithinInterval, startOfDay, endOfDay, addDays } from "date-fns";
 
 const router = Router();
 
@@ -205,11 +205,11 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
     // Validate request body
     const generateAutoSlotsSchema = z.object({
       startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-      endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     });
 
     const validationResult = generateAutoSlotsSchema.safeParse(req.body);
     if (!validationResult.success) {
+      console.error("Validation failed:", validationResult.error);
       return res.status(400).json({
         error: "Invalid input",
         details: validationResult.error.errors,
@@ -218,6 +218,7 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
 
     const { startDate } = validationResult.data;
     const startDateObj = startOfDay(new Date(startDate));
+    console.log("Processing date:", format(startDateObj, 'yyyy-MM-dd'));
 
     // Get staff with their services and schedules
     console.log("Fetching staff skills and services...");
@@ -263,14 +264,30 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
       .where(
         and(
           eq(shiftTemplates.businessId, businessId),
-          eq(staffSchedules.date, startDateObj),
-          not(eq(shiftTemplates.type, "leave"))
+          eq(staffSchedules.date, startDateObj)
         )
       );
 
-    console.log(`Found ${schedules.length} schedules`);
+    console.log(`Found ${schedules.length} schedules for date ${format(startDateObj, 'yyyy-MM-dd')}`);
 
     if (schedules.length === 0) {
+      // Additional debug query to check schedules around this date
+      const nearbySchedules = await db
+        .select({
+          date: staffSchedules.date,
+          staffId: staffSchedules.staffId,
+          templateId: staffSchedules.templateId,
+        })
+        .from(staffSchedules)
+        .where(
+          and(
+            gte(staffSchedules.date, startOfDay(new Date(startDate))),
+            lte(staffSchedules.date, addDays(startOfDay(new Date(startDate)), 7))
+          )
+        );
+
+      console.log("Nearby schedules:", nearbySchedules);
+
       return res.status(400).json({
         error: "No staff schedules found for the selected date",
         details: `No schedules found for ${startDate}`
@@ -305,37 +322,28 @@ router.post("/businesses/:businessId/slots/auto-generate", async (req, res) => {
           continue;
         }
 
+        console.log(`Generating slots for ${scheduleDate} from ${schedule.shift_templates.startTime} to ${schedule.shift_templates.endTime}`);
+
         const shiftStart = createDateFromTime(scheduleDate, schedule.shift_templates.startTime);
         const shiftEnd = createDateFromTime(scheduleDate, schedule.shift_templates.endTime);
 
-        console.log(`Generating slots for ${scheduleDate} from ${schedule.shift_templates.startTime} to ${schedule.shift_templates.endTime}`);
-
         let currentTime = shiftStart;
         while (currentTime < shiftEnd) {
-          // Check for breaks
-          const isBreakTime = schedule.shift_templates.breaks?.some(breakTime => {
-            const breakStart = createDateFromTime(scheduleDate, breakTime.startTime);
-            const breakEnd = createDateFromTime(scheduleDate, breakTime.endTime);
-            return isWithinInterval(currentTime, { start: breakStart, end: breakEnd });
-          }) ?? false;
+          const slotEnd = addMinutes(currentTime, service.duration);
 
-          if (!isBreakTime) {
-            const slotEnd = addMinutes(currentTime, service.duration);
-
-            // Only create slot if it fits within shift
-            if (slotEnd <= shiftEnd) {
-              slots.push({
-                businessId,
-                serviceId: service.id,
-                staffId: staff.id,
-                startTime: currentTime,
-                endTime: slotEnd,
-                status: "available" as const,
-                isManual: false,
-                conflictingSlotIds: [],
-              });
-              totalSlotsGenerated++;
-            }
+          // Only create slot if it fits within shift
+          if (slotEnd <= shiftEnd) {
+            slots.push({
+              businessId,
+              serviceId: service.id,
+              staffId: staff.id,
+              startTime: currentTime,
+              endTime: slotEnd,
+              status: "available" as const,
+              isManual: false,
+              conflictingSlotIds: [],
+            });
+            totalSlotsGenerated++;
           }
 
           // Move to next potential slot start time (15-minute increments)

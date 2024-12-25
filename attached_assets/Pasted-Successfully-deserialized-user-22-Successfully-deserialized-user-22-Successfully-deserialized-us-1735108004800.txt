@@ -1,0 +1,132 @@
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+User session check: { isAuthenticated: true, userId: 22 }
+6:25:14 AM [express] GET /api/user 304 in 131ms :: {"id":22,"username":"stest","password":"398a17c2f…
+Successfully deserialized user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Deserializing user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+Successfully deserialized user: 22
+6:25:14 AM [express] GET /api/businesses/19/shift-templates 200 in 199ms :: [{"id":1,"businessId":19…
+6:25:14 AM [express] GET /api/businesses/19/services 200 in 200ms :: [{"id":6,"businessId":19,"name"…
+6:25:14 AM [express] GET /api/businesses/19/profile 200 in 204ms :: {"id":19,"userId":22,"name":"Sal…
+6:25:14 AM [express] GET /api/businesses/19/staff 200 in 267ms :: [{"id":5,"businessId":19,"name":"E…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 40 available slots out of 400 total slots
+6:25:28 AM [express] GET /api/businesses/19/slots 304 in 717ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 40 available slots out of 400 total slots
+6:25:35 AM [express] GET /api/businesses/19/slots 304 in 520ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+Found 0 schedules
+6:25:40 AM [express] POST /api/businesses/19/slots/auto-generate 400 in 268ms :: {"error":"No staff …
+Deserializing user: 22
+Successfully deserialized user: 22
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 40 available slots out of 400 total slots
+6:25:48 AM [express] GET /api/businesses/19/slots 304 in 511ms :: [{"id":1694,"startTime":"2024-12-2…
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+Found 0 schedules
+6:25:49 AM [express] POST /api/businesses/19/slots/auto-generate 400 in 261ms :: {"error":"No staff …
+Deserializing user: 22
+Successfully deserialized user: 22
+Starting slot generation for business: 19
+Fetching staff skills and services...
+Found 8 staff-service combinations
+Fetching staff schedules...
+Found 0 schedules
+6:26:00 AM [express] POST /api/businesses/19/slots/auto-generate 400 in 474ms :: {"error":"No staff …

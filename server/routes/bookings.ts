@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@db";
-import { eq, and, not } from "drizzle-orm";
+import { eq, and, not, or } from "drizzle-orm";
 import { z } from "zod";
 import { salonBookings, serviceSlots, salonServices, salonStaff } from "@db/schema";
 
@@ -41,8 +41,10 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
         service: {
           name: salonServices.name,
           duration: salonServices.duration,
+          price: salonServices.price,
         },
         staff: {
+          id: salonStaff.id,
           name: salonStaff.name,
         },
       })
@@ -86,7 +88,7 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
           customerId,
           serviceId,
           slotId,
-          staffId: slot.slot.staffId,
+          staffId: slot.staff.id,
           status: "pending",
           date: new Date(date),
         })
@@ -97,17 +99,16 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
         .set({ status: "booked" })
         .where(eq(serviceSlots.id, slotId));
 
-      return {
-        ...newBooking,
-        serviceName: slot.service.name,
-        staffName: slot.staff.name,
-        duration: slot.service.duration,
-      };
+      return newBooking;
     });
 
     res.json({
       message: "Booking created successfully",
-      booking,
+      booking: {
+        ...booking,
+        service: slot.service,
+        staff: slot.staff,
+      },
     });
   } catch (error) {
     console.error("Error creating booking:", error);
@@ -116,28 +117,26 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
 });
 
 // Get user's bookings with enhanced details
-router.get("/businesses/:businessId/bookings", async (req, res) => {
+router.get("/bookings", async (req, res) => {
   try {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const businessId = parseInt(req.params.businessId);
     const customerId = req.user!.id;
 
     const bookings = await db
       .select({
         booking: salonBookings,
         service: {
+          id: salonServices.id,
           name: salonServices.name,
           duration: salonServices.duration,
           price: salonServices.price,
         },
-        slot: {
-          startTime: serviceSlots.startTime,
-          endTime: serviceSlots.endTime,
-        },
+        slot: serviceSlots,
         staff: {
+          id: salonStaff.id,
           name: salonStaff.name,
         },
       })
@@ -147,8 +146,8 @@ router.get("/businesses/:businessId/bookings", async (req, res) => {
       .innerJoin(salonStaff, eq(salonBookings.staffId, salonStaff.id))
       .where(
         and(
-          eq(salonBookings.businessId, businessId),
-          eq(salonBookings.customerId, customerId)
+          eq(salonBookings.customerId, customerId),
+          not(eq(salonBookings.status, "cancelled"))
         )
       );
 
@@ -156,6 +155,44 @@ router.get("/businesses/:businessId/bookings", async (req, res) => {
   } catch (error) {
     console.error("Error fetching bookings:", error);
     res.status(500).json({ message: "Failed to fetch bookings" });
+  }
+});
+
+// Get business bookings
+router.get("/businesses/:businessId/bookings", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+
+    const bookings = await db
+      .select({
+        booking: salonBookings,
+        service: {
+          id: salonServices.id,
+          name: salonServices.name,
+          duration: salonServices.duration,
+          price: salonServices.price,
+        },
+        slot: serviceSlots,
+        staff: {
+          id: salonStaff.id,
+          name: salonStaff.name,
+        },
+      })
+      .from(salonBookings)
+      .innerJoin(salonServices, eq(salonBookings.serviceId, salonServices.id))
+      .innerJoin(serviceSlots, eq(salonBookings.slotId, serviceSlots.id))
+      .innerJoin(salonStaff, eq(salonBookings.staffId, salonStaff.id))
+      .where(eq(salonBookings.businessId, businessId))
+      .orderBy(serviceSlots.startTime);
+
+    res.json(bookings);
+  } catch (error) {
+    console.error("Error fetching business bookings:", error);
+    res.status(500).json({ message: "Failed to fetch business bookings" });
   }
 });
 
@@ -168,7 +205,7 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
 
     const businessId = parseInt(req.params.businessId);
     const bookingId = parseInt(req.params.bookingId);
-    const customerId = req.user!.id;
+    const userId = req.user!.id;
 
     // Begin transaction
     const result = await db.transaction(async (tx) => {
@@ -180,12 +217,17 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
           and(
             eq(salonBookings.id, bookingId),
             eq(salonBookings.businessId, businessId),
-            eq(salonBookings.customerId, customerId)
+            or(
+              eq(salonBookings.customerId, userId),
+              // Allow business owner to cancel any booking
+              eq(salonBookings.businessId, businessId)
+            ),
+            not(eq(salonBookings.status, "cancelled"))
           )
         );
 
       if (!booking) {
-        throw new Error("Booking not found");
+        throw new Error("Booking not found or already cancelled");
       }
 
       // Update booking status
@@ -210,7 +252,7 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
     });
   } catch (error) {
     console.error("Error cancelling booking:", error);
-    if (error instanceof Error && error.message === "Booking not found") {
+    if (error instanceof Error && error.message === "Booking not found or already cancelled") {
       res.status(404).json({ message: error.message });
     } else {
       res.status(500).json({ message: "Failed to cancel booking" });

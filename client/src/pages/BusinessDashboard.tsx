@@ -47,54 +47,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const { user } = useUser();
   const { toast } = useToast();
 
-  const { data: business, error: businessError, isLoading: isLoadingBusiness } = useQuery<Business>({
-    queryKey: [`/api/businesses/${businessId}/profile`],
-    enabled: !!businessId,
-    retry: 1,
-    onError: (error: any) => {
-      console.error('Error fetching business:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to load business data"
-      });
-    }
-  });
-
-  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
-    queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && !!user,
-    retry: 1,
-    onError: (error: any) => {
-      console.error('Error fetching staff:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load staff data"
-      });
-    }
-  });
-
-  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
-    queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && !!user,
-    retry: 1,
-    onError: (error: any) => {
-      console.error('Error fetching services:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load services data"
-      });
-    }
-  });
-
-  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
-    queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId && !!user,
-    retry: 1
-  });
-
   useEffect(() => {
     if (!user) {
       navigate("/auth");
@@ -108,8 +60,37 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         description: "You don't have permission to access this dashboard."
       });
       navigate("/");
+      return;
     }
   }, [user, navigate, toast]);
+
+  const { data: business, error: businessError, isLoading: isLoadingBusiness } = useQuery<Business>({
+    queryKey: [`/api/businesses/${businessId}/profile`],
+    enabled: !!businessId && !!user,
+    staleTime: 0,
+    retry: 1
+  });
+
+  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
+    queryKey: [`/api/businesses/${businessId}/staff`],
+    enabled: !!businessId && !!user,
+    staleTime: 0,
+    retry: 1
+  });
+
+  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
+    queryKey: [`/api/businesses/${businessId}/services`],
+    enabled: !!businessId && !!user,
+    staleTime: 0,
+    retry: 1
+  });
+
+  const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
+    queryKey: [`/api/businesses/${businessId}/shift-templates`],
+    enabled: !!businessId && !!user,
+    staleTime: 0,
+    retry: 1
+  });
 
   if (isLoadingBusiness) {
     return (
@@ -155,12 +136,23 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     );
   }
 
+  // Check if the logged-in user owns this business
+  if (user && business.userId !== user.id) {
+    toast({
+      variant: "destructive",
+      title: "Access Denied",
+      description: "You don't have permission to access this business dashboard."
+    });
+    navigate("/");
+    return null;
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">{business?.name}</h1>
-          <p className="text-muted-foreground">{business?.description || 'Manage your business operations'}</p>
+          <h1 className="text-3xl font-bold">{business.name}</h1>
+          <p className="text-muted-foreground">{business.description || 'Manage your business operations'}</p>
         </div>
       </div>
 
@@ -217,7 +209,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         <TabsContent value="service-staff">
           <ServiceStaffTab
             businessId={businessId}
-            industryType={business?.industryType}
+            industryType={business.industryType}
           />
         </TabsContent>
         <TabsContent value="slots">

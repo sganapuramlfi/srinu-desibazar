@@ -17,8 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Clock, AlertCircle } from "lucide-react";
+import { Loader2, Clock, AlertCircle, Filter } from "lucide-react";
 
 interface ServiceSlotsTabProps {
   businessId: number;
@@ -49,6 +58,7 @@ interface Slot {
     name: string;
   };
   conflictingSlotIds?: number[];
+  displayTime?: string; // Added for time formatting
 }
 
 export function ServiceSlotsTab({
@@ -113,8 +123,7 @@ export function ServiceSlotsTab({
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
+        throw new Error(await response.text());
       }
 
       return response.json();
@@ -211,6 +220,20 @@ export function ServiceSlotsTab({
     });
   };
 
+  // Group slots by staff member
+  const groupedSlots = slots.reduce((acc, slot) => {
+    const staffId = slot.staff.id;
+    slot.displayTime = `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`; // Add displayTime
+    if (!acc[staffId]) {
+      acc[staffId] = {
+        staff: slot.staff,
+        slots: [],
+      };
+    }
+    acc[staffId].slots.push(slot);
+    return acc;
+  }, {} as Record<number, { staff: Slot['staff']; slots: Slot[] }>);
+
   if (isLoadingSlots) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -241,7 +264,7 @@ export function ServiceSlotsTab({
               </div>
               <div className="flex-1 space-y-4">
                 <Button
-                  onClick={handleAutoGenerate}
+                  onClick={() => generateSlotsMutation.mutate()}
                   disabled={generateSlotsMutation.isPending}
                   className="w-full bg-purple-600 hover:bg-purple-700"
                 >
@@ -253,71 +276,67 @@ export function ServiceSlotsTab({
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Create Manual Slot</CardTitle>
+                    <CardTitle className="text-lg">Filter Slots</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleManualCreate} className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Staff Member</label>
-                        <Select
-                          value={selectedStaff}
-                          onValueChange={setSelectedStaff}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select staff member" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {staff.map((member) => (
-                              <SelectItem
-                                key={member.id}
-                                value={member.id.toString()}
-                              >
-                                {member.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Service</label>
-                        <Select
-                          value={selectedService}
-                          onValueChange={setSelectedService}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select service" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {services.map((service) => (
-                              <SelectItem
-                                key={service.id}
-                                value={service.id.toString()}
-                              >
-                                {service.name} ({service.duration} min)
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        type="submit"
-                        disabled={createManualSlotMutation.isPending}
-                        className="w-full"
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Staff Member</label>
+                      <Select
+                        value={selectedStaff}
+                        onValueChange={setSelectedStaff}
                       >
-                        {createManualSlotMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Create Slot
-                      </Button>
-                    </form>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All staff members" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All staff members</SelectItem>
+                          {staff.map((member) => (
+                            <SelectItem
+                              key={member.id}
+                              value={member.id.toString()}
+                            >
+                              {member.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Service</label>
+                      <Select
+                        value={selectedService}
+                        onValueChange={setSelectedService}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All services" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All services</SelectItem>
+                          {services.map((service) => (
+                            <SelectItem
+                              key={service.id}
+                              value={service.id.toString()}
+                            >
+                              {service.name} ({service.duration} min)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Available Slots</h3>
-              {slots.length === 0 ? (
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Available Slots</h3>
+                <div className="text-sm text-muted-foreground">
+                  {format(selectedDate, "MMMM d, yyyy")}
+                </div>
+              </div>
+
+              {Object.keys(groupedSlots).length === 0 ? (
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-center text-muted-foreground">
@@ -327,54 +346,56 @@ export function ServiceSlotsTab({
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {slots.map((slot) => (
-                    <Card key={slot.id} className="bg-white">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg font-semibold">
-                          {slot.service.name}
-                          <span className="text-sm font-normal ml-2 text-muted-foreground">
-                            ({slot.service.duration} min)
-                          </span>
-                        </CardTitle>
-                        <CardDescription>
-                          <div className="flex items-center">
-                            <Clock className="h-4 w-4 mr-1" />
-                            <span className="font-medium">
-                              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                            </span>
-                          </div>
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="flex flex-col">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm font-medium">Staff:</span>
-                              <span className="text-sm text-muted-foreground">
-                                {slot.staff.name}
-                              </span>
-                            </div>
-                            <span
-                              className={`text-xs px-2 py-1 rounded-full ${
-                                slot.status === "available"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {slot.status}
-                            </span>
-                          </div>
-                          {slot.conflictingSlotIds && slot.conflictingSlotIds.length > 0 && (
-                            <p className="text-xs text-amber-600 mt-2">
-                              Note: This slot overlaps with other services
-                            </p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                <ScrollArea className="h-[600px] rounded-md border">
+                  {Object.values(groupedSlots).map(({ staff, slots }) => (
+                    <div key={staff.id} className="p-4 border-b last:border-b-0">
+                      <h4 className="text-lg font-semibold mb-4">{staff.name}</h4>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Service</TableHead>
+                            <TableHead>Duration</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Conflicts</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {slots.map((slot) => (
+                            <TableRow key={slot.id}>
+                              <TableCell>{slot.displayTime}</TableCell>
+                              <TableCell>{slot.service.name}</TableCell>
+                              <TableCell>{slot.service.duration} min</TableCell>
+                              <TableCell>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    slot.status === "available"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {slot.status}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                {slot.conflictingSlotIds &&
+                                  slot.conflictingSlotIds.length > 0 ? (
+                                  <span className="text-amber-600 text-sm">
+                                    {slot.conflictingSlotIds.length} conflicts
+                                  </span>
+                                ) : (
+                                  <span className="text-green-600 text-sm">
+                                    None
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ))}
-                </div>
+                </ScrollArea>
               )}
             </div>
           </div>

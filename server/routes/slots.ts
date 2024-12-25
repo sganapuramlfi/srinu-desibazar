@@ -397,4 +397,98 @@ router.get("/businesses/:businessId/slots", isAuthenticated, isBusinessOwner, as
   }
 });
 
+// Add new route for available slots specifically for rescheduling
+router.get("/businesses/:businessId/slots/available", isAuthenticated, async (req, res) => {
+  try {
+    const businessId = parseInt(req.params.businessId);
+    const { date, serviceId, staffId } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        error: "Date is required",
+      });
+    }
+
+    const startDateObj = normalizeDate(new Date(date as string));
+    const endDateObj = endOfDay(new Date(date as string));
+
+    console.log("Fetching available slots with params:", {
+      businessId,
+      date,
+      serviceId,
+      staffId
+    });
+
+    // Get slots with staff and service information
+    const slots = await db
+      .select({
+        slot: serviceSlots,
+        service: {
+          id: salonServices.id,
+          name: salonServices.name,
+          duration: salonServices.duration,
+          price: salonServices.price,
+        },
+        staff: {
+          id: salonStaff.id,
+          name: salonStaff.name,
+        },
+      })
+      .from(serviceSlots)
+      .innerJoin(salonServices, eq(serviceSlots.serviceId, salonServices.id))
+      .innerJoin(salonStaff, eq(serviceSlots.staffId, salonStaff.id))
+      .where(
+        and(
+          eq(serviceSlots.businessId, businessId),
+          sql`DATE(${serviceSlots.startTime}) = ${startDateObj.toISOString().split('T')[0]}::date`,
+          serviceId ? eq(serviceSlots.serviceId, parseInt(serviceId as string)) : undefined,
+          staffId ? eq(serviceSlots.staffId, parseInt(staffId as string)) : undefined,
+          eq(serviceSlots.status, "available"),
+        )
+      );
+
+    // Get existing bookings to filter out booked slots
+    const existingBookings = await db
+      .select({
+        slotId: salonBookings.slotId,
+        status: salonBookings.status,
+      })
+      .from(salonBookings)
+      .where(
+        and(
+          eq(salonBookings.businessId, businessId),
+          not(eq(salonBookings.status, "cancelled"))
+        )
+      );
+
+    // Create a set of booked slot IDs
+    const bookedSlots = new Set(
+      existingBookings
+        .filter(booking => booking.status === "confirmed" || booking.status === "pending")
+        .map(booking => booking.slotId)
+    );
+
+    // Filter out booked slots and format the response
+    const availableSlots = slots
+      .filter(({ slot }) => !bookedSlots.has(slot.id))
+      .map(({ slot, service, staff }) => ({
+        id: slot.id,
+        startTime: format(new Date(slot.startTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        endTime: format(new Date(slot.endTime), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        displayTime: `${format(new Date(slot.startTime), 'h:mm a')} - ${format(new Date(slot.endTime), 'h:mm a')}`,
+        service,
+        staff,
+      }));
+
+    console.log(`Found ${availableSlots.length} available slots for rescheduling`);
+    res.json(availableSlots);
+  } catch (error) {
+    console.error("Error fetching available slots:", error);
+    res.status(500).json({
+      error: "Failed to fetch available slots",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});
+
 export default router;

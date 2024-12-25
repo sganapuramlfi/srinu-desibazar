@@ -1,0 +1,45 @@
+11:52:28 PM [express] GET /api/businesses/19/bookings 500 in 516ms :: {"message":"Failed to fetch bus…
+Business access check: { businessId: 19, userId: 22, path: '/' }
+Access granted - Business owner
+Business access check: { businessId: 19, userId: 22, path: '/businesses/19/bookings' }
+Access granted - Business owner
+Error fetching business bookings: error: column salon_bookings.scheduled_at does not exist
+    at file:///home/runner/DesiBazaarHub/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/DesiBazaarHub/node_modules/src/neon-serverless/session.ts:102:18)
+    at async <anonymous> (/home/runner/DesiBazaarHub/server/routes/bookings.ts:121:22) {
+  length: 125,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '31',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3722',
+  routine: 'errorMissingColumn'
+}
+11:52:30 PM [express] GET /api/businesses/19/bookings 500 in 511ms :: {"message":"Failed to fetch bus…
+Business access check: { businessId: 19, userId: 22, path: '/' }
+Access granted - Business owner
+Fetching slots for business: { businessId: '19' }
+Fetching slots with params: {
+  businessId: 19,
+  startDate: '2024-12-25',
+  endDate: '2024-12-25',
+  serviceId: undefined,
+  staffId: undefined
+}
+Found 40 available slots
+11:52:40 PM [express] GET /api/businesses/19/slots 200 in 732ms :: [{"id":1673,"startTime":"2024-12-2…
+11:53:02 PM [express] GET /api/user 304 in 132ms :: {"ok":true,"user":{"id":22,"username":"stest","em…
+11:53:07 PM [express] GET /api/user 304 in 133ms :: {"ok":true,"user":{"id":22,"username":"stest","em…
+11:53:07 PM [express] GET /api/businesses 304 in 333ms :: [{"id":1,"userId":3,"name":"Glamour Salon &…
+11:53:25 PM [express] GET /api/user 304 in 131ms :: {"ok":true,"user":{"id":22,"username":"stest","em…

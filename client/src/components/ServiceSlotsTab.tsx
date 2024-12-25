@@ -90,8 +90,8 @@ export function ServiceSlotsTab({
     }
   };
 
-  // Fetch slots for the selected date
-  const { data: slots = [], isLoading: isLoadingSlots } = useQuery<Slot[]>({
+  // Fetch slots for the selected date with error handling
+  const { data: slots = [], isLoading: isLoadingSlots, error: slotsError } = useQuery<Slot[]>({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
@@ -102,6 +102,13 @@ export function ServiceSlotsTab({
       },
     ],
     enabled: !!businessId && !!selectedDate,
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error loading slots",
+        description: error.message || "Failed to load service slots",
+      });
+    }
   });
 
   // Auto-generate slots mutation
@@ -171,17 +178,33 @@ export function ServiceSlotsTab({
     );
   }
 
+  if (slotsError) {
+    return (
+      <div className="p-6">
+        <Card className="bg-destructive/10">
+          <CardContent className="p-6">
+            <div className="flex items-center text-destructive">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              <span>Failed to load service slots</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Service Slots Management</CardTitle>
           <CardDescription>
-            Manage service slots for your staff based on roster and service mappings
+            View and manage service slots based on your staff roster and service mappings
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            {/* Calendar and filters section */}
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <Calendar
@@ -190,6 +213,9 @@ export function ServiceSlotsTab({
                   onSelect={(date) => date && setSelectedDate(date)}
                   className="rounded-md border"
                 />
+                <p className="text-sm text-muted-foreground mt-2">
+                  Select a date to view available slots
+                </p>
               </div>
               <div className="flex-1 space-y-4">
                 <Button
@@ -257,6 +283,7 @@ export function ServiceSlotsTab({
               </div>
             </div>
 
+            {/* Available slots section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Available Slots</h3>

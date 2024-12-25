@@ -83,7 +83,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     }
   };
 
-  // Helper function to safely format times
+  // Helper function to safely format times in 24-hour format
   const formatTime = (timeString: string) => {
     try {
       if (!timeString) return 'Invalid time';

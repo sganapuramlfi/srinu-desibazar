@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -47,6 +47,7 @@ interface Slot {
   id: number;
   startTime: string;
   endTime: string;
+  displayTime: string;
   status: "available" | "booked" | "blocked";
   service: {
     id: number;
@@ -82,7 +83,7 @@ export function ServiceSlotsTab({
   // Helper function to safely format dates
   const formatTime = (dateString: string) => {
     try {
-      const date = parseISO(dateString);
+      const date = new Date(dateString);
       return format(date, "HH:mm");
     } catch (error) {
       console.error("Error formatting date:", dateString);
@@ -95,13 +96,14 @@ export function ServiceSlotsTab({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
-        startDate: format(selectedDate, "yyyy-MM-dd"),
-        endDate: format(selectedDate, "yyyy-MM-dd"),
+        startDate: format(startOfDay(selectedDate), "yyyy-MM-dd"),
+        endDate: format(endOfDay(selectedDate), "yyyy-MM-dd"),
         staffId: selectedStaff === "all" ? undefined : selectedStaff,
         serviceId: selectedService === "all" ? undefined : selectedService,
       },
     ],
-    enabled: !!businessId && !!selectedDate,
+    enabled: !!businessId,
+    retry: 1,
     onError: (error: any) => {
       toast({
         variant: "destructive",
@@ -154,7 +156,9 @@ export function ServiceSlotsTab({
 
   // Memoize grouped slots to avoid unnecessary recalculations
   const groupedSlots = useMemo(() => {
-    return slots.reduce((acc, slot) => {
+    if (!Array.isArray(slots)) return {};
+
+    return slots.reduce((acc: Record<number, { staff: Slot['staff']; slots: Slot[] }>, slot) => {
       const staffId = slot.staff.id;
       if (!acc[staffId]) {
         acc[staffId] = {
@@ -162,12 +166,9 @@ export function ServiceSlotsTab({
           slots: [],
         };
       }
-      acc[staffId].slots.push({
-        ...slot,
-        displayTime: `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`,
-      });
+      acc[staffId].slots.push(slot);
       return acc;
-    }, {} as Record<number, { staff: Slot['staff']; slots: Array<Slot & { displayTime: string }> }>);
+    }, {});
   }, [slots]);
 
   if (isLoadingSlots) {

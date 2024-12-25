@@ -43,18 +43,22 @@ export const ServiceStaffTab = ({ businessId, industryType }: Props) => {
 
   // Update selected services when staff is selected
   useEffect(() => {
-    if (selectedStaff) {
+    if (selectedStaff && staffSkillsResponse) {
       const staffSkills = staffSkillsResponse
         .filter(response => response.salon_staff.id === selectedStaff.id)
         .map(response => response.staff_skills.serviceId);
-      setSelectedServiceIds(staffSkills);
-    } else {
-      setSelectedServiceIds([]);
+
+      // Only update if the selected services are different
+      if (JSON.stringify(staffSkills) !== JSON.stringify(selectedServiceIds)) {
+        setSelectedServiceIds(staffSkills);
+      }
     }
-  }, [selectedStaff, staffSkillsResponse]);
+  }, [selectedStaff, staffSkillsResponse]); // Remove selectedServiceIds from dependency array
 
   const handleStaffSelect = (member: SalonStaff) => {
-    setSelectedStaff(member);
+    if (member.id !== selectedStaff?.id) {
+      setSelectedStaff(member);
+    }
   };
 
   const handleServiceToggle = (serviceId: number) => {

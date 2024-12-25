@@ -1,0 +1,25 @@
+The above error occurred in the <ServiceSlotsTab> component:
+
+    at ServiceSlotsTab (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/src/components/ServiceSlotsTab.tsx:49:3)
+    at div
+    at https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=ed33e060:41:13
+    at Presence (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/chunk-ZZTLKGR7.js?v=ed33e060:24:11)
+    at https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=ed33e060:448:13
+    at _c5 (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/src/components/ui/tabs.tsx:68:12)
+    at div
+    at https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=ed33e060:41:13
+    at Provider (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/chunk-YRL5WAL7.js?v=ed33e060:38:15)
+    at https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=ed33e060:326:7
+    at div
+    at BusinessDashboard (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/src/pages/BusinessDashboard.tsx:41:30)
+    at Route (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/wouter.js?v=ed33e060:323:16)
+    at Switch (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/wouter.js?v=ed33e060:379:17)
+    at div
+    at main
+    at div
+    at Layout (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/src/components/layout/Layout.tsx:19:26)
+    at App (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/src/App.tsx:30:31)
+    at QueryClientProvider (https://fffba076-bb1a-40f5-bb6b-17e794181c88-00-3p6nq8vhuxh28.kirk.replit.dev/@fs/home/runner/DesiBazaarHub/node_modules/.vite/deps/@tanstack_react-query.js?v=ed33e060:2796:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.

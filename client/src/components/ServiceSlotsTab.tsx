@@ -47,7 +47,6 @@ interface Slot {
   id: number;
   startTime: string;
   endTime: string;
-  displayTime: string;
   status: "available" | "booked" | "blocked";
   service: {
     id: number;
@@ -59,13 +58,7 @@ interface Slot {
     id: number;
     name: string;
   };
-  shift: {
-    startTime: string;
-    endTime: string;
-    type: string;
-    displayTime: string;
-  };
-  generatedFor: string;
+  generatedFor?: string;
   conflictingSlotIds?: number[];
 }
 
@@ -159,8 +152,10 @@ export function ServiceSlotsTab({
   const groupedSlots = useMemo(() => {
     if (!Array.isArray(slots)) return {};
 
-    return slots.reduce((acc: Record<number, { staff: Slot['staff']; slots: Slot[] }>, slot) => {
-      const staffId = slot.staff.id;
+    return slots.reduce((acc: Record<number, { staff: Slot['staff']; slots: Slot[] }>, slot: Slot) => {
+      const staffId = slot.staff?.id;
+      if (!staffId) return acc;
+
       if (!acc[staffId]) {
         acc[staffId] = {
           staff: slot.staff,
@@ -314,8 +309,6 @@ export function ServiceSlotsTab({
                             <TableHead>Time</TableHead>
                             <TableHead>Service</TableHead>
                             <TableHead>Duration</TableHead>
-                            <TableHead>Shift</TableHead>
-                            <TableHead>Generated For</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Conflicts</TableHead>
                           </TableRow>
@@ -323,17 +316,11 @@ export function ServiceSlotsTab({
                         <TableBody>
                           {slots.map((slot) => (
                             <TableRow key={slot.id}>
-                              <TableCell>{slot.displayTime}</TableCell>
-                              <TableCell>{slot.service.name}</TableCell>
-                              <TableCell>{slot.service.duration} min</TableCell>
-                              <TableCell>{slot.shift.displayTime}</TableCell>
                               <TableCell>
-                                {new Date(slot.generatedFor).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                })}
+                                {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                               </TableCell>
+                              <TableCell>{slot.service?.name || 'N/A'}</TableCell>
+                              <TableCell>{slot.service?.duration || 0} min</TableCell>
                               <TableCell>
                                 <span
                                   className={`text-xs px-2 py-1 rounded-full ${

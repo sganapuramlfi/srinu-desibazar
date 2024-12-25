@@ -24,14 +24,13 @@ const createDateFromTime = (date: string, time: string) => {
 router.get("/businesses/:businessId/slots", async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
-    const { startDate, endDate, serviceId, staffId } = req.query;
+    let { startDate, endDate, serviceId, staffId } = req.query;
 
-    // Validate required date parameters
+    // Default to current date if no dates provided
     if (!startDate || !endDate) {
-      return res.status(400).json({
-        error: "Date range is required",
-        details: "Both startDate and endDate parameters are required"
-      });
+      const currentDate = format(new Date(), "yyyy-MM-dd");
+      startDate = currentDate;
+      endDate = currentDate;
     }
 
     const startDateObj = startOfDay(new Date(startDate as string));

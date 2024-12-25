@@ -91,8 +91,8 @@ export function ServiceSlotsTab({
     }
   };
 
-  // Fetch slots for the selected date with error handling
-  const { data: slots = [], isLoading: isLoadingSlots, error: slotsError } = useQuery<Slot[]>({
+  // Get slots query with proper error handling
+  const { data: slots = [], isLoading: isLoadingSlots, error: slotsError } = useQuery({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
@@ -103,6 +103,7 @@ export function ServiceSlotsTab({
       },
     ],
     enabled: !!businessId,
+    staleTime: 30000, // Cache for 30 seconds
     retry: 1,
     onError: (error: any) => {
       toast({

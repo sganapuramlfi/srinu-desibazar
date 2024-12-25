@@ -60,6 +60,7 @@ interface Slot {
   id: number;
   startTime: string;
   endTime: string;
+  displayTime: string; // Added displayTime property
 }
 
 interface StorefrontPageProps {
@@ -405,8 +406,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                             ) : (
                                               availableSlots.map((slot: Slot) => (
                                                 <SelectItem key={slot.id} value={slot.id.toString()}>
-                                                  {format(parseISO(slot.startTime), 'HH:mm')} -
-                                                  {format(parseISO(slot.endTime), 'HH:mm')}
+                                                  {/* Use the displayTime property from API which is already in 24-hour format */}
+                                                  {slot.displayTime}
                                                 </SelectItem>
                                               ))
                                             )}

@@ -43,7 +43,7 @@ import type { Business } from "@db/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-user";
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 interface Service {
@@ -405,8 +405,8 @@ export default function StorefrontPage({ params }: StorefrontPageProps) {
                                             ) : (
                                               availableSlots.map((slot: Slot) => (
                                                 <SelectItem key={slot.id} value={slot.id.toString()}>
-                                                  {format(new Date(slot.startTime), 'HH:mm')} -
-                                                  {format(new Date(slot.endTime), 'HH:mm')}
+                                                  {format(parseISO(slot.startTime), 'HH:mm')} -
+                                                  {format(parseISO(slot.endTime), 'HH:mm')}
                                                 </SelectItem>
                                               ))
                                             )}

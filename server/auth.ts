@@ -5,9 +5,9 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, businesses, type User as SelectUser } from "@db/schema";
+import { users, businesses } from "@db/schema";
 import { db } from "@db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -28,24 +28,25 @@ const crypto = {
   },
 };
 
-// Define a type for sanitized user data
+// Define types for user data
+type BusinessData = {
+  id: number;
+  name: string;
+  industryType: string;
+  status: string;
+  onboardingCompleted: boolean;
+  description: string | null;
+};
+
 type SanitizedUser = {
   id: number;
   username: string;
   email: string;
-  role: "admin" | "business" | "customer";
+  role: string;
   createdAt: Date | null;
-  business?: {
-    id: number;
-    name: string;
-    industryType: string;
-    status: string;
-    onboardingCompleted: boolean;
-    description: string | null;
-  };
+  business?: BusinessData;
 };
 
-// Extend Express User type to match our sanitized user type
 declare global {
   namespace Express {
     interface User extends SanitizedUser {}
@@ -56,54 +57,48 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
   try {
     console.log(`[Debug] Fetching user data for ID: ${userId}`);
 
-    const results = await db
+    // Get user and business data in a single query
+    const [result] = await db
       .select({
-        user: {
-          id: users.id,
-          username: users.username,
-          email: users.email,
-          role: users.role,
-          createdAt: users.createdAt,
-        },
-        business: {
-          id: businesses.id,
-          name: businesses.name,
-          industryType: businesses.industryType,
-          status: businesses.status,
-          onboardingCompleted: businesses.onboardingCompleted,
-          description: businesses.description,
-        },
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        role: users.role,
+        createdAt: users.createdAt,
+        business: businesses
       })
       .from(users)
       .leftJoin(businesses, eq(users.id, businesses.userId))
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (!results || results.length === 0) {
+    if (!result) {
       console.log(`[Debug] No user found for ID: ${userId}`);
       return null;
     }
 
-    const { user, business } = results[0];
+    const { business, ...user } = result;
 
-    // If user is a business owner and has business data, include it
+    // Create base sanitized user
+    const sanitizedUser: SanitizedUser = {
+      ...user
+    };
+
+    // Add business data if user is a business owner and has business data
     if (user.role === "business" && business) {
-      console.log(`[Debug] Found business for user ${userId}:`, business);
-      return {
-        ...user,
-        business: {
-          id: business.id,
-          name: business.name,
-          industryType: business.industryType,
-          status: business.status,
-          onboardingCompleted: business.onboardingCompleted,
-          description: business.description,
-        },
+      console.log(`[Debug] Found business data for user ${userId}:`, business);
+      sanitizedUser.business = {
+        id: business.id,
+        name: business.name,
+        industryType: business.industryType,
+        status: business.status,
+        onboardingCompleted: business.onboardingCompleted ?? false,
+        description: business.description,
       };
     }
 
-    console.log(`[Debug] Returning user without business data:`, user);
-    return user;
+    console.log(`[Debug] Returning sanitized user:`, sanitizedUser);
+    return sanitizedUser;
   } catch (error) {
     console.error('[Debug] Error in getUserWithBusiness:', error);
     throw error;
@@ -141,7 +136,7 @@ export function setupAuth(app: Express) {
       try {
         console.log(`[Debug] Attempting login for user: ${username}`);
 
-        // Get user data
+        // Get user with password for verification
         const [user] = await db
           .select()
           .from(users)
@@ -153,29 +148,23 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect username." });
         }
 
-        // Verify password
         const isMatch = await crypto.compare(password, user.password);
-        console.log(`[Debug] Password comparison result for ${username}:`, isMatch);
+        console.log(`[Debug] Password verification result:`, isMatch);
 
         if (!isMatch) {
           console.log(`[Debug] Password mismatch for user: ${username}`);
           return done(null, false, { message: "Incorrect password." });
         }
 
-        // Get sanitized user data with business details if applicable
-        const userWithBusiness = await getUserWithBusiness(user.id);
-        if (!userWithBusiness) {
-          console.log(`[Debug] Failed to get user data`);
+        // Get sanitized user data
+        const sanitizedUser = await getUserWithBusiness(user.id);
+        if (!sanitizedUser) {
+          console.log(`[Debug] Failed to get sanitized user data`);
           return done(null, false, { message: "Failed to load user data." });
         }
 
-        console.log(`[Debug] Login successful for user: ${username}`, {
-          id: userWithBusiness.id,
-          role: userWithBusiness.role,
-          business: userWithBusiness.business
-        });
-
-        return done(null, userWithBusiness);
+        console.log(`[Debug] Login successful:`, sanitizedUser);
+        return done(null, sanitizedUser);
       } catch (err) {
         console.error('[Debug] Login error:', err);
         return done(err);
@@ -184,11 +173,7 @@ export function setupAuth(app: Express) {
   );
 
   passport.serializeUser((user, done) => {
-    console.log(`[Debug] Serializing user:`, {
-      id: user.id,
-      role: user.role,
-      business: user.business
-    });
+    console.log(`[Debug] Serializing user:`, user);
     done(null, user.id);
   });
 
@@ -202,10 +187,7 @@ export function setupAuth(app: Express) {
         return done(null, false);
       }
 
-      console.log(`[Debug] Successfully deserialized user: ${id}`, {
-        role: user.role,
-        business: user.business
-      });
+      console.log(`[Debug] Successfully deserialized user:`, user);
       done(null, user);
     } catch (err) {
       console.error('[Debug] Deserialization error:', err);
@@ -236,36 +218,21 @@ export function setupAuth(app: Express) {
           return next(err);
         }
 
-        console.log(`[Debug] Login successful for user: ${user.id}`, {
-          role: user.role,
-          business: user.business
-        });
+        console.log(`[Debug] Login successful:`, user);
 
         return res.json({
           ok: true,
           message: "Login successful",
-          user
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            business: user.business
+          }
         });
       });
     })(req, res, next);
-  });
-
-  app.get("/api/user", (req, res) => {
-    console.log('[Debug] User session check:', {
-      isAuthenticated: req.isAuthenticated(),
-      userId: req.user?.id,
-      userRole: req.user?.role,
-      businessId: req.user?.business?.id
-    });
-
-    if (req.isAuthenticated() && req.user) {
-      return res.json(req.user);
-    }
-
-    res.status(401).json({
-      ok: false,
-      message: "Not logged in"
-    });
   });
 
   app.post("/api/logout", (req, res) => {
@@ -282,6 +249,33 @@ export function setupAuth(app: Express) {
         ok: true,
         message: "Logout successful"
       });
+    });
+  });
+
+  app.get("/api/user", (req, res) => {
+    console.log('[Debug] User session check:', {
+      isAuthenticated: req.isAuthenticated(),
+      userId: req.user?.id,
+      userRole: req.user?.role,
+      businessId: req.user?.business?.id
+    });
+
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({
+        ok: false,
+        message: "Not logged in"
+      });
+    }
+
+    // Return sanitized user data
+    const { id, username, email, role, createdAt, business } = req.user;
+    return res.json({
+      id,
+      username,
+      email,
+      role,
+      createdAt,
+      business
     });
   });
 }

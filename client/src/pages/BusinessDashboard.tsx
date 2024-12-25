@@ -19,7 +19,8 @@ import { RosterTabUpdated } from "../components/RosterTabUpdated";
 import { ServicesTab } from "../components/ServicesTab";
 import { ServiceSlotsTab } from "../components/ServiceSlotsTab";
 import { BusinessProfileTab } from "../components/BusinessProfileTab";
-import type { SalonStaff, ShiftTemplate } from "../types/salon";
+import type { SalonStaff, ShiftTemplate, SalonService } from "../types/salon";
+import { useToast } from "@/hooks/use-toast";
 
 interface BusinessDashboardProps {
   businessId: number;
@@ -29,38 +30,70 @@ interface Business {
   id: number;
   name: string;
   industryType: string;
+  status: string;
+  userId: number;
 }
 
 function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
   const { user } = useUser();
+  const { toast } = useToast();
 
   // If not authenticated, redirect to auth page
   useEffect(() => {
     if (!user) {
       navigate("/auth");
+      return;
     }
-  }, [user, navigate]);
 
-  const { data: business } = useQuery<Business>({
+    // Check if user has access to this business
+    if (user.role !== "business") {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "You don't have permission to access this dashboard."
+      });
+      navigate("/");
+    }
+  }, [user, navigate, toast]);
+
+  const { data: business, error: businessError } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}`],
     enabled: !!businessId,
   });
 
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId,
+    enabled: !!businessId && !!user,
   });
 
-  const { data: services = [], isLoading: isLoadingServices } = useQuery({
+  const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId,
+    enabled: !!businessId && !!user,
   });
 
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId,
+    enabled: !!businessId && !!user,
   });
+
+  if (businessError) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="flex mb-4 gap-2">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+              <h1 className="text-2xl font-bold text-gray-900">Error</h1>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              {businessError instanceof Error ? businessError.message : "Failed to load business data"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!business) {
     return (
@@ -72,7 +105,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
               <h1 className="text-2xl font-bold text-gray-900">Business Not Found</h1>
             </div>
             <p className="mt-4 text-sm text-gray-600">
-              The business you're looking for doesn't exist.
+              The business you're looking for doesn't exist or you don't have permission to access it.
             </p>
           </CardContent>
         </Card>

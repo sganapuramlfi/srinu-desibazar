@@ -12,7 +12,6 @@ import express from "express";
 
 const scryptAsync = promisify(scrypt);
 
-// Enhanced password handling
 const crypto = {
   hash: async (password: string) => {
     const salt = randomBytes(16).toString("hex");
@@ -60,13 +59,7 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
     console.log(`[Auth] Fetching user data for ID: ${userId}`);
 
     const [user] = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        role: users.role,
-        createdAt: users.createdAt,
-      })
+      .select()
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
@@ -115,20 +108,19 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
 
-  // Enhanced session settings with secure defaults
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || process.env.REPL_ID || "desibazaar-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Only set to true if using HTTPS
+      secure: false,
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000,
       sameSite: 'lax',
       path: '/'
     },
     store: new MemoryStore({
-      checkPeriod: 86400000, // 24 hours
+      checkPeriod: 86400000,
     }),
     name: "desibazaar.sid"
   };
@@ -183,11 +175,6 @@ export function setupAuth(app: Express) {
     try {
       console.log(`[Auth] Deserializing user: ${id}`);
       const user = await getUserWithBusiness(id);
-      if (!user) {
-        console.log(`[Auth] Deserialization failed: User not found - ${id}`);
-        return done(null, false);
-      }
-      console.log(`[Auth] Successfully deserialized user: ${id}`);
       done(null, user);
     } catch (err) {
       console.error('[Auth] Deserialization error:', err);
@@ -195,24 +182,38 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // API Routes with proper error handling
-  const authRouter = express.Router();
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
+      try {
+        if (err) {
+          console.error('[Auth] Login error:', err);
+          return res.status(500).json({ok: false, message: "Internal server error during login"});
+        }
 
-  // Ensure JSON content type for all auth routes
-  authRouter.use((req, res, next) => {
-    res.setHeader('Content-Type', 'application/json');
-    next();
+        if (!user) {
+          console.log('[Auth] Login failed:', info.message);
+          return res.status(400).json({ok: false, message: info.message ?? "Login failed"});
+        }
+
+        req.logIn(user, (err) => {
+          if (err) {
+            console.error('[Auth] Login error during session creation:', err);
+            return res.status(500).json({ok: false, message: "Failed to create session"});
+          }
+
+          console.log(`[Auth] Login successful for user: ${user.username}`);
+          return res.json({ok: true, message: "Login successful", user});
+        });
+      } catch (error) {
+        console.error('[Auth] Unexpected login error:', error);
+        return res.status(500).json({ok: false, message: "Internal server error"});
+      }
+    })(req, res, next);
   });
 
-  //This is where the edited code is integrated.  res.success and res.error are assumed to exist.
-  app.post("/api/register", async (req, res, next) => {
+  app.post("/api/register", async (req, res) => {
     try {
-      const result = insertUserSchema.safeParse(req.body);
-      if (!result.success) {
-        return res.status(400).json({ok: false, message: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")});
-      }
-
-      const { username, password, email, role, business } = result.data;
+      const { username, password, email, role, business } = req.body;
 
       // Check if user already exists
       const [existingUser] = await db
@@ -291,35 +292,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
-      try {
-        if (err) {
-          console.error('[Auth] Login error:', err);
-          return res.status(500).json({ok: false, message: "Internal server error during login"});
-        }
-
-        if (!user) {
-          console.log('[Auth] Login failed:', info.message);
-          return res.status(400).json({ok: false, message: info.message ?? "Login failed"});
-        }
-
-        req.logIn(user, (err) => {
-          if (err) {
-            console.error('[Auth] Login error during session creation:', err);
-            return res.status(500).json({ok: false, message: "Failed to create session"});
-          }
-
-          console.log(`[Auth] Login successful for user: ${user.username}`);
-          return res.json({ok: true, message: "Login successful", user});
-        });
-      } catch (error) {
-        console.error('[Auth] Unexpected login error:', error);
-        return res.status(500).json({ok: false, message: "Internal server error"});
-      }
-    })(req, res, next);
-  });
-
   app.post("/api/logout", (req, res) => {
     const username = req.user?.username;
     console.log(`[Auth] Processing logout request for user: ${username}`);
@@ -350,9 +322,6 @@ export function setupAuth(app: Express) {
     console.log(`[Auth] User info request successful for: ${req.user.username}`);
     return res.json({ok: true, user: req.user});
   });
-
-  // Mount auth routes under /api prefix
-  app.use("/api", authRouter);
 
   return app;
 }

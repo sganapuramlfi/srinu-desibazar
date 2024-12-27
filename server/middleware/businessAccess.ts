@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@db";
-import { businesses, salonBookings } from "@db/schema";
+import { businesses, bookings } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
 declare global {
@@ -44,7 +44,8 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
     const publicEndpoints = [
       'profile',
       'services',
-      'staff'
+      'staff',
+      'shift-templates'  // Allow public access to shift templates
     ];
 
     // Check if this is a public endpoint
@@ -86,12 +87,11 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
       if (bookingId && !isNaN(bookingId)) {
         const [booking] = await db
           .select()
-          .from(salonBookings)
+          .from(bookings)
           .where(
             and(
-              eq(salonBookings.id, bookingId),
-              eq(salonBookings.businessId, businessId),
-              eq(salonBookings.customerId, userId)
+              eq(bookings.id, bookingId),
+              eq(bookings.customerId, userId)
             )
           );
 
@@ -105,11 +105,11 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
       // For general booking operations, check if user has any bookings with this business
       const [existingBooking] = await db
         .select()
-        .from(salonBookings)
+        .from(bookings)
         .where(
           and(
-            eq(salonBookings.businessId, businessId),
-            eq(salonBookings.customerId, userId)
+            eq(bookings.serviceId, businessId),
+            eq(bookings.customerId, userId)
           )
         )
         .limit(1);

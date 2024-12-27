@@ -399,10 +399,7 @@ export function setupAuth(app: Express) {
     }
 
     console.log(`[Auth] User info request successful for: ${req.user.username}`);
-    res.json({
-      ok: true,
-      user: req.user
-    });
+    res.json(req.user);
   });
 
   // Mount auth routes under /api prefix

@@ -1,9 +1,9 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { relations, type InferModel } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { z } from "zod";
 
-// Shared Tables
+// Users table with enhanced fields
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -13,12 +13,12 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Businesses table with required fields
 export const businesses = pgTable("businesses", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: text("name").notNull(),
   description: text("description"),
-  logo_url: text("logo_url"),
   industryType: text("industry_type", {
     enum: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
   }).notNull(),
@@ -26,77 +26,36 @@ export const businesses = pgTable("businesses", {
     enum: ["pending", "active", "suspended"]
   }).default("pending").notNull(),
   onboardingCompleted: boolean("onboarding_completed").default(false),
-  contactInfo: jsonb("contact_info").$type<{
-    phone: string;
-    email: string;
-    address: string;
-  }>(),
-  socialMedia: jsonb("social_media").$type<{
-    facebook?: string;
-    instagram?: string;
-    twitter?: string;
-    website?: string;
-  }>(),
-  operatingHours: jsonb("operating_hours").$type<{
-    [key: string]: {
-      open: string;
-      close: string;
-      isOpen: boolean;
-    };
-  }>(),
-  amenities: jsonb("amenities").$type<Array<{
-    name: string;
-    icon: string;
-    enabled: boolean;
-  }>>(),
   gallery: jsonb("gallery").$type<Array<{
     url: string;
     caption?: string;
     sortOrder: number;
   }>>(),
-  settings: jsonb("settings").$type<{
-    theme?: string;
-    notifications?: boolean;
-    autoConfirm?: boolean;
-  }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
 
-// Business profile schema for form validation
-export const businessProfileSchema = z.object({
-  name: z.string().min(2, "Business name must be at least 2 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-  logo: z.string().optional(),
-  socialMedia: z.object({
-    facebook: z.string().url("Please enter a valid Facebook URL").optional().or(z.literal("")),
-    instagram: z.string().url("Please enter a valid Instagram URL").optional().or(z.literal("")),
-    twitter: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
-    website: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
+// Relations
+export const businessRelations = relations(businesses, ({ one }) => ({
+  owner: one(users, {
+    fields: [businesses.userId],
+    references: [users.id],
+    relationName: "business",
   }),
-  contactInfo: z.object({
-    phone: z.string().min(10, "Phone number must be at least 10 characters"),
-    email: z.string().email("Invalid email address"),
-    address: z.string().min(5, "Address must be at least 5 characters"),
-  }),
-  operatingHours: z.record(
-    z.string(),
-    z.object({
-      open: z.string(),
-      close: z.string(),
-      isOpen: z.boolean(),
-    })
-  ),
-  amenities: z.array(
-    z.object({
-      name: z.string(),
-      icon: z.string(),
-      enabled: z.boolean(),
-    })
-  ),
-});
+}));
 
-// Schemas for user registration and business
+export const userRelations = relations(users, ({ one }) => ({
+  business: one(businesses, {
+    fields: [users.id],
+    references: [businesses.userId],
+  }),
+}));
+
+// Basic schemas
+export const insertUserSchema = createInsertSchema(users);
+export const selectUserSchema = createSelectSchema(users);
+
+// Registration schema with business info
 export const userRegistrationSchema = createInsertSchema(users).extend({
   business: z.object({
     name: z.string().min(2),
@@ -105,42 +64,13 @@ export const userRegistrationSchema = createInsertSchema(users).extend({
   }).optional(),
 });
 
-export const businessInsertSchema = createInsertSchema(businesses).extend({
-  industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
-  contactInfo: z.object({
-    phone: z.string().min(10),
-    email: z.string().email(),
-    address: z.string().min(5),
-  }),
-  socialMedia: z.object({
-    facebook: z.string().url().optional().or(z.literal("")),
-    instagram: z.string().url().optional().or(z.literal("")),
-    twitter: z.string().url().optional().or(z.literal("")),
-    website: z.string().url().optional().or(z.literal("")),
-  }).optional(),
-  operatingHours: z.record(
-    z.string(),
-    z.object({
-      open: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
-      close: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
-      isOpen: z.boolean(),
-    })
-  ).optional(),
-  amenities: z.array(
-    z.object({
-      name: z.string(),
-      icon: z.string(),
-      enabled: z.boolean(),
-    })
-  ).optional(),
-  gallery: z.array(
-    z.object({
-      url: z.string().url(),
-      caption: z.string().optional(),
-      sortOrder: z.number(),
-    })
-  ).optional(),
-});
+// Types
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+export type Business = typeof businesses.$inferSelect;
+export type InsertBusiness = typeof businesses.$inferInsert;
+export type UserRegistration = z.infer<typeof userRegistrationSchema>;
+
 
 // Salon-specific Tables with cascade delete
 export const salonServices = pgTable("salon_services", {
@@ -243,55 +173,6 @@ export const salonBookings = pgTable("salon_bookings", {
   updatedAt: timestamp("updated_at"),
 });
 
-// Relations
-export const businessRelations = relations(businesses, ({ one }) => ({
-  owner: one(users, {
-    fields: [businesses.userId],
-    references: [users.id],
-    relationName: "business",
-  }),
-}));
-
-export const userRelations = relations(users, ({ one }) => ({
-  business: one(businesses, {
-    fields: [users.id],
-    references: [businesses.userId],
-  }),
-}));
-
-export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonServices.businessId],
-    references: [businesses.id],
-  }),
-  staffSkills: many(staffSkills),
-  slots: many(serviceSlots),
-  bookings: many(salonBookings),
-}));
-
-export const salonStaffRelations = relations(salonStaff, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonStaff.businessId],
-    references: [businesses.id],
-  }),
-  skills: many(staffSkills),
-  shifts: many(staffShifts),
-  slots: many(serviceSlots),
-  bookings: many(salonBookings),
-}));
-
-export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
-  staff: one(salonStaff, {
-    fields: [staffSkills.staffId],
-    references: [salonStaff.id],
-  }),
-  service: one(salonServices, {
-    fields: [staffSkills.serviceId],
-    references: [salonServices.id],
-  }),
-}));
-
-
 // Update the staff schema to better handle schedules and template assignments
 export const staffSchedules = pgTable("staff_schedules", {
   id: serial("id").primaryKey(),
@@ -309,7 +190,6 @@ export const staffSchedules = pgTable("staff_schedules", {
 });
 
 // Basic schemas
-export const insertUserSchema = createInsertSchema(users);
 export const insertBusinessSchema = createInsertSchema(businesses);
 export const insertSalonServiceSchema = createInsertSchema(salonServices);
 export const insertSalonStaffSchema = createInsertSchema(salonStaff);
@@ -340,7 +220,6 @@ export const shiftTemplateFormSchema = z.object({
   type: z.enum(["regular", "overtime", "holiday", "leave"]).default("regular"),
   isActive: z.boolean().default(true),
 });
-
 
 // Update the staff form schema to handle all possible fields
 export const staffFormSchema = z.object({
@@ -378,6 +257,38 @@ export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
   }),
 }));
 
+export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [salonServices.businessId],
+    references: [businesses.id],
+  }),
+  staffSkills: many(staffSkills),
+  slots: many(serviceSlots),
+  bookings: many(salonBookings),
+}));
+
+export const salonStaffRelations = relations(salonStaff, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [salonStaff.businessId],
+    references: [businesses.id],
+  }),
+  skills: many(staffSkills),
+  shifts: many(staffShifts),
+  slots: many(serviceSlots),
+  bookings: many(salonBookings),
+}));
+
+export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
+  staff: one(salonStaff, {
+    fields: [staffSkills.staffId],
+    references: [salonStaff.id],
+  }),
+  service: one(salonServices, {
+    fields: [staffSkills.serviceId],
+    references: [salonServices.id],
+  }),
+}));
+
 export const salonBookingRelations = relations(salonBookings, ({ one }) => ({
   business: one(businesses, {
     fields: [salonBookings.businessId],
@@ -402,12 +313,6 @@ export const salonBookingRelations = relations(salonBookings, ({ one }) => ({
 }));
 
 // Types
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-export type Business = typeof businesses.$inferSelect;
-export type InsertBusiness = typeof businesses.$inferInsert;
-export type BusinessRegistration = z.infer<typeof businessInsertSchema>;
-export type UserRegistration = z.infer<typeof userRegistrationSchema>;
 export type SalonService = typeof salonServices.$inferSelect;
 export type InsertSalonService = typeof salonServices.$inferInsert;
 export type SalonStaff = typeof salonStaff.$inferSelect;

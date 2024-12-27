@@ -51,21 +51,48 @@ type TabConfig = {
   supportedTypes: string[];
 };
 
-function BusinessDashboard({ businessId }: BusinessDashboardProps) {
+export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
   const { user } = useUser();
   const { toast } = useToast();
   const [currentTab, setCurrentTab] = useState("profile");
 
-  // Fetch business data
+  // Check user authentication
+  useEffect(() => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    // Verify user is a business owner
+    if (user.role !== "business") {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "Only business owners can access this dashboard."
+      });
+      navigate("/");
+      return;
+    }
+  }, [user, navigate, toast]);
+
+  // Fetch business data with proper validation
   const { data: business, error: businessError, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
-    enabled: !!businessId && !!user,
+    enabled: !!businessId && !!user && user.role === "business",
     staleTime: 0,
-    retry: 1
+    retry: 1,
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load business data. Please try again."
+      });
+      navigate("/");
+    }
   });
 
-  // Fetch staff data for salon type businesses
+  // Fetch staff data for applicable business types
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
     enabled: !!businessId && !!user && business?.industryType === "salon",
@@ -76,12 +103,12 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   // Fetch services data
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && !!user,
+    enabled: !!businessId && !!user && business?.id === businessId,
     staleTime: 0,
     retry: 1
   });
 
-  // Fetch templates data for salon and restaurant businesses
+  // Fetch templates for applicable business types
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
     enabled: !!businessId && !!user && ["salon", "restaurant"].includes(business?.industryType || ""),
@@ -89,26 +116,19 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     retry: 1
   });
 
-  // Handle authentication and access control
+  // Verify business ownership
   useEffect(() => {
-    if (!user) {
-      navigate("/auth");
-    }
-  }, [user, navigate]);
-
-  // Handle business owner access control
-  useEffect(() => {
-    if (user && business && user.role !== "business") {
+    if (business && user && business.userId !== user.id) {
       toast({
         variant: "destructive",
         title: "Access Denied",
-        description: "You don't have permission to access this dashboard."
+        description: "You don't have permission to access this business dashboard."
       });
       navigate("/");
     }
-  }, [user?.role, business, navigate, toast]);
+  }, [business, user, navigate, toast]);
 
-  // Memoize tab configurations
+  // Memoized tabs configuration based on business type
   const tabs = useMemo(() => {
     if (!business) return [];
 
@@ -240,17 +260,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     );
   }
 
-  // Access control check (moved outside useEffect)
-  if (user && business.userId !== user.id) {
-    toast({
-      variant: "destructive",
-      title: "Access Denied",
-      description: "You don't have permission to access this business dashboard."
-    });
-    navigate("/");
-    return null;
-  }
-
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -281,5 +290,3 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     </div>
   );
 }
-
-export default BusinessDashboard;

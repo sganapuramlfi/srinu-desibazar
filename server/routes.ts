@@ -5,8 +5,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { businesses, services, bookings } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { businesses, businessProfileSchema } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { setupAuth } from "./auth";
 import salonRoutes from "./routes/salon";
 
@@ -30,15 +30,14 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const filename = uniqueSuffix + path.extname(file.originalname);
-    cb(null, filename);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
 
 const upload = multer({ 
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024
+    fileSize: 5 * 1024 * 1024 // 5MB limit
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -251,6 +250,68 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching business profile:', error);
       res.status(500).json({ message: "Failed to fetch business profile" });
+    }
+  });
+
+  // Update business profile
+  app.put("/api/businesses/:businessId/profile", upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'gallery', maxCount: 10 }
+  ]), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const businessId = parseInt(req.params.businessId);
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business || business.userId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      // Parse the form data
+      const formData = JSON.parse(req.body.data);
+
+      // Validate the input
+      const result = businessProfileSchema.safeParse(formData);
+      if (!result.success) {
+        return res.status(400).json({ 
+          error: "Invalid input",
+          details: result.error.issues 
+        });
+      }
+
+      // Handle file uploads
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const updateData: any = {
+        ...result.data,
+        updatedAt: new Date()
+      };
+
+      if (files.logo?.[0]) {
+        updateData.logo = `/uploads/logos/${files.logo[0].filename}`;
+      }
+
+      if (files.gallery?.length) {
+        updateData.gallery = files.gallery.map(file => `/uploads/gallery/${file.filename}`);
+      }
+
+      // Update the business profile
+      const [updated] = await db
+        .update(businesses)
+        .set(updateData)
+        .where(eq(businesses.id, businessId))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating business profile:', error);
+      res.status(500).json({ error: "Failed to update business profile" });
     }
   });
 

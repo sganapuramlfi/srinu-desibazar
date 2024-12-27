@@ -13,7 +13,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Business table (depends only on users)
+// Business table with all necessary fields
 export const businesses = pgTable("businesses", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -25,6 +25,12 @@ export const businesses = pgTable("businesses", {
   status: text("status", {
     enum: ["pending", "active", "suspended"]
   }).default("pending").notNull(),
+  logo: text("logo"),
+  gallery: jsonb("gallery").default([]),
+  socialMedia: jsonb("social_media").default({}),
+  contactInfo: jsonb("contact_info").default({}),
+  operatingHours: jsonb("operating_hours").default({}),
+  amenities: jsonb("amenities").default([]),
   onboardingCompleted: boolean("onboarding_completed").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
@@ -167,6 +173,35 @@ export const staffSchedules = pgTable("staff_schedules", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Business profile schema for forms
+export const businessProfileSchema = z.object({
+  name: z.string().min(2, "Business name must be at least 2 characters"),
+  description: z.string().optional(),
+  industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
+  status: z.enum(["pending", "active", "suspended"]).default("pending"),
+  socialMedia: z.object({
+    facebook: z.string().optional(),
+    instagram: z.string().optional(),
+    twitter: z.string().optional(),
+    website: z.string().optional(),
+  }).optional(),
+  contactInfo: z.object({
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    address: z.string().optional(),
+  }).optional(),
+  operatingHours: z.record(z.object({
+    open: z.string(),
+    close: z.string(),
+    isOpen: z.boolean(),
+  })).optional(),
+  amenities: z.array(z.object({
+    name: z.string(),
+    icon: z.string(),
+    enabled: z.boolean(),
+  })).optional(),
+});
+
 // Basic schemas for users
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -255,14 +290,6 @@ export const serviceSlotRelations = relations(serviceSlots, ({ one }) => ({
     references: [salonStaff.id],
   }),
 }));
-
-// Business profile schema for forms
-export const businessProfileSchema = z.object({
-  name: z.string().min(2, "Business name must be at least 2 characters"),
-  description: z.string().optional(),
-  industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
-  status: z.enum(["pending", "active", "suspended"]).default("pending"),
-});
 
 // Schemas for forms and validation
 export const serviceSchema = createInsertSchema(services);

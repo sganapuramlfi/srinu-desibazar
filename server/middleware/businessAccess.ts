@@ -1,13 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@db";
-import { businesses, bookings } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { businesses } from "@db/schema";
+import { eq } from "drizzle-orm";
 
 declare global {
   namespace Express {
     interface Request {
       isBusinessOwner?: boolean;
-      hasBookingAccess?: boolean;
+      business?: any;
     }
   }
 }
@@ -21,7 +21,7 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
 
     if (!businessId || isNaN(businessId)) {
       console.log('Missing or invalid businessId');
-      return res.status(400).json({ error: "Invalid business ID" });
+      return res.status(400).json({ ok: false, message: "Invalid business ID" });
     }
 
     // Get business
@@ -32,101 +32,50 @@ export const hasBusinessAccess = async (req: Request, res: Response, next: NextF
 
     if (!business) {
       console.log('Business not found:', businessId);
-      return res.status(404).json({ error: "Business not found" });
+      return res.status(404).json({ ok: false, message: "Business not found" });
     }
 
-    // Set business owner flag if user is authenticated
-    if (userId) {
-      req.isBusinessOwner = business.userId === userId;
-    }
-
-    // Public routes that don't require full business access
+    // Public endpoints that don't require authentication
     const publicEndpoints = [
       'profile',
       'services',
       'staff',
-      'shift-templates'  // Allow public access to shift templates
+      'gallery',
+      'shift-templates'
     ];
 
     // Check if this is a public endpoint
     const pathSegments = req.path.split('/').filter(Boolean);
     const lastSegment = pathSegments[pathSegments.length - 1];
-    const secondToLastSegment = pathSegments[pathSegments.length - 2];
 
-    // Allow slot-related operations without business ownership
-    if (lastSegment === 'slots' || secondToLastSegment === 'slots') {
-      console.log('Access granted - Slot operation');
-      return next();
-    }
-
-    // Allow public endpoints
+    // Allow public endpoints without authentication
     if (publicEndpoints.includes(lastSegment)) {
+      req.business = business;
       console.log('Access granted - Public endpoint:', lastSegment);
       return next();
     }
 
     // For non-public endpoints, require authentication
-    if (!userId) {
+    if (!req.isAuthenticated()) {
       console.log('Authentication required for protected endpoint');
-      return res.status(401).json({ error: "Authentication required" });
+      return res.status(401).json({ ok: false, message: "Authentication required" });
     }
 
-    // Business owners have full access
-    if (req.isBusinessOwner) {
-      console.log('Access granted - Business owner');
-      return next();
+    // Verify business ownership for protected endpoints
+    if (business.userId !== userId) {
+      console.log('Access denied - Not business owner:', { businessUserId: business.userId, requestUserId: userId });
+      return res.status(403).json({ ok: false, message: "You don't have permission to access this business" });
     }
 
-    // Handle booking-specific operations
-    if (pathSegments.includes('bookings')) {
-      // Get booking ID if exists in path
-      const bookingIdIndex = pathSegments.indexOf('bookings') + 1;
-      const bookingId = bookingIdIndex < pathSegments.length ? parseInt(pathSegments[bookingIdIndex]) : null;
+    // Store business context and ownership flag
+    req.business = business;
+    req.isBusinessOwner = true;
 
-      // If accessing a specific booking
-      if (bookingId && !isNaN(bookingId)) {
-        const [booking] = await db
-          .select()
-          .from(bookings)
-          .where(
-            and(
-              eq(bookings.id, bookingId),
-              eq(bookings.customerId, userId)
-            )
-          );
-
-        if (booking) {
-          console.log('Access granted - Booking owner:', { userId, bookingId });
-          req.hasBookingAccess = true;
-          return next();
-        }
-      }
-
-      // For general booking operations, check if user has any bookings with this business
-      const [existingBooking] = await db
-        .select()
-        .from(bookings)
-        .where(
-          and(
-            eq(bookings.serviceId, businessId),
-            eq(bookings.customerId, userId)
-          )
-        )
-        .limit(1);
-
-      if (existingBooking) {
-        console.log('Access granted - Has existing bookings:', { userId });
-        req.hasBookingAccess = true;
-        return next();
-      }
-    }
-
-    console.log('Access denied - Not authorized');
-    return res.status(403).json({ error: "Not authorized to access this business" });
-
+    console.log('Access granted - Business owner verified');
+    next();
   } catch (error) {
     console.error('Error in business access middleware:', error);
-    res.status(500).json({ error: "Failed to verify business access" });
+    res.status(500).json({ ok: false, message: "Failed to verify business access" });
   }
 };
 
@@ -135,5 +84,21 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
     console.log('Authentication required');
     return res.status(401).json({ message: "Unauthorized" });
   }
+  next();
+};
+
+export const requireBusinessOwner = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ ok: false, message: "Authentication required" });
+  }
+
+  if (req.user?.role !== "business") {
+    return res.status(403).json({ ok: false, message: "Business account required" });
+  }
+
+  if (!req.isBusinessOwner) {
+    return res.status(403).json({ ok: false, message: "You don't have permission to access this business" });
+  }
+
   next();
 };

@@ -5,13 +5,14 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { businesses, services, bookings } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { businesses } from "@db/schema";
+import { eq } from "drizzle-orm";
 import { setupAuth } from "./auth";
 import salonRoutes from "./routes/salon";
 import rosterRoutes from "./routes/roster";
 import slotsRoutes from "./routes/slots";
 import { responseHandler } from "./middleware/responseHandler";
+import { hasBusinessAccess, requireBusinessOwner } from "./middleware/businessAccess";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,26 +91,12 @@ export function registerRoutes(app: Express): Server {
   // Setup authentication first
   setupAuth(app);
 
-  // Business profile route
-  app.get('/api/businesses/:businessId/profile', async (req, res) => {
+  // Business profile route (public)
+  app.get('/api/businesses/:businessId/profile', hasBusinessAccess, async (req, res) => {
     try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({
-          ok: false,
-          message: 'Business not found'
-        });
-      }
-
       return res.json({
         ok: true,
-        data: { business }
+        data: { business: req.business }
       });
     } catch (error) {
       console.error('Error fetching business profile:', error);
@@ -120,34 +107,9 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Business middleware for all business-specific routes
-  app.use('/api/businesses/:businessId', async (req, res, next) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
-        .limit(1);
-
-      if (!business) {
-        return res.status(404).json({
-          ok: false,
-          message: 'Business not found'
-        });
-      }
-
-      // Add business context to request
-      req.business = business;
-      next();
-    } catch (error) {
-      console.error('Error in business middleware:', error);
-      return res.status(500).json({
-        ok: false,
-        message: 'Failed to process business request'
-      });
-    }
-  });
+  // Protected business routes
+  app.use('/api/businesses/:businessId/dashboard', hasBusinessAccess, requireBusinessOwner);
+  app.use('/api/businesses/:businessId/manage', hasBusinessAccess, requireBusinessOwner);
 
   // Register industry-specific routes
   app.use('/api', salonRoutes);

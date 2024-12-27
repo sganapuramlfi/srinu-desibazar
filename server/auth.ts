@@ -31,7 +31,6 @@ const crypto = {
   },
 };
 
-// Define types for business data
 interface BusinessData {
   id: number;
   name: string;
@@ -60,7 +59,6 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
   try {
     console.log(`[Auth] Fetching user data for ID: ${userId}`);
 
-    // Get user data without password
     const [user] = await db
       .select({
         id: users.id,
@@ -78,7 +76,6 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
       return null;
     }
 
-    // Create sanitized user object
     const sanitizedUser: SanitizedUser = {
       id: user.id,
       username: user.username,
@@ -87,7 +84,6 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
       createdAt: user.createdAt
     };
 
-    // If user is a business owner, fetch business data
     if (user.role === "business") {
       console.log(`[Auth] Fetching business data for user ID: ${userId}`);
       const [business] = await db
@@ -119,7 +115,7 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
 
-  // Enhanced session settings
+  // Enhanced session settings with secure defaults
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || process.env.REPL_ID || "desibazaar-secret",
     resave: false,
@@ -134,25 +130,25 @@ export function setupAuth(app: Express) {
     store: new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     }),
-    name: "desibazaar.sid", // Custom session cookie name
+    name: "desibazaar.sid",
   };
 
+  // Enable trust proxy in production
   if (app.get("env") === "production") {
     app.set("trust proxy", 1);
   }
 
-  // Set up session and passport before routes
+  // Session and passport middleware setup
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Configure Passport strategy
+  // Passport local strategy configuration
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
         console.log(`[Auth] Login attempt for username: ${username}`);
 
-        // Get user with password for verification
         const [userWithPassword] = await db
           .select()
           .from(users)
@@ -170,7 +166,6 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect password." });
         }
 
-        // Get sanitized user data
         const sanitizedUser = await getUserWithBusiness(userWithPassword.id);
         if (!sanitizedUser) {
           console.log(`[Auth] Login failed: Could not load user data - ${username}`);
@@ -199,6 +194,7 @@ export function setupAuth(app: Express) {
         console.log(`[Auth] Deserialization failed: User not found - ${id}`);
         return done(null, false);
       }
+      console.log(`[Auth] Successfully deserialized user: ${id}`);
       done(null, user);
     } catch (err) {
       console.error('[Auth] Deserialization error:', err);
@@ -206,10 +202,10 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // API Routes
+  // API Routes with proper error handling
   const authRouter = express.Router();
 
-  // Ensure content-type is set to application/json for all auth routes
+  // Ensure JSON content type for all auth routes
   authRouter.use((req, res, next) => {
     res.type('json');
     next();
@@ -258,6 +254,14 @@ export function setupAuth(app: Express) {
       console.log('[Auth] Processing registration request');
       const { username, password, email, role, business } = req.body;
 
+      // Validate input
+      if (!username || !password || !email || !role) {
+        return res.status(400).json({
+          ok: false,
+          message: "Missing required fields"
+        });
+      }
+
       // Check if username already exists
       const [existingUser] = await db
         .select()
@@ -276,7 +280,7 @@ export function setupAuth(app: Express) {
       // Hash password
       const hashedPassword = await crypto.hash(password);
 
-      // Create user
+      // Create user with transaction
       const [user] = await db
         .insert(users)
         .values({
@@ -290,7 +294,7 @@ export function setupAuth(app: Express) {
 
       console.log(`[Auth] User created: ${user.id}`);
 
-      // If business owner, create business record
+      // Create business record if needed
       let businessData = null;
       if (role === "business" && business) {
         console.log(`[Auth] Creating business record for user: ${user.id}`);
@@ -326,7 +330,7 @@ export function setupAuth(app: Express) {
         } : undefined
       };
 
-      // Log the user in automatically
+      // Auto-login after registration
       req.login(userData, (err) => {
         if (err) {
           console.error('[Auth] Auto-login failed:', err);
@@ -359,6 +363,13 @@ export function setupAuth(app: Express) {
     const username = req.user?.username;
     console.log(`[Auth] Processing logout request for user: ${username}`);
 
+    if (!req.isAuthenticated()) {
+      return res.json({
+        ok: true,
+        message: "Already logged out"
+      });
+    }
+
     req.logout((err) => {
       if (err) {
         console.error('[Auth] Logout error:', err);
@@ -377,6 +388,8 @@ export function setupAuth(app: Express) {
   });
 
   authRouter.get("/user", (req, res) => {
+    console.log('[Auth] User info requested');
+
     if (!req.isAuthenticated()) {
       console.log('[Auth] Unauthorized access to user info');
       return res.status(401).json({
@@ -385,7 +398,7 @@ export function setupAuth(app: Express) {
       });
     }
 
-    console.log(`[Auth] User info requested: ${req.user.username}`);
+    console.log(`[Auth] User info request successful for: ${req.user.username}`);
     res.json({
       ok: true,
       user: req.user

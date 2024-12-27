@@ -11,73 +11,78 @@ BASE_URL="http://localhost:5000/api"
 
 echo -e "${BLUE}Testing Authentication Endpoints${NC}\n"
 
-# Test registration
-echo -e "\n${BLUE}1. Testing Registration${NC}"
-echo "Attempting to register new user..."
-registration_response=$(curl -s -X POST \
-    -H "Content-Type: application/json" \
-    -d '{
-        "username": "testuser3",
-        "password": "testpass123",
-        "email": "test3@example.com",
-        "role": "business",
-        "business": {
-            "name": "Test Salon 3",
-            "industryType": "salon",
-            "description": "Test Description"
-        }
-    }' \
-    "${BASE_URL}/register")
+# Function to make API calls and handle responses
+call_api() {
+    local method=$1
+    local endpoint=$2
+    local data=$3
+    local cookie=$4
+    local expected_status=${5:-200}
 
-echo "Registration Response:"
-echo "${registration_response}" | python3 -m json.tool
+    echo -e "\n${BLUE}Testing ${method} ${endpoint}${NC}"
+    echo "Request payload: ${data}"
 
-if echo "${registration_response}" | grep -q '"ok":true'; then
+    local response=$(curl -s -w "\n%{http_code}" -X ${method} \
+        -H "Content-Type: application/json" \
+        ${cookie:+-H "Cookie: ${cookie}"} \
+        ${data:+-d "${data}"} \
+        "${BASE_URL}${endpoint}")
+
+    local status_code=$(echo "$response" | tail -n1)
+    local body=$(echo "$response" | sed '$d')
+
+    echo -e "Status: ${status_code}"
+    echo "Response: ${body}"
+
+    if [ "$status_code" = "$expected_status" ]; then
+        echo -e "${GREEN}✓ Test passed${NC}"
+    else
+        echo -e "${RED}✗ Test failed - Expected ${expected_status}, got ${status_code}${NC}"
+        return 1
+    fi
+
+    echo "$body"
+}
+
+echo -e "${BLUE}1. Testing Registration${NC}"
+register_response=$(call_api "POST" "/register" '{
+    "username": "testuser3",
+    "password": "testpass123",
+    "email": "test3@example.com",
+    "role": "business",
+    "business": {
+        "name": "Test Salon 3",
+        "industryType": "salon",
+        "description": "Test Description"
+    }
+}')
+
+if [[ $? -eq 0 ]] && echo "$register_response" | grep -q '"ok":true'; then
     echo -e "${GREEN}✓ Registration successful${NC}"
-else
-    echo -e "${RED}✗ Registration failed${NC}"
-    exit 1
-fi
 
-# Test login
-echo -e "\n${BLUE}2. Testing Login${NC}"
-echo "Attempting to login..."
-login_response=$(curl -i -s -X POST \
-    -H "Content-Type: application/json" \
-    -d '{
+    echo -e "\n${BLUE}2. Testing Login${NC}"
+    login_response=$(call_api "POST" "/login" '{
         "username": "testuser3",
         "password": "testpass123"
-    }' \
-    "${BASE_URL}/login")
+    }')
 
-echo "Login Response Headers:"
-echo "${login_response}" | grep -i "set-cookie"
-echo -e "\nLogin Response Body:"
-echo "${login_response}" | tail -n1 | python3 -m json.tool
+    if [[ $? -eq 0 ]] && echo "$login_response" | grep -q '"ok":true'; then
+        echo -e "${GREEN}✓ Login successful${NC}"
 
-if echo "${login_response}" | grep -q '"ok":true'; then
-    echo -e "${GREEN}✓ Login successful${NC}"
-    
-    # Extract session cookie
-    SESSION_COOKIE=$(echo "$login_response" | grep -i "set-cookie" | cut -d' ' -f2)
-    echo "Session Cookie: ${SESSION_COOKIE}"
-    
-    # Test authenticated endpoint
-    echo -e "\n${BLUE}3. Testing User Info Endpoint${NC}"
-    user_response=$(curl -s \
-        -H "Cookie: ${SESSION_COOKIE}" \
-        "${BASE_URL}/user")
-    
-    echo "User Info Response:"
-    echo "${user_response}" | python3 -m json.tool
-    
-    if echo "${user_response}" | grep -q '"ok":true'; then
-        echo -e "${GREEN}✓ User info retrieved successfully${NC}"
+        # Extract session cookie and user info
+        session_cookie=$(echo "$login_response" | grep -o '"connect.sid=[^;]*')
+        user_data=$(echo "$login_response" | grep -o '"user":{[^}]*}')
+
+        echo -e "\n${BLUE}3. Testing User Info Endpoint${NC}"
+        call_api "GET" "/user" "" "Cookie: ${session_cookie}"
+
+        echo -e "\n${BLUE}4. Testing Logout${NC}"
+        call_api "POST" "/logout" "" "Cookie: ${session_cookie}"
     else
-        echo -e "${RED}✗ Failed to get user info${NC}"
+        echo -e "${RED}✗ Login failed${NC}"
     fi
 else
-    echo -e "${RED}✗ Login failed${NC}"
+    echo -e "${RED}✗ Registration failed${NC}"
 fi
 
-echo -e "\n${GREEN}Authentication endpoint testing completed!${NC}"
+echo -e "\n${GREEN}Authentication testing completed!${NC}"

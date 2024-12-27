@@ -9,18 +9,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // CORS middleware for API routes
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
-    const origin = req.headers.origin || '*';
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization');
 
+    // Set JSON content type for all API responses
+    res.type('json');
+
+    // Handle preflight requests
     if (req.method === 'OPTIONS') {
       return res.status(200).end();
     }
@@ -28,13 +33,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize authentication before routes
-setupAuth(app);
-
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
+
+  // Log request details
+  console.log(`[${new Date().toISOString()}] ${req.method} ${path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('Request body:', req.body);
+  }
+
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
@@ -62,11 +71,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Initialize authentication before routes
+setupAuth(app);
+
 // Serve uploaded files from public directory
 app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
 
 (async () => {
-  // Initialize other routes
+  // Initialize API routes first
   const server = registerRoutes(app);
 
   // API error handling middleware
@@ -75,20 +87,6 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ error: message });
-  });
-
-  // Default error handler for non-API routes
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('Application Error:', err);
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    if (_req.path.startsWith('/api')) {
-      res.status(status).json({ error: message });
-    } else {
-      res.status(status).json({ message });
-      throw err;
-    }
   });
 
   // Setup Vite or serve static files last

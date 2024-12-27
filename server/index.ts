@@ -19,7 +19,7 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization'); // Added Authorization header
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization');
 
     if (req.method === 'OPTIONS') {
       return res.status(200).end();
@@ -27,6 +27,9 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Initialize authentication before routes
+setupAuth(app);
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -59,13 +62,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize authentication after basic middleware but before routes
-setupAuth(app);
-
 // Serve uploaded files from public directory
 app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
 
 (async () => {
+  // Initialize other routes
   const server = registerRoutes(app);
 
   // API error handling middleware
@@ -90,6 +91,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
     }
   });
 
+  // Setup Vite or serve static files last
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {

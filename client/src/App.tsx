@@ -11,7 +11,7 @@ import ConsumerDashboard from "./pages/ConsumerDashboard";
 
 function App() {
   const { user, isLoading } = useUser();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -25,6 +25,12 @@ function App() {
   // If not logged in, show auth page
   if (!user) {
     return <AuthPage />;
+  }
+
+  // Redirect business users to their dashboard if they're on the root page
+  if (location === "/" && user.role === "business" && user.business) {
+    setLocation(`/dashboard/${user.business.id}`);
+    return null;
   }
 
   return (

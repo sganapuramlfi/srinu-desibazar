@@ -245,3 +245,110 @@ export const userRelations = relations(users, ({ one }) => ({
     references: [businesses.userId],
   }),
 }));
+
+// Add new tables for waitlist and notifications
+export const waitlistEntries = pgTable("waitlist_entries", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  customerId: integer("customer_id").references(() => users.id).notNull(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  preferredStaffId: integer("preferred_staff_id").references(() => salonStaff.id),
+  preferredTimeSlots: jsonb("preferred_time_slots").default({}).notNull(), // Store preferred days and time ranges
+  status: text("status", {
+    enum: ["pending", "allocated", "expired", "cancelled"]
+  }).default("pending").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const bookingNotifications = pgTable("booking_notifications", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  bookingId: integer("booking_id").references(() => bookings.id).notNull(),
+  recipientId: integer("recipient_id").references(() => users.id).notNull(),
+  type: text("type", {
+    enum: ["reminder", "confirmation", "cancellation", "reschedule", "waitlist_available"]
+  }).notNull(),
+  status: text("status", {
+    enum: ["pending", "sent", "failed"]
+  }).default("pending").notNull(),
+  content: text("content").notNull(),
+  scheduledFor: timestamp("scheduled_for"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Add new table for service conflicts tracking
+export const serviceConflicts = pgTable("service_conflicts", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  conflictingServiceId: integer("conflicting_service_id").references(() => services.id).notNull(),
+  conflictType: text("conflict_type", {
+    enum: ["time_overlap", "resource_conflict", "staff_unavailable"]
+  }).notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Add new relations
+export const waitlistRelations = relations(waitlistEntries, ({ one }) => ({
+  business: one(businesses, {
+    fields: [waitlistEntries.businessId],
+    references: [businesses.id],
+  }),
+  customer: one(users, {
+    fields: [waitlistEntries.customerId],
+    references: [users.id],
+  }),
+  service: one(services, {
+    fields: [waitlistEntries.serviceId],
+    references: [services.id],
+  }),
+  preferredStaff: one(salonStaff, {
+    fields: [waitlistEntries.preferredStaffId],
+    references: [salonStaff.id],
+  }),
+}));
+
+export const notificationRelations = relations(bookingNotifications, ({ one }) => ({
+  business: one(businesses, {
+    fields: [bookingNotifications.businessId],
+    references: [businesses.id],
+  }),
+  booking: one(bookings, {
+    fields: [bookingNotifications.bookingId],
+    references: [bookings.id],
+  }),
+  recipient: one(users, {
+    fields: [bookingNotifications.recipientId],
+    references: [users.id],
+  }),
+}));
+
+export const conflictRelations = relations(serviceConflicts, ({ one }) => ({
+  business: one(businesses, {
+    fields: [serviceConflicts.businessId],
+    references: [businesses.id],
+  }),
+  service: one(services, {
+    fields: [serviceConflicts.serviceId],
+    references: [services.id],
+  }),
+  conflictingService: one(services, {
+    fields: [serviceConflicts.conflictingServiceId],
+    references: [services.id],
+  }),
+}));
+
+// Export types for new tables
+export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
+export type BookingNotification = typeof bookingNotifications.$inferSelect;
+export type ServiceConflict = typeof serviceConflicts.$inferSelect;
+
+// Export schemas for new tables
+export const waitlistEntrySchema = createInsertSchema(waitlistEntries);
+export const notificationSchema = createInsertSchema(bookingNotifications);
+export const conflictSchema = createInsertSchema(serviceConflicts);

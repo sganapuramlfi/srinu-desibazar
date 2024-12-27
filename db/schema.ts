@@ -426,3 +426,197 @@ export type InsertSalonBooking = typeof salonBookings.$inferInsert;
 // Add types
 export type StaffSchedule = typeof staffSchedules.$inferSelect;
 export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;
+
+// Messaging System
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  type: text("type", { enum: ["booking", "support", "general"] }).notNull(),
+  status: text("status", { enum: ["active", "archived"] }).default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const conversationParticipants = pgTable("conversation_participants", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  role: text("role", { enum: ["customer", "business", "admin"] }).notNull(),
+  lastReadAt: timestamp("last_read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }),
+  senderId: integer("sender_id").references(() => users.id, { onDelete: 'cascade' }),
+  content: text("content").notNull(),
+  type: text("type", { enum: ["text", "image", "system"] }).default("text"),
+  metadata: jsonb("metadata").$type<{
+    bookingId?: number;
+    attachmentUrl?: string;
+    systemAction?: string;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Rescheduling and Waitlist System
+export const bookingHistory = pgTable("booking_history", {
+  id: serial("id").primaryKey(),
+  bookingId: integer("booking_id").references(() => salonBookings.id, { onDelete: 'cascade' }),
+  action: text("action", {
+    enum: ["created", "rescheduled", "cancelled", "completed"]
+  }).notNull(),
+  previousSlotId: integer("previous_slot_id").references(() => serviceSlots.id),
+  newSlotId: integer("new_slot_id").references(() => serviceSlots.id),
+  reason: text("reason"),
+  performedBy: integer("performed_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const waitlist = pgTable("waitlist", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }),
+  customerId: integer("customer_id").references(() => users.id, { onDelete: 'cascade' }),
+  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
+  preferredStaffId: integer("preferred_staff_id").references(() => salonStaff.id),
+  preferredTimeSlots: jsonb("preferred_time_slots").$type<{
+    dayOfWeek: number[];
+    timeRanges: { start: string; end: string }[];
+  }>(),
+  status: text("status", {
+    enum: ["waiting", "notified", "booked", "expired"]
+  }).default("waiting"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Advertising System
+export const adSpaces = pgTable("ad_spaces", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  placement: text("placement", {
+    enum: ["header", "sidebar", "footer", "search", "category"]
+  }).notNull(),
+  dimensions: jsonb("dimensions").$type<{
+    width: number;
+    height: number;
+    unit: "px" | "rem";
+  }>(),
+  maxAds: integer("max_ads").default(1),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const adCampaigns = pgTable("ad_campaigns", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  budget: decimal("budget", { precision: 10, scale: 2 }).notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  status: text("status", {
+    enum: ["draft", "pending", "active", "paused", "completed", "rejected"]
+  }).default("draft"),
+  targetAudience: jsonb("target_audience").$type<{
+    locations?: string[];
+    interests?: string[];
+    age?: { min: number; max: number };
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const advertisements = pgTable("advertisements", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").references(() => adCampaigns.id, { onDelete: 'cascade' }),
+  spaceId: integer("space_id").references(() => adSpaces.id, { onDelete: 'cascade' }),
+  title: text("title").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url").notNull(),
+  targetUrl: text("target_url").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  status: text("status", {
+    enum: ["pending", "active", "paused", "completed", "rejected"]
+  }).default("pending"),
+  metrics: jsonb("metrics").$type<{
+    impressions: number;
+    clicks: number;
+    conversions: number;
+  }>().default({ impressions: 0, clicks: 0, conversions: 0 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Add relations for new tables
+export const conversationRelations = relations(conversations, ({ many }) => ({
+  participants: many(conversationParticipants),
+  messages: many(messages),
+}));
+
+export const messageRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+  }),
+}));
+
+export const waitlistRelations = relations(waitlist, ({ one }) => ({
+  business: one(businesses, {
+    fields: [waitlist.businessId],
+    references: [businesses.id],
+  }),
+  customer: one(users, {
+    fields: [waitlist.customerId],
+    references: [users.id],
+  }),
+  service: one(salonServices, {
+    fields: [waitlist.serviceId],
+    references: [salonServices.id],
+  }),
+  preferredStaff: one(salonStaff, {
+    fields: [waitlist.preferredStaffId],
+    references: [salonStaff.id],
+  }),
+}));
+
+export const adCampaignRelations = relations(adCampaigns, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [adCampaigns.businessId],
+    references: [businesses.id],
+  }),
+  advertisements: many(advertisements),
+}));
+
+export const advertisementRelations = relations(advertisements, ({ one }) => ({
+  campaign: one(adCampaigns, {
+    fields: [advertisements.campaignId],
+    references: [adCampaigns.id],
+  }),
+  space: one(adSpaces, {
+    fields: [advertisements.spaceId],
+    references: [adSpaces.id],
+  }),
+}));
+
+// Add new types
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = typeof conversations.$inferInsert;
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = typeof messages.$inferInsert;
+export type BookingHistory = typeof bookingHistory.$inferSelect;
+export type InsertBookingHistory = typeof bookingHistory.$inferInsert;
+export type Waitlist = typeof waitlist.$inferSelect;
+export type InsertWaitlist = typeof waitlist.$inferInsert;
+export type AdSpace = typeof adSpaces.$inferSelect;
+export type InsertAdSpace = typeof adSpaces.$inferInsert;
+export type AdCampaign = typeof adCampaigns.$inferSelect;
+export type InsertAdCampaign = typeof adCampaigns.$inferInsert;
+export type Advertisement = typeof advertisements.$inferSelect;
+export type InsertAdvertisement = typeof advertisements.$inferInsert;

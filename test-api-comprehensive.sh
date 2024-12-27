@@ -9,25 +9,20 @@ NC='\033[0m'
 # Base URL
 BASE_URL="http://localhost:5000/api"
 
-# Store IDs and tokens
-BUSINESS_ID=""
-SERVICE_ID=""
-TEMPLATE_ID=""
+# Store cookies and tokens
+COOKIE_JAR="cookies.txt"
+SESSION_COOKIE=""
 
 echo -e "${BLUE}Starting comprehensive API testing...${NC}\n"
 
 # Function to validate JSON response
 validate_json() {
-    local json="$1"
-    if [[ -z "$json" ]]; then
-        echo -e "${RED}Empty response${NC}"
-        return 1
-    fi
-    if echo "$json" | jq '.' >/dev/null 2>&1; then
+    local response="$1"
+    if echo "$response" | jq '.' >/dev/null 2>&1; then
         return 0
     else
         echo -e "${RED}Invalid JSON response:${NC}"
-        echo "$json"
+        echo "$response"
         return 1
     fi
 }
@@ -37,166 +32,164 @@ call_api() {
     local method=$1
     local endpoint=$2
     local data=$3
-    local cookie=$4
-    local expected_status=${5:-200}
+    local expected_status=${4:-200}
 
     echo -e "\n${BLUE}Testing ${method} ${endpoint}${NC}"
     echo "Request payload: ${data}"
 
     local response
-    if [ -z "$data" ]; then
-        response=$(curl -s -i -X ${method} \
-            -H "Content-Type: application/json" \
-            ${cookie:+-H "Cookie: ${cookie}"} \
-            "${BASE_URL}${endpoint}")
-    else
-        response=$(curl -s -i -X ${method} \
-            -H "Content-Type: application/json" \
-            ${cookie:+-H "Cookie: ${cookie}"} \
-            -d "${data}" \
-            "${BASE_URL}${endpoint}")
+    local curl_cmd="curl -s -i -X ${method} \
+        -H 'Content-Type: application/json' \
+        -b ${COOKIE_JAR} -c ${COOKIE_JAR}"
+
+    if [ ! -z "$data" ]; then
+        curl_cmd="$curl_cmd -d '${data}'"
     fi
 
-    # Split response into headers and body
-    local headers
-    local body
-    local status_code
+    curl_cmd="$curl_cmd ${BASE_URL}${endpoint}"
 
-    # Extract headers, body and status code
-    headers=$(echo "$response" | awk 'BEGIN{RS="\r\n\r\n"} NR==1{print}')
-    body=$(echo "$response" | awk 'BEGIN{RS="\r\n\r\n"} NR==2{print}')
-    status_code=$(echo "$headers" | grep -i "HTTP/" | awk '{print $2}')
+    echo "Executing: $curl_cmd"
+    response=$(eval $curl_cmd)
+
+    # Split response into headers and body
+    local headers=$(echo "$response" | awk 'BEGIN{RS="\r\n\r\n"} NR==1{print}')
+    local body=$(echo "$response" | awk 'BEGIN{RS="\r\n\r\n"} NR==2{print}')
+    local status_code=$(echo "$headers" | grep -i "HTTP/" | awk '{print $2}')
 
     echo "Status code: ${status_code}"
     echo "Response body: ${body}"
 
-    # Validate JSON response if status code is 200
-    if [ "$status_code" = "200" ]; then
-        if ! validate_json "$body"; then
-            echo -e "${RED}✗ Test failed - Invalid JSON response${NC}"
+    if [ "$status_code" = "$expected_status" ]; then
+        if [ ! -z "$body" ]; then
+            if validate_json "$body"; then
+                echo -e "${GREEN}✓ Test passed${NC}"
+                echo "$body"
+                return 0
+            else
+                echo -e "${RED}✗ Test failed - Invalid JSON response${NC}"
+                return 1
+            fi
+        else
+            echo -e "${RED}✗ Test failed - Empty response body${NC}"
             return 1
         fi
-    fi
-
-    if [ "$status_code" = "$expected_status" ]; then
-        echo -e "${GREEN}✓ Test passed${NC}"
     else
         echo -e "${RED}✗ Test failed - Expected ${expected_status}, got ${status_code}${NC}"
         return 1
     fi
-
-    # Return the body for further processing
-    echo "$body"
 }
 
-# Test authentication first
-echo -e "${BLUE}1. Testing Authentication${NC}"
+# Clean up old cookie jar
+rm -f ${COOKIE_JAR}
 
-# Register business user
+echo -e "${BLUE}1. Testing Authentication Flow${NC}"
+
+# Register
+echo "Testing registration..."
 register_response=$(call_api "POST" "/register" '{
-    "username": "testbusiness2",
+    "username": "testbusiness",
     "password": "Test@1234",
-    "email": "test2@example.com",
+    "email": "test@example.com",
     "role": "business",
     "business": {
-        "name": "Test Business 2",
+        "name": "Test Business",
         "industryType": "salon",
-        "description": "Test Description"
+        "description": "Test salon business"
     }
 }')
 
-if ! validate_json "$register_response"; then
-    echo -e "${RED}Registration failed - Invalid JSON response${NC}"
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Registration failed${NC}"
     exit 1
 fi
 
 # Login
+echo "Testing login..."
 login_response=$(call_api "POST" "/login" '{
-    "username": "testbusiness2",
+    "username": "testbusiness",
     "password": "Test@1234"
 }')
 
-if ! validate_json "$login_response"; then
-    echo -e "${RED}Login failed - Invalid JSON response${NC}"
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Login failed${NC}"
     exit 1
 fi
 
-# Extract session cookie and business ID from headers and response
-SESSION_COOKIE=$(echo "$login_response" | grep -i "set-cookie" | cut -d' ' -f2)
-BUSINESS_ID=$(echo "$login_response" | jq -r '.user.business.id')
+# Get user info
+echo "Testing user info..."
+user_response=$(call_api "GET" "/user")
 
-echo "Extracted Business ID: ${BUSINESS_ID}"
-echo "Session Cookie: ${SESSION_COOKIE}"
-
-if [ -z "$BUSINESS_ID" ] || [ -z "$SESSION_COOKIE" ]; then
-    echo -e "${RED}Failed to get authentication credentials${NC}"
+if [ $? -ne 0 ]; then
+    echo -e "${RED}User info fetch failed${NC}"
     exit 1
 fi
 
-# Test business profile endpoints
-echo -e "\n${BLUE}2. Testing Business Profile${NC}"
-
-# Get profile
-profile_response=$(call_api "GET" "/businesses/${BUSINESS_ID}/profile" "" "${SESSION_COOKIE}")
-
-# Test shift template endpoints
-echo -e "\n${BLUE}3. Testing Shift Templates${NC}"
-
-# Create shift template
-template_response=$(call_api "POST" "/businesses/${BUSINESS_ID}/shift-templates" '{
-    "name": "Morning Shift",
-    "startTime": "09:00",
-    "endTime": "17:00",
-    "breaks": [
-        {
-            "startTime": "12:00",
-            "endTime": "13:00",
-            "type": "lunch",
-            "duration": 60
-        }
-    ],
-    "daysOfWeek": [1, 2, 3, 4, 5],
-    "color": "#4CAF50",
-    "isActive": true
-}' "${SESSION_COOKIE}")
-
-if ! validate_json "$template_response"; then
-    echo -e "${RED}Failed to create shift template - Invalid JSON response${NC}"
+# Extract business ID from user response
+BUSINESS_ID=$(echo "$user_response" | jq -r '.user.business.id')
+if [ -z "$BUSINESS_ID" ]; then
+    echo -e "${RED}Failed to get business ID${NC}"
     exit 1
 fi
 
-TEMPLATE_ID=$(echo "$template_response" | jq -r '.id')
+echo -e "${BLUE}2. Testing Business Profile${NC}"
 
-# Get shift templates
-templates_response=$(call_api "GET" "/businesses/${BUSINESS_ID}/shift-templates" "" "${SESSION_COOKIE}")
+# Get business profile
+echo "Testing business profile retrieval..."
+call_api "GET" "/businesses/${BUSINESS_ID}/profile"
 
-# Test service endpoints
-echo -e "\n${BLUE}4. Testing Services${NC}"
+echo -e "${BLUE}3. Testing Staff Management${NC}"
 
-# Create service
+# Add staff
+echo "Testing staff creation..."
+staff_response=$(call_api "POST" "/businesses/${BUSINESS_ID}/staff" '{
+    "name": "Test Staff",
+    "email": "staff@example.com",
+    "phone": "1234567890",
+    "specialization": "Hair Styling",
+    "status": "active"
+}')
+
+STAFF_ID=$(echo "$staff_response" | jq -r '.id')
+
+# Get staff list
+echo "Testing staff list retrieval..."
+call_api "GET" "/businesses/${BUSINESS_ID}/staff"
+
+echo -e "${BLUE}4. Testing Services Management${NC}"
+
+# Add service
+echo "Testing service creation..."
 service_response=$(call_api "POST" "/businesses/${BUSINESS_ID}/services" '{
     "name": "Test Service",
     "description": "Test service description",
     "duration": 60,
     "price": "50.00",
-    "category": "general",
-    "maxParticipants": 1
-}' "${SESSION_COOKIE}")
-
-if ! validate_json "$service_response"; then
-    echo -e "${RED}Failed to create service - Invalid JSON response${NC}"
-    exit 1
-fi
+    "category": "general"
+}')
 
 SERVICE_ID=$(echo "$service_response" | jq -r '.id')
 
-# Get services
-services_response=$(call_api "GET" "/businesses/${BUSINESS_ID}/services" "" "${SESSION_COOKIE}")
+# Get services list
+echo "Testing services list retrieval..."
+call_api "GET" "/businesses/${BUSINESS_ID}/services"
 
-echo -e "\n${GREEN}Testing completed!${NC}"
+echo -e "${BLUE}5. Testing Slot Management${NC}"
+
+# Get available slots
+echo "Testing slot availability..."
+call_api "GET" "/businesses/${BUSINESS_ID}/slots?date=$(date +%Y-%m-%d)"
+
+# Cleanup
+echo -e "\n${BLUE}6. Testing Logout${NC}"
+call_api "POST" "/logout"
 
 # Print summary
 echo -e "\n${BLUE}Test Summary:${NC}"
 echo "Business ID: ${BUSINESS_ID}"
+echo "Staff ID: ${STAFF_ID}"
 echo "Service ID: ${SERVICE_ID}"
-echo "Template ID: ${TEMPLATE_ID}"
+
+# Clean up cookie jar
+rm -f ${COOKIE_JAR}
+
+echo -e "\n${GREEN}Testing completed!${NC}"

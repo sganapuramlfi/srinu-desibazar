@@ -121,29 +121,22 @@ export function setupAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: app.get("env") === "production",
+      secure: false, // Only set to true if using HTTPS
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: app.get("env") === "production" ? "strict" : "lax",
-      path: "/",
+      sameSite: 'lax',
+      path: '/'
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     }),
-    name: "desibazaar.sid",
+    name: "desibazaar.sid"
   };
 
-  // Enable trust proxy in production
-  if (app.get("env") === "production") {
-    app.set("trust proxy", 1);
-  }
-
-  // Session and passport middleware setup
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Passport local strategy configuration
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -166,14 +159,14 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect password." });
         }
 
-        const sanitizedUser = await getUserWithBusiness(userWithPassword.id);
-        if (!sanitizedUser) {
+        const user = await getUserWithBusiness(userWithPassword.id);
+        if (!user) {
           console.log(`[Auth] Login failed: Could not load user data - ${username}`);
           return done(null, false, { message: "Failed to load user data." });
         }
 
         console.log(`[Auth] Login successful: ${username}`);
-        return done(null, sanitizedUser);
+        return done(null, user);
       } catch (err) {
         console.error('[Auth] Login error:', err);
         return done(err);
@@ -207,54 +200,8 @@ export function setupAuth(app: Express) {
 
   // Ensure JSON content type for all auth routes
   authRouter.use((req, res, next) => {
-    res.type('application/json');
+    res.setHeader('Content-Type', 'application/json');
     next();
-  });
-
-  authRouter.post("/login", (req, res, next) => {
-    console.log('[Auth] Processing login request');
-    passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
-      try {
-        if (err) {
-          console.error('[Auth] Login error:', err);
-          return res.status(500).json({
-            ok: false,
-            message: "Internal server error during login"
-          });
-        }
-
-        if (!user) {
-          console.log('[Auth] Login failed:', info.message);
-          return res.status(400).json({
-            ok: false,
-            message: info.message ?? "Login failed"
-          });
-        }
-
-        req.logIn(user, (err) => {
-          if (err) {
-            console.error('[Auth] Login error during session creation:', err);
-            return res.status(500).json({
-              ok: false,
-              message: "Failed to create session"
-            });
-          }
-
-          console.log(`[Auth] Login successful for user: ${user.username}`);
-          return res.json({
-            ok: true,
-            message: "Login successful",
-            user
-          });
-        });
-      } catch (error) {
-        console.error('[Auth] Unexpected login error:', error);
-        return res.status(500).json({
-          ok: false,
-          message: "Internal server error"
-        });
-      }
-    })(req, res, next);
   });
 
   authRouter.post("/register", async (req, res) => {
@@ -362,6 +309,52 @@ export function setupAuth(app: Express) {
         message: "Failed to create account"
       });
     }
+  });
+
+  authRouter.post("/login", (req, res, next) => {
+    console.log('[Auth] Processing login request');
+    passport.authenticate("local", (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
+      try {
+        if (err) {
+          console.error('[Auth] Login error:', err);
+          return res.status(500).json({
+            ok: false,
+            message: "Internal server error during login"
+          });
+        }
+
+        if (!user) {
+          console.log('[Auth] Login failed:', info.message);
+          return res.status(400).json({
+            ok: false,
+            message: info.message ?? "Login failed"
+          });
+        }
+
+        req.logIn(user, (err) => {
+          if (err) {
+            console.error('[Auth] Login error during session creation:', err);
+            return res.status(500).json({
+              ok: false,
+              message: "Failed to create session"
+            });
+          }
+
+          console.log(`[Auth] Login successful for user: ${user.username}`);
+          return res.json({
+            ok: true,
+            message: "Login successful",
+            user
+          });
+        });
+      } catch (error) {
+        console.error('[Auth] Unexpected login error:', error);
+        return res.status(500).json({
+          ok: false,
+          message: "Internal server error"
+        });
+      }
+    })(req, res, next);
   });
 
   authRouter.post("/logout", (req, res) => {

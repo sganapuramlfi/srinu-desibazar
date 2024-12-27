@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "../hooks/use-user";
@@ -57,23 +57,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const { toast } = useToast();
   const [currentTab, setCurrentTab] = useState("profile");
 
-  // Handle authentication and access control
-  useEffect(() => {
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
-
-    if (user.role !== "business") {
-      toast({
-        variant: "destructive",
-        title: "Access Denied",
-        description: "You don't have permission to access this dashboard."
-      });
-      navigate("/");
-    }
-  }, [user?.role, navigate, toast]); // Only depend on user.role changes
-
   // Fetch business data
   const { data: business, error: businessError, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
@@ -106,11 +89,30 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     retry: 1
   });
 
-  // Memoize tab configurations to prevent unnecessary re-renders
-  const getTabs = useMemo(() => {
+  // Handle authentication and access control
+  useEffect(() => {
+    if (!user) {
+      navigate("/auth");
+    }
+  }, [user, navigate]);
+
+  // Handle business owner access control
+  useEffect(() => {
+    if (user && business && user.role !== "business") {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "You don't have permission to access this dashboard."
+      });
+      navigate("/");
+    }
+  }, [user?.role, business, navigate, toast]);
+
+  // Memoize tab configurations
+  const tabs = useMemo(() => {
     if (!business) return [];
 
-    return [
+    const tabConfigs: TabConfig[] = [
       {
         id: "profile",
         label: "Profile",
@@ -161,7 +163,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         component: (
           <ServiceStaffTab
             businessId={businessId}
-            industryType={business?.industryType}
+            industryType={business.industryType}
           />
         ),
         supportedTypes: ["salon", "restaurant", "event"]
@@ -186,7 +188,9 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         component: <BookingsPage businessId={businessId.toString()} />,
         supportedTypes: ["salon", "restaurant", "event", "professional"]
       }
-    ].filter(tab => tab.supportedTypes.includes(business.industryType));
+    ];
+
+    return tabConfigs.filter(tab => tab.supportedTypes.includes(business.industryType));
   }, [business, businessId, staff, services, templates, isLoadingStaff, isLoadingTemplates]);
 
   // Loading state
@@ -236,7 +240,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     );
   }
 
-  // Access control check
+  // Access control check (moved outside useEffect)
   if (user && business.userId !== user.id) {
     toast({
       variant: "destructive",
@@ -246,8 +250,6 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     navigate("/");
     return null;
   }
-
-  const availableTabs = getTabs;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -261,8 +263,8 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
       </div>
 
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)` }}>
-          {availableTabs.map(tab => (
+        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+          {tabs.map(tab => (
             <TabsTrigger key={tab.id} value={tab.id}>
               {tab.icon}
               {tab.label}
@@ -270,7 +272,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
           ))}
         </TabsList>
 
-        {availableTabs.map(tab => (
+        {tabs.map(tab => (
           <TabsContent key={tab.id} value={tab.id}>
             {tab.component}
           </TabsContent>

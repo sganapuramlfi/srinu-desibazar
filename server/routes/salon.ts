@@ -1,11 +1,20 @@
 import { Router } from "express";
 import { db } from "@db";
-import { services, staffSkills, shiftTemplates, staffSchedules } from "@db/schema";
+import { services, staffSkills, shiftTemplates, staffSchedules, salonStaff } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { insertServiceSchema, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
+import { insertServiceSchema, insertShiftTemplateSchema } from "@db/schema";
 
 const router = Router();
+
+// Validation schemas
+const staffSchema = z.object({
+  name: z.string().min(1, "Staff name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number is required"),
+  specialization: z.string().min(1, "Specialization is required"),
+  status: z.enum(["active", "inactive", "on_leave"]).default("active"),
+});
 
 // Staff Management Routes
 router.get("/businesses/:businessId/staff", async (req, res) => {
@@ -126,6 +135,7 @@ router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
   }
 });
 
+
 // Basic validation schemas
 const updateServiceSchema = insertServiceSchema.partial();
 
@@ -161,7 +171,8 @@ router.post("/businesses/:businessId/services", async (req, res) => {
       businessId: parseInt(req.params.businessId),
       settings: {
         category: req.body.category || 'general',
-        maxParticipants: req.body.maxParticipants || 1,
+        requiresConsultation: req.body.requiresConsultation,
+        skillLevel: req.body.skillLevel,
         isActive: true
       }
     });
@@ -198,7 +209,8 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
       businessId: parseInt(req.params.businessId),
       settings: {
         category: req.body.category,
-        maxParticipants: req.body.maxParticipants,
+        requiresConsultation: req.body.requiresConsultation,
+        skillLevel: req.body.skillLevel,
         isActive: req.body.isActive
       }
     });
@@ -264,7 +276,7 @@ router.delete("/businesses/:businessId/services/:serviceId", async (req, res) =>
 // Staff-skills routes
 router.get("/businesses/:businessId/staff-skills", async (req, res) => {
   try {
-    if (!req.user) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -287,7 +299,7 @@ router.get("/businesses/:businessId/staff-skills", async (req, res) => {
 
 router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
-    if (!req.user) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -309,7 +321,7 @@ router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
 
 router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
-    if (!req.user) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -365,7 +377,7 @@ router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
 // Shift Template Management
 router.get("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
-    if (!req.user) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -385,7 +397,7 @@ router.get("/businesses/:businessId/shift-templates", async (req, res) => {
 
 router.post("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
-    if (!req.user) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -424,7 +436,7 @@ router.post("/businesses/:businessId/shift-templates", async (req, res) => {
 
 router.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
   try {
-    if (!req.user) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 

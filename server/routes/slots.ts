@@ -1,10 +1,18 @@
 import { Router } from "express";
 import { db } from "@db";
-import { serviceSlots, salonServices, salonStaff, shiftTemplates, staffSchedules } from "@db/schema";
-import { eq, and, not, or, sql } from "drizzle-orm";
+import { 
+  serviceSlots, 
+  services, 
+  salonStaff, 
+  shiftTemplates, 
+  staffSchedules,
+  type Service,
+  type SalonStaff 
+} from "@db/schema";
+import { eq, and, not, or } from "drizzle-orm";
 import { z } from "zod";
 import { format, parse, addMinutes, isWithinInterval } from "date-fns";
-import { requireAuth, hasBusinessAccess } from "../middleware/businessAccess";
+import { requireAuth } from "../middleware/businessAccess";
 
 const router = Router();
 
@@ -23,8 +31,8 @@ function isBreakTime(timeSlot: Date, breaks: Array<{ startTime: string; endTime:
 async function generateAvailableSlots(
   businessId: number,
   date: Date,
-  staff: Array<{ id: number; name: string }>,
-  services: Array<{ id: number; duration: number }>,
+  staff: SalonStaff[],
+  services: Service[],
 ) {
   // Get staff schedules for the date
   const schedules = await db
@@ -42,7 +50,13 @@ async function generateAvailableSlots(
       )
     );
 
-  const slots: any[] = [];
+  const slots: Array<{
+    startTime: Date;
+    endTime: Date;
+    staffId: number;
+    serviceId: number;
+    status: "available";
+  }> = [];
 
   for (const { schedule, template } of schedules) {
     const shiftDate = format(date, 'yyyy-MM-dd');
@@ -73,6 +87,20 @@ async function generateAvailableSlots(
   return slots;
 }
 
+// Helper function to normalize date to UTC midnight
+const normalizeDate = (date: Date): Date => {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+};
+
+// Helper function to get end of day
+const endOfDay = (date: Date): Date => {
+  const d = new Date(date);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+};
+
 // Get slots for a business with enhanced filtering
 router.get("/businesses/:businessId/slots", requireAuth, async (req, res) => {
   try {
@@ -92,55 +120,53 @@ router.get("/businesses/:businessId/slots", requireAuth, async (req, res) => {
     const startDateObj = normalizeDate(new Date(startDate as string));
     const endDateObj = endOfDay(new Date(endDate as string));
 
-
-    // Fetch services and staff for the business.  This is needed for generateAvailableSlots.
-    const services = await db.select().from(salonServices).where(eq(salonServices.businessId, businessId));
+    // Fetch services and staff for the business
+    const businessServices = await db.select().from(services).where(eq(services.businessId, businessId));
     const staffMembers = await db.select().from(salonStaff).where(eq(salonStaff.businessId, businessId));
 
     const availableSlots = [];
     for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
-        const daySlots = await generateAvailableSlots(businessId, d, staffMembers, services);
-        availableSlots.push(...daySlots);
+      const daySlots = await generateAvailableSlots(businessId, d, staffMembers, businessServices);
+      availableSlots.push(...daySlots);
     }
 
     // Get existing bookings to filter out booked slots
-    const bookings = await db
-      .select({
-        slotId: salonBookings.slotId,
-        status: salonBookings.status
-      })
-      .from(salonBookings)
+    const existingSlots = await db
+      .select()
+      .from(serviceSlots)
       .where(
         and(
-          eq(salonBookings.businessId, businessId),
+          eq(serviceSlots.businessId, businessId),
           or(
-            eq(salonBookings.status, "confirmed"),
-            eq(salonBookings.status, "pending")
+            eq(serviceSlots.status, "booked"),
+            eq(serviceSlots.status, "blocked")
           )
         )
       );
 
-
     // Create a set of booked slots
-    const bookedSlots = new Set(bookings.map(booking => booking.slotId));
+    const bookedSlots = new Set(existingSlots.map(slot => 
+      `${slot.staffId}-${format(slot.startTime, "yyyy-MM-dd'T'HH:mm")}`
+    ));
 
-    // Filter and format available slots.  We need to map the generated slots to include service and staff details.
-    const filteredSlots = availableSlots.filter(slot => !bookedSlots.has(slot.id));
+    // Filter and format available slots
+    const filteredSlots = availableSlots.filter(slot => 
+      !bookedSlots.has(`${slot.staffId}-${format(slot.startTime, "yyyy-MM-dd'T'HH:mm")}`)
+    );
 
     const finalSlots = await Promise.all(filteredSlots.map(async (slot) => {
-        const service = await db.select().from(salonServices).where(eq(salonServices.id, slot.serviceId)).first();
-        const staff = await db.select().from(salonStaff).where(eq(salonStaff.id, slot.staffId)).first();
+      const service = businessServices.find(s => s.id === slot.serviceId);
+      const staff = staffMembers.find(s => s.id === slot.staffId);
 
-        return {
-            id: slot.id, // You'll need a way to generate IDs for these slots
-            startTime: format(slot.startTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            endTime: format(slot.endTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            displayTime: `${format(slot.startTime, 'h:mm a')} - ${format(slot.endTime, 'h:mm a')}`,
-            status: slot.status,
-            service: service,
-            staff: staff
-        }
-    }))
+      return {
+        startTime: format(slot.startTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        endTime: format(slot.endTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        displayTime: `${format(slot.startTime, 'h:mm a')} - ${format(slot.endTime, 'h:mm a')}`,
+        status: slot.status,
+        service,
+        staff
+      };
+    }));
 
     console.log(`Found ${finalSlots.length} available slots`);
     res.json(finalSlots);
@@ -172,50 +198,48 @@ router.get("/businesses/:businessId/slots/available", requireAuth, async (req, r
     const startDateObj = normalizeDate(new Date(date as string));
     const endDateObj = endOfDay(new Date(date as string));
 
-    // Fetch services and staff for the business.  This is needed for generateAvailableSlots.
-    const services = await db.select().from(salonServices).where(eq(salonServices.businessId, businessId));
+    // Fetch services and staff for the business
+    const businessServices = await db.select().from(services).where(eq(services.businessId, businessId));
     const staffMembers = await db.select().from(salonStaff).where(eq(salonStaff.businessId, businessId));
 
-    const availableSlots = await generateAvailableSlots(businessId, startDateObj, staffMembers, services);
-
+    const availableSlots = await generateAvailableSlots(businessId, startDateObj, staffMembers, businessServices);
 
     // Get existing bookings to filter out booked slots
-    const bookings = await db
-      .select({
-        slotId: salonBookings.slotId,
-        status: salonBookings.status
-      })
-      .from(salonBookings)
+    const existingSlots = await db
+      .select()
+      .from(serviceSlots)
       .where(
         and(
-          eq(salonBookings.businessId, businessId),
+          eq(serviceSlots.businessId, businessId),
           or(
-            eq(salonBookings.status, "confirmed"),
-            eq(salonBookings.status, "pending")
+            eq(serviceSlots.status, "booked"),
+            eq(serviceSlots.status, "blocked")
           )
         )
       );
 
     // Create a set of booked slots
-    const bookedSlots = new Set(bookings.map(booking => booking.slotId));
+    const bookedSlots = new Set(existingSlots.map(slot => 
+      `${slot.staffId}-${format(slot.startTime, "yyyy-MM-dd'T'HH:mm")}`
+    ));
 
     // Filter and format available slots
-    const filteredSlots = availableSlots.filter(slot => !bookedSlots.has(slot.id));
+    const filteredSlots = availableSlots.filter(slot => 
+      !bookedSlots.has(`${slot.staffId}-${format(slot.startTime, "yyyy-MM-dd'T'HH:mm")}`)
+    );
 
     const finalSlots = await Promise.all(filteredSlots.map(async (slot) => {
-        const service = await db.select().from(salonServices).where(eq(salonServices.id, slot.serviceId)).first();
-        const staff = await db.select().from(salonStaff).where(eq(salonStaff.id, slot.staffId)).first();
+      const service = businessServices.find(s => s.id === slot.serviceId);
+      const staff = staffMembers.find(s => s.id === slot.staffId);
 
-        return {
-            id: slot.id, // You'll need a way to generate IDs for these slots
-            startTime: format(slot.startTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            endTime: format(slot.endTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            displayTime: `${format(slot.startTime, 'h:mm a')} - ${format(slot.endTime, 'h:mm a')}`,
-            service: service,
-            staff: staff
-        }
-    }))
-
+      return {
+        startTime: format(slot.startTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        endTime: format(slot.endTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        displayTime: `${format(slot.startTime, 'h:mm a')} - ${format(slot.endTime, 'h:mm a')}`,
+        service,
+        staff
+      };
+    }));
 
     console.log(`Found ${finalSlots.length} available slots for rescheduling`);
     res.json(finalSlots);
@@ -227,12 +251,5 @@ router.get("/businesses/:businessId/slots/available", requireAuth, async (req, r
     });
   }
 });
-
-// Helper function to normalize date to UTC midnight
-const normalizeDate = (date: Date): Date => {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
 
 export default router;

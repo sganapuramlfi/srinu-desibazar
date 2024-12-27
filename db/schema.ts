@@ -140,12 +140,14 @@ export const staffSkills = pgTable("staff_skills", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Modify only the shiftTemplates table definition
 export const shiftTemplates = pgTable("shift_templates", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
   name: text("name").notNull(),
   startTime: text("start_time").notNull(), // Store as HH:mm format
   endTime: text("end_time").notNull(), // Store as HH:mm format
+  breakDuration: integer("break_duration"), // Keep existing column for backward compatibility
   breaks: jsonb("breaks").default([]).notNull(), // Array of break objects with start, end, and type
   daysOfWeek: jsonb("days_of_week").default([]).notNull(), // Array of days when this shift applies
   color: text("color").default("#000000"),

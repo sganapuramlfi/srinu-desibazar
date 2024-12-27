@@ -3,10 +3,50 @@ import { db } from "@db";
 import { staffSchedules, salonStaff, shiftTemplates } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { format, parse, isWithinInterval } from "date-fns";
 
 const router = Router();
 
 // Validation schemas
+const breakSchema = z.object({
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  type: z.enum(["lunch", "coffee", "rest"]),
+  duration: z.number().min(1).max(120)
+});
+
+const shiftTemplateSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  breaks: z.array(breakSchema),
+  daysOfWeek: z.array(z.number().min(0).max(6)),
+  color: z.string().optional(),
+  isActive: z.boolean().optional()
+});
+
+// Helper function to check if breaks overlap
+function checkBreakOverlaps(breaks: z.infer<typeof breakSchema>[]) {
+  for (let i = 0; i < breaks.length; i++) {
+    const break1 = breaks[i];
+    const break1Start = parse(break1.startTime, 'HH:mm', new Date());
+    const break1End = parse(break1.endTime, 'HH:mm', new Date());
+
+    for (let j = i + 1; j < breaks.length; j++) {
+      const break2 = breaks[j];
+      const break2Start = parse(break2.startTime, 'HH:mm', new Date());
+      const break2End = parse(break2.endTime, 'HH:mm', new Date());
+
+      if (
+        isWithinInterval(break1Start, { start: break2Start, end: break2End }) ||
+        isWithinInterval(break1End, { start: break2Start, end: break2End })
+      ) {
+        throw new Error(`Break times cannot overlap: ${break1.startTime}-${break1.endTime} overlaps with ${break2.startTime}-${break2.endTime}`);
+      }
+    }
+  }
+}
+
 const assignShiftSchema = z.object({
   staffId: z.number(),
   templateId: z.number(),
@@ -20,6 +60,7 @@ const updateShiftSchema = z.object({
   templateId: z.number(),
   status: z.enum(["scheduled", "completed", "absent", "on_leave"]).optional(),
 });
+
 
 // Get roster data for a business
 router.get("/businesses/:businessId/roster", async (req, res) => {
@@ -93,6 +134,143 @@ router.get("/businesses/:businessId/shift-templates", async (req, res) => {
   } catch (error: any) {
     console.error("Error fetching shift templates:", error);
     res.status(500).json({ error: "Failed to fetch shift templates" });
+  }
+});
+
+// Create a shift template
+router.post("/businesses/:businessId/shift-templates", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+
+    // Validate request body
+    const validationResult = shiftTemplateSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        error: "Invalid input",
+        details: validationResult.error.errors,
+      });
+    }
+
+    const { name, startTime, endTime, breaks, daysOfWeek, color, isActive } = validationResult.data;
+
+    // Check for break time overlaps
+    checkBreakOverlaps(breaks);
+
+    // Create template
+    const [template] = await db
+      .insert(shiftTemplates)
+      .values({
+        businessId,
+        name,
+        startTime,
+        endTime,
+        breaks: breaks as any, // JSONB type
+        daysOfWeek: daysOfWeek as any, // JSONB type
+        color,
+        isActive,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+
+    res.json(template);
+  } catch (error: any) {
+    console.error("Error creating shift template:", error);
+    res.status(500).json({ 
+      error: "Failed to create shift template",
+      details: error.message 
+    });
+  }
+});
+
+// Update a shift template
+router.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+    const templateId = parseInt(req.params.templateId);
+
+    // Validate request body
+    const validationResult = shiftTemplateSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        error: "Invalid input",
+        details: validationResult.error.errors,
+      });
+    }
+
+    const { name, startTime, endTime, breaks, daysOfWeek, color, isActive } = validationResult.data;
+
+    // Check for break time overlaps
+    checkBreakOverlaps(breaks);
+
+    // Update template
+    const [template] = await db
+      .update(shiftTemplates)
+      .set({
+        name,
+        startTime,
+        endTime,
+        breaks: breaks as any, // JSONB type
+        daysOfWeek: daysOfWeek as any, // JSONB type
+        color,
+        isActive,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(shiftTemplates.id, templateId),
+        eq(shiftTemplates.businessId, businessId)
+      ))
+      .returning();
+
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+
+    res.json(template);
+  } catch (error: any) {
+    console.error("Error updating shift template:", error);
+    res.status(500).json({ 
+      error: "Failed to update shift template",
+      details: error.message 
+    });
+  }
+});
+
+// Delete a shift template
+router.delete("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+    const templateId = parseInt(req.params.templateId);
+
+    // Check if template exists and belongs to business
+    const [template] = await db
+      .delete(shiftTemplates)
+      .where(and(
+        eq(shiftTemplates.id, templateId),
+        eq(shiftTemplates.businessId, businessId)
+      ))
+      .returning();
+
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+
+    res.json({ message: "Template deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting shift template:", error);
+    res.status(500).json({ error: "Failed to delete shift template" });
   }
 });
 

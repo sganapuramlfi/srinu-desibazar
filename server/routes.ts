@@ -56,20 +56,75 @@ export function registerRoutes(app: Express): Server {
   // Create the HTTP server first
   const httpServer = createServer(app);
 
-  // Setup authentication first
-  setupAuth(app);
-
-  // API Routes prefix middleware
-  app.use('/api', (req, res, next) => {
-    // Set headers to prevent Vite from intercepting API requests
+  // Global middleware for JSON responses
+  app.use((req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
+
+    // Override send to ensure JSON responses
+    const originalSend = res.send;
+    res.send = function(body) {
+      try {
+        // If body is already a string, try to parse it to validate JSON
+        if (typeof body === 'string') {
+          JSON.parse(body);
+        }
+        // Call original send
+        return originalSend.call(this, body);
+      } catch (err) {
+        console.error('Invalid JSON response:', err);
+        // If not valid JSON, send as proper JSON response
+        return originalSend.call(this, JSON.stringify({
+          ok: false,
+          message: 'Internal Server Error: Invalid response format'
+        }));
+      }
+    };
     next();
   });
 
-  // Register routes
+  // Setup authentication first
+  setupAuth(app);
+
+  // Industry-specific routes
+  app.use('/api/businesses/:businessId', async (req, res, next) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({
+          ok: false,
+          message: 'Business not found'
+        });
+      }
+
+      // Add business context to request
+      req.business = business;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Register industry-specific routes
   app.use('/api', salonRoutes);
   app.use('/api', rosterRoutes);
   app.use('/api', slotsRoutes);
+
+  // Error handling middleware
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error('API Error:', err);
+
+    // Ensure we send JSON response
+    res.status(err.status || 500).json({
+      ok: false,
+      message: err.message || 'Internal Server Error'
+    });
+  });
 
   return httpServer;
 }

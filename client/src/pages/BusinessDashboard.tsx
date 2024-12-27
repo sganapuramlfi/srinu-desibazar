@@ -12,13 +12,14 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings, Bookmark } from "lucide-react";
+import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings, Bookmark, Clock } from "lucide-react";
 import { StaffTab } from "../components/StaffTab";
 import { ServiceStaffTab } from "../components/ServiceStaffTab";
 import { RosterTabUpdated } from "../components/RosterTabUpdated";
 import { ServicesTab } from "../components/ServicesTab";
 import { ServiceSlotsTab } from "../components/ServiceSlotsTab";
 import { BusinessProfileTab } from "../components/BusinessProfileTab";
+import { ShiftTemplatesTab } from "../components/ShiftTemplatesTab";
 import BookingsPage from "../pages/BookingsPage";
 import type { SalonStaff, ShiftTemplate, SalonService } from "../types/salon";
 import { useToast } from "@/hooks/use-toast";
@@ -157,7 +158,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="profile">
             <Settings className="w-4 h-4 mr-2" />
             Profile
@@ -169,6 +170,10 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
           <TabsTrigger value="staff">
             <Users className="w-4 h-4 mr-2" />
             Staff
+          </TabsTrigger>
+          <TabsTrigger value="shift-templates">
+            <Clock className="w-4 h-4 mr-2" />
+            Shift Templates
           </TabsTrigger>
           <TabsTrigger value="roster">
             <CalendarDays className="w-4 h-4 mr-2" />
@@ -196,6 +201,9 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         </TabsContent>
         <TabsContent value="staff">
           <StaffTab businessId={businessId} />
+        </TabsContent>
+        <TabsContent value="shift-templates">
+          <ShiftTemplatesTab businessId={businessId} />
         </TabsContent>
         <TabsContent value="roster">
           <RosterTabUpdated

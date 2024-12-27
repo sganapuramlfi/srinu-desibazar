@@ -8,10 +8,32 @@ import BusinessDashboard from "./pages/BusinessDashboard";
 import StorefrontPage from "./pages/StorefrontPage";
 import BookingsPage from "./pages/BookingsPage";
 import ConsumerDashboard from "./pages/ConsumerDashboard";
+import React from "react";
+
+// Protected route wrapper component
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useUser();
+  const [, navigate] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    navigate("/auth");
+    return null;
+  }
+
+  return <>{children}</>;
+}
 
 function App() {
   const { user, isLoading } = useUser();
-  const [location, setLocation] = useLocation();
+  const [, navigate] = useLocation();
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -22,63 +44,35 @@ function App() {
     );
   }
 
-  // If not logged in, show auth page
-  if (!user) {
-    return <AuthPage />;
-  }
-
-  // Redirect business users to their dashboard if they're on the root page
-  if (location === "/" && user.role === "business" && user.business) {
-    setLocation(`/dashboard/${user.business.id}`);
-    return null;
-  }
-
   return (
     <Layout>
       <Switch>
-        {/* Landing page */}
+        {/* Public routes */}
         <Route path="/" component={LandingPage} />
+        <Route path="/auth" component={AuthPage} />
+        <Route path="/business/:businessId">
+          {(params) => <StorefrontPage params={params} />}
+        </Route>
 
-        {/* Business Dashboard - only for business users */}
+        {/* Protected routes */}
         <Route path="/dashboard/:businessId">
-          {(params) => {
-            // Only allow if user is a business owner and owns this business
-            if (
-              user.role !== "business" || 
-              !user.business || 
-              user.business.id !== parseInt(params.businessId)
-            ) {
-              setLocation("/");
-              return null;
-            }
-
-            return <BusinessDashboard businessId={parseInt(params.businessId)} />;
-          }}
+          {(params) => (
+            <ProtectedRoute>
+              <BusinessDashboard businessId={parseInt(params.businessId)} />
+            </ProtectedRoute>
+          )}
         </Route>
 
-        {/* Consumer Dashboard - requires authentication */}
         <Route path="/my-dashboard">
-          {() => {
-            if (!user) {
-              setLocation("/auth");
-              return null;
-            }
-            return <ConsumerDashboard />;
-          }}
+          <ProtectedRoute>
+            <ConsumerDashboard />
+          </ProtectedRoute>
         </Route>
 
-        {/* Public business storefront */}
-        <Route path="/business/:businessId" component={StorefrontPage} />
-
-        {/* Customer bookings - requires authentication */}
         <Route path="/my-bookings">
-          {() => {
-            if (!user) {
-              setLocation("/auth");
-              return null;
-            }
-            return <BookingsPage />;
-          }}
+          <ProtectedRoute>
+            <BookingsPage />
+          </ProtectedRoute>
         </Route>
 
         {/* 404 Not Found */}

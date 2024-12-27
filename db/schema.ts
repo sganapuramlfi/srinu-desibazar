@@ -91,6 +91,31 @@ export const advertisements = pgTable("advertisements", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Add new tables for service slots and staff management
+export const salonStaff = pgTable("salon_staff", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  specialization: text("specialization"),
+  status: text("status", { enum: ["active", "inactive", "on_leave"] }).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const serviceSlots = pgTable("service_slots", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  serviceId: integer("service_id").references(() => services.id).notNull(),
+  staffId: integer("staff_id").references(() => salonStaff.id).notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  status: text("status", { enum: ["available", "booked", "blocked"] }).default("available").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
 // Basic schemas for users
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -156,6 +181,30 @@ export const advertisementRelations = relations(advertisements, ({ one }) => ({
   }),
 }));
 
+// Add new relations
+export const staffRelations = relations(salonStaff, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [salonStaff.businessId],
+    references: [businesses.id],
+  }),
+  slots: many(serviceSlots),
+}));
+
+export const serviceSlotRelations = relations(serviceSlots, ({ one }) => ({
+  business: one(businesses, {
+    fields: [serviceSlots.businessId],
+    references: [businesses.id],
+  }),
+  service: one(services, {
+    fields: [serviceSlots.serviceId],
+    references: [services.id],
+  }),
+  staff: one(salonStaff, {
+    fields: [serviceSlots.staffId],
+    references: [salonStaff.id],
+  }),
+}));
+
 // Business profile schema for forms
 export const businessProfileSchema = z.object({
   name: z.string().min(2, "Business name must be at least 2 characters"),
@@ -175,6 +224,9 @@ export type Service = typeof services.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Advertisement = typeof advertisements.$inferSelect;
+// Add export types for new tables
+export type SalonStaff = typeof salonStaff.$inferSelect;
+export type ServiceSlot = typeof serviceSlots.$inferSelect;
 
 // Registration schema with business info
 export const userRegistrationSchema = createInsertSchema(users).extend({

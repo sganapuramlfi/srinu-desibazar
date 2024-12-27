@@ -28,6 +28,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
+import type { SalonStaff, ServiceSlot } from "@db/schema";
 
 interface ServiceSlotsTabProps {
   businessId: number;
@@ -43,23 +44,22 @@ interface ServiceSlotsTabProps {
   }>;
 }
 
-interface Slot {
+interface SlotResponse {
   id: number;
   startTime: string;
   endTime: string;
+  displayTime: string;
   status: "available" | "booked" | "blocked";
   service: {
     id: number;
     name: string;
     duration: number;
-    price: number;
+    price: string;
   };
   staff: {
     id: number;
     name: string;
   };
-  generatedFor?: string;
-  conflictingSlotIds?: number[];
 }
 
 export function ServiceSlotsTab({
@@ -85,7 +85,7 @@ export function ServiceSlotsTab({
   };
 
   // Get slots query with proper error handling
-  const { data: slots = [], isLoading: isLoadingSlots, error: slotsError } = useQuery({
+  const { data: slots = [], isLoading: isLoadingSlots, error: slotsError } = useQuery<SlotResponse[]>({
     queryKey: [
       `/api/businesses/${businessId}/slots`,
       {
@@ -98,13 +98,6 @@ export function ServiceSlotsTab({
     enabled: !!businessId,
     staleTime: 30000, // Cache for 30 seconds
     retry: 1,
-    onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error loading slots",
-        description: error.message || "Failed to load service slots",
-      });
-    }
   });
 
   // Auto-generate slots mutation
@@ -125,7 +118,8 @@ export function ServiceSlotsTab({
       );
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorText = await response.text();
+        throw new Error(errorText);
       }
 
       return response.json();
@@ -152,7 +146,7 @@ export function ServiceSlotsTab({
   const groupedSlots = useMemo(() => {
     if (!Array.isArray(slots)) return {};
 
-    return slots.reduce((acc: Record<number, { staff: Slot['staff']; slots: Slot[] }>, slot: Slot) => {
+    return slots.reduce<Record<number, { staff: SlotResponse['staff']; slots: SlotResponse[] }>>((acc, slot) => {
       const staffId = slot.staff?.id;
       if (!staffId) return acc;
 
@@ -300,8 +294,8 @@ export function ServiceSlotsTab({
                 </Card>
               ) : (
                 <ScrollArea className="h-[600px] rounded-md border">
-                  {Object.values(groupedSlots).map(({ staff, slots }) => (
-                    <div key={staff.id} className="p-4 border-b last:border-b-0">
+                  {Object.entries(groupedSlots).map(([staffId, { staff, slots }]) => (
+                    <div key={staffId} className="p-4 border-b last:border-b-0">
                       <h4 className="text-lg font-semibold mb-4">{staff.name}</h4>
                       <Table>
                         <TableHeader>
@@ -310,14 +304,14 @@ export function ServiceSlotsTab({
                             <TableHead>Service</TableHead>
                             <TableHead>Duration</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Conflicts</TableHead>
+                            <TableHead>Price</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {slots.map((slot) => (
                             <TableRow key={slot.id}>
                               <TableCell>
-                                {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                                {slot.displayTime}
                               </TableCell>
                               <TableCell>{slot.service?.name || 'N/A'}</TableCell>
                               <TableCell>{slot.service?.duration || 0} min</TableCell>
@@ -332,17 +326,7 @@ export function ServiceSlotsTab({
                                   {slot.status}
                                 </span>
                               </TableCell>
-                              <TableCell>
-                                {slot.conflictingSlotIds?.length ? (
-                                  <span className="text-amber-600 text-sm">
-                                    {slot.conflictingSlotIds.length} conflicts
-                                  </span>
-                                ) : (
-                                  <span className="text-green-600 text-sm">
-                                    None
-                                  </span>
-                                )}
-                              </TableCell>
+                              <TableCell>${slot.service?.price || '0.00'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

@@ -5,14 +5,10 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { businesses } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { businesses, services, bookings } from "@db/schema";
+import { eq, and } from "drizzle-orm";
 import { setupAuth } from "./auth";
 import salonRoutes from "./routes/salon";
-import rosterRoutes from "./routes/roster";
-import slotsRoutes from "./routes/slots";
-import { responseHandler } from "./middleware/responseHandler";
-import { hasBusinessAccess, requireBusinessOwner } from "./middleware/businessAccess";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,63 +54,205 @@ export function registerRoutes(app: Express): Server {
   // Create the HTTP server first
   const httpServer = createServer(app);
 
-  // Error handling middleware - register first to catch all errors
-  app.use('/api', (err: any, req: any, res: any, next: any) => {
-    console.error('API Error:', err);
-
-    // Handle multer errors
-    if (err instanceof multer.MulterError) {
-      return res.status(400).json({
-        ok: false,
-        message: err.message
-      });
-    }
-
-    // Handle JSON parsing errors
-    if (err instanceof SyntaxError && 'body' in err) {
-      return res.status(400).json({
-        ok: false,
-        message: 'Invalid JSON format'
-      });
-    }
-
-    // Handle other errors
-    return res.status(err.status || 500).json({
-      ok: false,
-      message: err.message || 'Internal Server Error'
-    });
-  });
-
-  // Apply response handler middleware for all API routes
-  app.use('/api', responseHandler);
-
   // Setup authentication first
   setupAuth(app);
 
-  // Business profile route (public)
-  app.get('/api/businesses/:businessId/profile', hasBusinessAccess, async (req, res) => {
+  // API Routes prefix middleware
+  app.use('/api', (req, res, next) => {
+    // Set headers to prevent Vite from intercepting API requests
+    res.setHeader('Content-Type', 'application/json');
+    next();
+  });
+
+  // Register salon routes
+  app.use('/api', salonRoutes);
+
+  // Services Routes
+  app.post("/api/businesses/:businessId/services", async (req, res) => {
     try {
-      return res.json({
-        ok: true,
-        data: { business: req.business }
-      });
+      if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const businessId = parseInt(req.params.businessId);
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business || business.userId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { name, description, duration, price, maxParticipants } = req.body;
+      const [service] = await db
+        .insert(services)
+        .values({
+          businessId,
+          name,
+          description,
+          duration,
+          price,
+          maxParticipants,
+          createdAt: new Date()
+        })
+        .returning();
+
+      res.json(service);
     } catch (error) {
-      console.error('Error fetching business profile:', error);
-      return res.status(500).json({
-        ok: false,
-        message: 'Failed to fetch business profile'
-      });
+      console.error('Error creating service:', error);
+      res.status(500).json({ error: "Failed to create service" });
     }
   });
 
-  // Protected business routes
-  app.use('/api/businesses/:businessId/dashboard', hasBusinessAccess, requireBusinessOwner);
-  app.use('/api/businesses/:businessId/manage', hasBusinessAccess, requireBusinessOwner);
+  app.get("/api/businesses/:businessId/services", async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      const result = await db
+        .select()
+        .from(services)
+        .where(and(
+          eq(services.businessId, businessId),
+          eq(services.isActive, true)
+        ));
 
-  // Register industry-specific routes
-  app.use('/api', salonRoutes);
-  app.use('/api', rosterRoutes);
-  app.use('/api', slotsRoutes);
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Bookings Routes
+  app.post("/api/services/:serviceId/bookings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const serviceId = parseInt(req.params.serviceId);
+      const { startTime, endTime, notes } = req.body;
+
+      // Verify service exists and is active
+      const [service] = await db
+        .select()
+        .from(services)
+        .where(and(
+          eq(services.id, serviceId),
+          eq(services.isActive, true)
+        ))
+        .limit(1);
+
+      if (!service) {
+        return res.status(404).json({ error: "Service not found or inactive" });
+      }
+
+      // Create booking
+      const [booking] = await db
+        .insert(bookings)
+        .values({
+          serviceId,
+          customerId: req.user.id,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          notes,
+          createdAt: new Date()
+        })
+        .returning();
+
+      res.json(booking);
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      res.status(500).json({ error: "Failed to create booking" });
+    }
+  });
+
+  app.get("/api/businesses/:businessId/bookings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const businessId = parseInt(req.params.businessId);
+
+      // For business owners - show all bookings for their business
+      if (req.user.role === "business") {
+        const [business] = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.id, businessId))
+          .limit(1);
+
+        if (!business || business.userId !== req.user.id) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+
+        const businessBookings = await db
+          .select({
+            booking: bookings,
+            service: services
+          })
+          .from(bookings)
+          .innerJoin(services, eq(services.id, bookings.serviceId))
+          .where(eq(services.businessId, businessId));
+
+        return res.json(businessBookings);
+      }
+
+      // For customers - only show their own bookings
+      const customerBookings = await db
+        .select({
+          booking: bookings,
+          service: services
+        })
+        .from(bookings)
+        .innerJoin(services, eq(services.id, bookings.serviceId))
+        .where(and(
+          eq(services.businessId, businessId),
+          eq(bookings.customerId, req.user.id)
+        ));
+
+      res.json(customerBookings);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      res.status(500).json({ error: "Failed to fetch bookings" });
+    }
+  });
+
+  // Business Routes
+  app.get("/api/businesses", async (req, res) => {
+    try {
+      const result = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.status, "active"));
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching businesses:', error);
+      res.status(500).json({ error: "Failed to fetch businesses" });
+    }
+  });
+
+  app.get("/api/businesses/:businessId/profile", async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      res.json(business);
+    } catch (error) {
+      console.error('Error fetching business profile:', error);
+      res.status(500).json({ message: "Failed to fetch business profile" });
+    }
+  });
 
   return httpServer;
 }

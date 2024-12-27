@@ -116,6 +116,57 @@ export const serviceSlots = pgTable("service_slots", {
   updatedAt: timestamp("updated_at"),
 });
 
+// Add new tables for salon services and staff skills 
+export const salonServices = pgTable("salon_services", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  duration: integer("duration").notNull(), // in minutes
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  maxParticipants: integer("max_participants").default(1),
+  settings: jsonb("settings").default({}).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const staffSkills = pgTable("staff_skills", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }).notNull(),
+  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }).notNull(),
+  proficiencyLevel: text("proficiency_level", { enum: ["junior", "intermediate", "senior"] }).default("junior").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const shiftTemplates = pgTable("shift_templates", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  startTime: text("start_time").notNull(), // Store as HH:mm format
+  endTime: text("end_time").notNull(), // Store as HH:mm format
+  breakDuration: integer("break_duration").default(0), // in minutes
+  daysOfWeek: jsonb("days_of_week").default([]).notNull(), // Array of days when this shift applies
+  color: text("color").default("#000000"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const staffSchedules = pgTable("staff_schedules", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }).notNull(),
+  templateId: integer("template_id").references(() => shiftTemplates.id).notNull(),
+  date: timestamp("date").notNull(),
+  status: text("status", { enum: ["scheduled", "completed", "absent", "on_leave"] }).default("scheduled").notNull(),
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
 // Basic schemas for users
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -219,6 +270,13 @@ export const bookingSchema = createInsertSchema(bookings);
 export const messageSchema = createInsertSchema(messages);
 export const advertisementSchema = createInsertSchema(advertisements);
 
+// Add schemas for the new tables
+export const insertSalonServiceSchema = createInsertSchema(salonServices);
+export const insertStaffSkillSchema = createInsertSchema(staffSkills);
+export const insertShiftTemplateSchema = createInsertSchema(shiftTemplates);
+export const insertStaffScheduleSchema = createInsertSchema(staffSchedules);
+
+
 // Export types
 export type Service = typeof services.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
@@ -227,6 +285,10 @@ export type Advertisement = typeof advertisements.$inferSelect;
 // Add export types for new tables
 export type SalonStaff = typeof salonStaff.$inferSelect;
 export type ServiceSlot = typeof serviceSlots.$inferSelect;
+export type SalonService = typeof salonServices.$inferSelect;
+export type StaffSkill = typeof staffSkills.$inferSelect;
+export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
+export type StaffSchedule = typeof staffSchedules.$inferSelect;
 
 // Registration schema with business info
 export const userRegistrationSchema = createInsertSchema(users).extend({
@@ -352,3 +414,42 @@ export type ServiceConflict = typeof serviceConflicts.$inferSelect;
 export const waitlistEntrySchema = createInsertSchema(waitlistEntries);
 export const notificationSchema = createInsertSchema(bookingNotifications);
 export const conflictSchema = createInsertSchema(serviceConflicts);
+
+// Add relations for the new tables
+export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [salonServices.businessId],
+    references: [businesses.id],
+  }),
+  staffSkills: many(staffSkills),
+}));
+
+export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
+  staff: one(salonStaff, {
+    fields: [staffSkills.staffId],
+    references: [salonStaff.id],
+  }),
+  service: one(salonServices, {
+    fields: [staffSkills.serviceId],
+    references: [salonServices.id],
+  }),
+}));
+
+export const shiftTemplateRelations = relations(shiftTemplates, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [shiftTemplates.businessId],
+    references: [businesses.id],
+  }),
+  schedules: many(staffSchedules),
+}));
+
+export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
+  staff: one(salonStaff, {
+    fields: [staffSchedules.staffId],
+    references: [salonStaff.id],
+  }),
+  template: one(shiftTemplates, {
+    fields: [staffSchedules.templateId],
+    references: [shiftTemplates.id],
+  }),
+}));

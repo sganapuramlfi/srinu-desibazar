@@ -30,7 +30,7 @@ export const businesses = pgTable("businesses", {
   updatedAt: timestamp("updated_at"),
 });
 
-// New table: Services offered by businesses
+// Base table: Services (unified for all business types)
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
@@ -40,7 +40,17 @@ export const services = pgTable("services", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   isActive: boolean("is_active").default(true),
   maxParticipants: integer("max_participants").default(1),
-  settings: jsonb("settings").default({}).notNull(), // For service-specific settings
+  settings: jsonb("settings").default({}).notNull(), // For industry-specific settings
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Staff Skills table with reference to unified services
+export const staffSkills = pgTable("staff_skills", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }).notNull(),
+  serviceId: integer("service_id").references(() => services.id, { onDelete: 'cascade' }).notNull(),
+  proficiencyLevel: text("proficiency_level", { enum: ["junior", "intermediate", "senior"] }).default("junior").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
@@ -116,38 +126,14 @@ export const serviceSlots = pgTable("service_slots", {
   updatedAt: timestamp("updated_at"),
 });
 
-// Add new tables for salon services and staff skills 
-export const salonServices = pgTable("salon_services", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  duration: integer("duration").notNull(), // in minutes
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  isActive: boolean("is_active").default(true),
-  maxParticipants: integer("max_participants").default(1),
-  settings: jsonb("settings").default({}).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
 
-export const staffSkills = pgTable("staff_skills", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }).notNull(),
-  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }).notNull(),
-  proficiencyLevel: text("proficiency_level", { enum: ["junior", "intermediate", "senior"] }).default("junior").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Modify only the shiftTemplates table definition
+// Enhance shift templates with proper break time handling
 export const shiftTemplates = pgTable("shift_templates", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
   name: text("name").notNull(),
   startTime: text("start_time").notNull(), // Store as HH:mm format
   endTime: text("end_time").notNull(), // Store as HH:mm format
-  breakDuration: integer("break_duration"), // Keep existing column for backward compatibility
   breaks: jsonb("breaks").default([]).notNull(), // Array of break objects with start, end, and type
   daysOfWeek: jsonb("days_of_week").default([]).notNull(), // Array of days when this shift applies
   color: text("color").default("#000000"),
@@ -198,6 +184,7 @@ export const serviceRelations = relations(services, ({ one, many }) => ({
     references: [businesses.id],
   }),
   bookings: many(bookings),
+  staffSkills: many(staffSkills),
 }));
 
 export const bookingRelations = relations(bookings, ({ one, many }) => ({
@@ -241,6 +228,7 @@ export const staffRelations = relations(salonStaff, ({ one, many }) => ({
     references: [businesses.id],
   }),
   slots: many(serviceSlots),
+  skills: many(staffSkills),
 }));
 
 export const serviceSlotRelations = relations(serviceSlots, ({ one }) => ({
@@ -267,30 +255,55 @@ export const businessProfileSchema = z.object({
 });
 
 // Schemas for forms and validation
-export const serviceSchema = createInsertSchema(services);
+
+export const breakTimeSchema = z.object({
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  type: z.enum(["lunch", "coffee", "rest"]),
+  duration: z.number().min(1).max(120), // Duration in minutes
+});
+
+export const shiftTemplateSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  breaks: z.array(breakTimeSchema).optional().default([]),
+  daysOfWeek: z.array(z.number().min(0).max(6)).min(1, "Select at least one day"),
+  color: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const serviceSchema = z.object({
+  name: z.string().min(1, "Service name is required"),
+  description: z.string().optional(),
+  duration: z.number().min(1, "Duration must be at least 1 minute"),
+  price: z.number().min(0, "Price cannot be negative"),
+  maxParticipants: z.number().min(1).default(1),
+  category: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
 export const bookingSchema = createInsertSchema(bookings);
 export const messageSchema = createInsertSchema(messages);
 export const advertisementSchema = createInsertSchema(advertisements);
 
-// Add schemas for the new tables
-export const insertSalonServiceSchema = createInsertSchema(salonServices);
-export const insertStaffSkillSchema = createInsertSchema(staffSkills);
+// Update schema exports
+export const insertServiceSchema = createInsertSchema(services);
+export const selectServiceSchema = createSelectSchema(services);
 export const insertShiftTemplateSchema = createInsertSchema(shiftTemplates);
-export const insertStaffScheduleSchema = createInsertSchema(staffSchedules);
-
+export const insertStaffSkillSchema = createInsertSchema(staffSkills);
 
 // Export types
 export type Service = typeof services.$inferSelect;
+export type InsertService = typeof services.$inferInsert;
 export type Booking = typeof bookings.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Advertisement = typeof advertisements.$inferSelect;
-// Add export types for new tables
 export type SalonStaff = typeof salonStaff.$inferSelect;
 export type ServiceSlot = typeof serviceSlots.$inferSelect;
-export type SalonService = typeof salonServices.$inferSelect;
-export type StaffSkill = typeof staffSkills.$inferSelect;
 export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
 export type StaffSchedule = typeof staffSchedules.$inferSelect;
+export type StaffSkill = typeof staffSkills.$inferSelect;
 
 // Registration schema with business info
 export const userRegistrationSchema = createInsertSchema(users).extend({
@@ -417,23 +430,15 @@ export const waitlistEntrySchema = createInsertSchema(waitlistEntries);
 export const notificationSchema = createInsertSchema(bookingNotifications);
 export const conflictSchema = createInsertSchema(serviceConflicts);
 
-// Add relations for the new tables
-export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonServices.businessId],
-    references: [businesses.id],
-  }),
-  staffSkills: many(staffSkills),
-}));
 
 export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
   staff: one(salonStaff, {
     fields: [staffSkills.staffId],
     references: [salonStaff.id],
   }),
-  service: one(salonServices, {
+  service: one(services, {
     fields: [staffSkills.serviceId],
-    references: [salonServices.id],
+    references: [services.id],
   }),
 }));
 
@@ -455,21 +460,3 @@ export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
     references: [shiftTemplates.id],
   }),
 }));
-
-// Add validation schema for break times
-export const breakTimeSchema = z.object({
-  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  type: z.enum(["lunch", "coffee", "rest"]),
-  duration: z.number().min(1).max(120), // Duration in minutes
-});
-
-export const shiftTemplateSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  breaks: z.array(breakTimeSchema).optional().default([]),
-  daysOfWeek: z.array(z.number().min(0).max(6)).min(1, "Select at least one day"),
-  color: z.string().optional(),
-  isActive: z.boolean().optional(),
-});

@@ -44,6 +44,7 @@ export const services = pgTable("services", {
   description: text("description"),
   duration: integer("duration").notNull(), // in minutes
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  category: text("category"), // Preserve existing column
   isActive: boolean("is_active").default(true),
   maxParticipants: integer("max_participants").default(1),
   settings: jsonb("settings").default({}).notNull(), // For service-specific settings
@@ -106,6 +107,7 @@ export const salonStaff = pgTable("salon_staff", {
   phone: text("phone"),
   specialization: text("specialization"),
   status: text("status", { enum: ["active", "inactive", "on_leave"] }).default("active").notNull(),
+  settings: jsonb("settings").default({}), // Preserve existing column
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
@@ -153,6 +155,7 @@ export const shiftTemplates = pgTable("shift_templates", {
   startTime: text("start_time").notNull(), // Store as HH:mm format
   endTime: text("end_time").notNull(), // Store as HH:mm format
   breaks: jsonb("breaks").default([]).notNull(), // Array of break objects with start, end, and type
+  breakDuration: integer("break_duration"), // Preserve existing column
   daysOfWeek: jsonb("days_of_week").default([]).notNull(), // Array of days when this shift applies
   color: text("color").default("#000000"),
   isActive: boolean("is_active").default(true),

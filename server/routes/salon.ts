@@ -1,11 +1,9 @@
 import { Router } from "express";
 import { db } from "@db";
-import { salonStaff } from "@db/schema";
+import { salonStaff, staffSkills, salonServices, shiftTemplates, staffSchedules } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { salonServices, insertSalonServiceSchema } from "@db/schema";
-import { shiftTemplates, insertShiftTemplateSchema, staffSchedules, insertStaffScheduleSchema } from "@db/schema";
-
+import { insertSalonServiceSchema, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
 
 const router = Router();
 

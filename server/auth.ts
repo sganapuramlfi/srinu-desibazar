@@ -204,20 +204,17 @@ export function setupAuth(app: Express) {
     next();
   });
 
-  authRouter.post("/register", async (req, res) => {
+  //This is where the edited code is integrated.  res.success and res.error are assumed to exist.
+  app.post("/api/register", async (req, res, next) => {
     try {
-      console.log('[Auth] Processing registration request');
-      const { username, password, email, role, business } = req.body;
-
-      // Validate input
-      if (!username || !password || !email || !role) {
-        return res.status(400).json({
-          ok: false,
-          message: "Missing required fields"
-        });
+      const result = insertUserSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ok: false, message: "Invalid input: " + result.error.issues.map(i => i.message).join(", ")});
       }
 
-      // Check if username already exists
+      const { username, password, email, role, business } = result.data;
+
+      // Check if user already exists
       const [existingUser] = await db
         .select()
         .from(users)
@@ -225,18 +222,14 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        console.log(`[Auth] Registration failed: Username exists - ${username}`);
-        return res.status(400).json({
-          ok: false,
-          message: "Username already exists"
-        });
+        return res.status(400).json({ok: false, message: "Username already exists"});
       }
 
-      // Hash password
+      // Hash the password
       const hashedPassword = await crypto.hash(password);
 
-      // Create user with transaction
-      const [user] = await db
+      // Create the new user
+      const [newUser] = await db
         .insert(users)
         .values({
           username,
@@ -247,16 +240,13 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
-      console.log(`[Auth] User created: ${user.id}`);
-
       // Create business record if needed
       let businessData = null;
       if (role === "business" && business) {
-        console.log(`[Auth] Creating business record for user: ${user.id}`);
         const [createdBusiness] = await db
           .insert(businesses)
           .values({
-            userId: user.id,
+            userId: newUser.id,
             name: business.name,
             industryType: business.industryType,
             description: business.description || null,
@@ -269,12 +259,12 @@ export function setupAuth(app: Express) {
       }
 
       // Create sanitized user data
-      const userData: SanitizedUser = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.createdAt,
+      const userData = {
+        id: newUser.id,
+        username: newUser.username,
+        email: newUser.email,
+        role: newUser.role,
+        createdAt: newUser.createdAt,
         business: businessData ? {
           id: businessData.id,
           name: businessData.name,
@@ -289,118 +279,76 @@ export function setupAuth(app: Express) {
       req.login(userData, (err) => {
         if (err) {
           console.error('[Auth] Auto-login failed:', err);
-          return res.status(500).json({
-            ok: false,
-            message: "Registration successful but auto-login failed"
-          });
+          return res.status(500).json({ok: false, message: "Registration successful but auto-login failed"});
         }
 
-        console.log(`[Auth] Registration and auto-login successful: ${user.username}`);
-        res.json({
-          ok: true,
-          message: "Registration successful",
-          user: userData
-        });
+        console.log(`[Auth] Registration and auto-login successful: ${newUser.username}`);
+        return res.json({ok: true, message: "Registration successful", user: userData});
       });
     } catch (error) {
       console.error('[Auth] Registration error:', error);
-      res.status(500).json({
-        ok: false,
-        message: "Failed to create account"
-      });
+      return res.status(500).json({ok: false, message: "Failed to create account"});
     }
   });
 
-  authRouter.post("/login", (req, res, next) => {
-    console.log('[Auth] Processing login request');
-    passport.authenticate("local", (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: IVerifyOptions) => {
       try {
         if (err) {
           console.error('[Auth] Login error:', err);
-          return res.status(500).json({
-            ok: false,
-            message: "Internal server error during login"
-          });
+          return res.status(500).json({ok: false, message: "Internal server error during login"});
         }
 
         if (!user) {
           console.log('[Auth] Login failed:', info.message);
-          return res.status(400).json({
-            ok: false,
-            message: info.message ?? "Login failed"
-          });
+          return res.status(400).json({ok: false, message: info.message ?? "Login failed"});
         }
 
         req.logIn(user, (err) => {
           if (err) {
             console.error('[Auth] Login error during session creation:', err);
-            return res.status(500).json({
-              ok: false,
-              message: "Failed to create session"
-            });
+            return res.status(500).json({ok: false, message: "Failed to create session"});
           }
 
           console.log(`[Auth] Login successful for user: ${user.username}`);
-          return res.json({
-            ok: true,
-            message: "Login successful",
-            user
-          });
+          return res.json({ok: true, message: "Login successful", user});
         });
       } catch (error) {
         console.error('[Auth] Unexpected login error:', error);
-        return res.status(500).json({
-          ok: false,
-          message: "Internal server error"
-        });
+        return res.status(500).json({ok: false, message: "Internal server error"});
       }
     })(req, res, next);
   });
 
-  authRouter.post("/logout", (req, res) => {
+  app.post("/api/logout", (req, res) => {
     const username = req.user?.username;
     console.log(`[Auth] Processing logout request for user: ${username}`);
 
     if (!req.isAuthenticated()) {
-      return res.json({
-        ok: true,
-        message: "Already logged out"
-      });
+      return res.json({ok: true, message: "Already logged out"});
     }
 
     req.logout((err) => {
       if (err) {
         console.error('[Auth] Logout error:', err);
-        return res.status(500).json({
-          ok: false,
-          message: "Logout failed"
-        });
+        return res.status(500).json({ok: false, message: "Logout failed"});
       }
 
       console.log(`[Auth] Logout successful: ${username}`);
-      res.json({
-        ok: true,
-        message: "Logout successful"
-      });
+      return res.json({ok: true, message: "Logout successful"});
     });
   });
 
-  authRouter.get("/user", (req, res) => {
+  app.get("/api/user", (req, res) => {
     console.log('[Auth] User info requested');
 
     if (!req.isAuthenticated()) {
       console.log('[Auth] Unauthorized access to user info');
-      return res.status(401).json({
-        ok: false,
-        message: "Not logged in"
-      });
+      return res.status(401).json({ok: false, message: "Not logged in"});
     }
 
     console.log(`[Auth] User info request successful for: ${req.user.username}`);
-    res.json({
-      ok: true,
-      user: req.user
-    });
+    return res.json({ok: true, user: req.user});
   });
 
   // Mount auth routes under /api prefix

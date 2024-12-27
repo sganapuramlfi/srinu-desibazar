@@ -57,13 +57,70 @@ export function registerRoutes(app: Express): Server {
   // Create the HTTP server first
   const httpServer = createServer(app);
 
-  // Apply response handler middleware
-  app.use(responseHandler);
+  // Error handling middleware - register first to catch all errors
+  app.use('/api', (err: any, req: any, res: any, next: any) => {
+    console.error('API Error:', err);
+
+    // Handle multer errors
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({
+        ok: false,
+        message: err.message
+      });
+    }
+
+    // Handle JSON parsing errors
+    if (err instanceof SyntaxError && 'body' in err) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Invalid JSON format'
+      });
+    }
+
+    // Handle other errors
+    return res.status(err.status || 500).json({
+      ok: false,
+      message: err.message || 'Internal Server Error'
+    });
+  });
+
+  // Apply response handler middleware for all API routes
+  app.use('/api', responseHandler);
 
   // Setup authentication first
   setupAuth(app);
 
-  // Industry-specific routes
+  // Business profile route
+  app.get('/api/businesses/:businessId/profile', async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      const [business] = await db
+        .select()
+        .from(businesses)
+        .where(eq(businesses.id, businessId))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({
+          ok: false,
+          message: 'Business not found'
+        });
+      }
+
+      return res.json({
+        ok: true,
+        data: { business }
+      });
+    } catch (error) {
+      console.error('Error fetching business profile:', error);
+      return res.status(500).json({
+        ok: false,
+        message: 'Failed to fetch business profile'
+      });
+    }
+  });
+
+  // Business middleware for all business-specific routes
   app.use('/api/businesses/:businessId', async (req, res, next) => {
     try {
       const businessId = parseInt(req.params.businessId);
@@ -74,14 +131,21 @@ export function registerRoutes(app: Express): Server {
         .limit(1);
 
       if (!business) {
-        return res.error('Business not found', 404);
+        return res.status(404).json({
+          ok: false,
+          message: 'Business not found'
+        });
       }
 
       // Add business context to request
       req.business = business;
       next();
     } catch (error) {
-      next(error);
+      console.error('Error in business middleware:', error);
+      return res.status(500).json({
+        ok: false,
+        message: 'Failed to process business request'
+      });
     }
   });
 
@@ -89,19 +153,6 @@ export function registerRoutes(app: Express): Server {
   app.use('/api', salonRoutes);
   app.use('/api', rosterRoutes);
   app.use('/api', slotsRoutes);
-
-  // Error handling middleware
-  app.use((err: any, req: any, res: any, next: any) => {
-    console.error('API Error:', err);
-
-    // Handle multer errors
-    if (err instanceof multer.MulterError) {
-      return res.error(err.message, 400);
-    }
-
-    // Handle other errors
-    res.error(err.message || 'Internal Server Error', err.status || 500);
-  });
 
   return httpServer;
 }

@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { db } from "@db";
-import { services, staffSkills, shiftTemplates, staffSchedules, salonStaff } from "@db/schema";
+import { salonStaff, staffSkills, salonServices, shiftTemplates, staffSchedules } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { insertServiceSchema, insertShiftTemplateSchema } from "@db/schema";
+import { insertSalonServiceSchema, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
 
 const router = Router();
 
@@ -135,9 +135,8 @@ router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
   }
 });
 
-
 // Basic validation schemas
-const updateServiceSchema = insertServiceSchema.partial();
+const updateServiceSchema = insertSalonServiceSchema.partial();
 
 // Service Management
 router.get("/businesses/:businessId/services", async (req, res) => {
@@ -146,13 +145,13 @@ router.get("/businesses/:businessId/services", async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const businessServices = await db.select()
-      .from(services)
-      .where(eq(services.businessId, parseInt(req.params.businessId)));
+    const services = await db.select()
+      .from(salonServices)
+      .where(eq(salonServices.businessId, parseInt(req.params.businessId)));
 
-    res.json(businessServices);
+    res.json(services);
   } catch (error: any) {
-    console.error('Error fetching services:', error);
+    console.error('Error fetching salon services:', error);
     res.status(500).json({
       message: "Failed to fetch services",
       error: error.message
@@ -166,15 +165,9 @@ router.post("/businesses/:businessId/services", async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const result = insertServiceSchema.safeParse({
+    const result = insertSalonServiceSchema.safeParse({
       ...req.body,
-      businessId: parseInt(req.params.businessId),
-      settings: {
-        category: req.body.category || 'general',
-        requiresConsultation: req.body.requiresConsultation,
-        skillLevel: req.body.skillLevel,
-        isActive: true
-      }
+      businessId: parseInt(req.params.businessId)
     });
 
     if (!result.success) {
@@ -184,13 +177,13 @@ router.post("/businesses/:businessId/services", async (req, res) => {
       });
     }
 
-    const [service] = await db.insert(services)
+    const [service] = await db.insert(salonServices)
       .values(result.data)
       .returning();
 
     res.status(201).json(service);
   } catch (error: any) {
-    console.error('Error creating service:', error);
+    console.error('Error creating salon service:', error);
     res.status(500).json({
       message: "Failed to create service",
       error: error.message
@@ -204,15 +197,9 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const result = insertServiceSchema.partial().safeParse({
+    const result = updateServiceSchema.safeParse({
       ...req.body,
-      businessId: parseInt(req.params.businessId),
-      settings: {
-        category: req.body.category,
-        requiresConsultation: req.body.requiresConsultation,
-        skillLevel: req.body.skillLevel,
-        isActive: req.body.isActive
-      }
+      businessId: parseInt(req.params.businessId)
     });
 
     if (!result.success) {
@@ -222,11 +209,11 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
       });
     }
 
-    const [service] = await db.update(services)
+    const [service] = await db.update(salonServices)
       .set(result.data)
       .where(and(
-        eq(services.id, parseInt(req.params.serviceId)),
-        eq(services.businessId, parseInt(req.params.businessId))
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
       ))
       .returning();
 
@@ -236,7 +223,7 @@ router.put("/businesses/:businessId/services/:serviceId", async (req, res) => {
 
     res.json(service);
   } catch (error: any) {
-    console.error('Error updating service:', error);
+    console.error('Error updating salon service:', error);
     res.status(500).json({
       message: "Failed to update service",
       error: error.message
@@ -250,11 +237,10 @@ router.delete("/businesses/:businessId/services/:serviceId", async (req, res) =>
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const [deletedService] = await db.update(services)
-      .set({ settings: { isActive: false } })
+    const [deletedService] = await db.delete(salonServices)
       .where(and(
-        eq(services.id, parseInt(req.params.serviceId)),
-        eq(services.businessId, parseInt(req.params.businessId))
+        eq(salonServices.id, parseInt(req.params.serviceId)),
+        eq(salonServices.businessId, parseInt(req.params.businessId))
       ))
       .returning();
 
@@ -264,7 +250,7 @@ router.delete("/businesses/:businessId/services/:serviceId", async (req, res) =>
 
     res.json({ message: "Service deleted successfully" });
   } catch (error: any) {
-    console.error('Error deleting service:', error);
+    console.error('Error deleting salon service:', error);
     res.status(500).json({
       message: "Failed to delete service",
       error: error.message
@@ -276,7 +262,7 @@ router.delete("/businesses/:businessId/services/:serviceId", async (req, res) =>
 // Staff-skills routes
 router.get("/businesses/:businessId/staff-skills", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -299,7 +285,7 @@ router.get("/businesses/:businessId/staff-skills", async (req, res) => {
 
 router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -321,7 +307,7 @@ router.get("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
 
 router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -377,7 +363,7 @@ router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
 // Shift Template Management
 router.get("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -397,21 +383,14 @@ router.get("/businesses/:businessId/shift-templates", async (req, res) => {
 
 router.post("/businesses/:businessId/shift-templates", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const templateData = {
+    const result = insertShiftTemplateSchema.safeParse({
       ...req.body,
-      businessId: parseInt(req.params.businessId),
-      breaks: req.body.breaks || [],
-      daysOfWeek: req.body.daysOfWeek || [1,2,3,4,5],
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    const result = insertShiftTemplateSchema.safeParse(templateData);
+      businessId: parseInt(req.params.businessId)
+    });
 
     if (!result.success) {
       return res.status(400).json({
@@ -436,17 +415,14 @@ router.post("/businesses/:businessId/shift-templates", async (req, res) => {
 
 router.put("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
   try {
-    if (!req.isAuthenticated()) {
+    if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const templateData = {
+    const result = insertShiftTemplateSchema.partial().safeParse({
       ...req.body,
-      businessId: parseInt(req.params.businessId),
-      updatedAt: new Date()
-    };
-
-    const result = insertShiftTemplateSchema.partial().safeParse(templateData);
+      businessId: parseInt(req.params.businessId)
+    });
 
     if (!result.success) {
       return res.status(400).json({
@@ -456,7 +432,10 @@ router.put("/businesses/:businessId/shift-templates/:templateId", async (req, re
     }
 
     const [template] = await db.update(shiftTemplates)
-      .set(result.data)
+      .set({
+        ...result.data,
+        updatedAt: new Date(),
+      })
       .where(and(
         eq(shiftTemplates.id, parseInt(req.params.templateId)),
         eq(shiftTemplates.businessId, parseInt(req.params.businessId))
@@ -472,6 +451,71 @@ router.put("/businesses/:businessId/shift-templates/:templateId", async (req, re
     console.error('Error updating shift template:', error);
     res.status(500).json({
       message: "Failed to update template",
+      error: error.message
+    });
+  }
+});
+
+router.delete("/businesses/:businessId/shift-templates/:templateId", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // First delete related schedules
+    await db.delete(staffSchedules)
+      .where(eq(staffSchedules.templateId, parseInt(req.params.templateId)));
+
+    // Then delete the template
+    const [deletedTemplate] = await db.delete(shiftTemplates)
+      .where(and(
+        eq(shiftTemplates.id, parseInt(req.params.templateId)),
+        eq(shiftTemplates.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!deletedTemplate) {
+      return res.status(404).json({ message: "Template not found" });
+    }
+
+    res.json({ message: "Template deleted successfully" });
+  } catch (error: any) {
+    console.error('Error deleting shift template:', error);
+    res.status(500).json({
+      message: "Failed to delete template",
+      error: error.message
+    });
+  }
+});
+
+// Staff Schedule Management
+router.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = insertStaffScheduleSchema.safeParse({
+      ...req.body,
+      staffId: parseInt(req.params.staffId),
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [schedule] = await db.insert(staffSchedules)
+      .values(result.data)
+      .returning();
+
+    res.status(201).json(schedule);
+  } catch (error: any) {
+    console.error('Error creating staff schedule:', error);
+    res.status(500).json({
+      message: "Failed to create schedule",
       error: error.message
     });
   }

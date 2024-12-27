@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -88,14 +88,26 @@ export default function AuthPage() {
     },
   });
 
+  // Watch for role changes to show/hide business fields
+  const role = registerForm.watch("role");
+  useEffect(() => {
+    setShowBusinessFields(role === "business");
+  }, [role]);
+
   const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
     setError(null);
     try {
+      console.log("Login attempt with:", data);
       const result = await login(data);
 
       if (!result.ok) {
         setError(result.message);
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
         return;
       }
 
@@ -110,7 +122,13 @@ export default function AuthPage() {
         navigate("/");
       }
     } catch (error: any) {
-      setError(error.message || "Login failed");
+      const errorMessage = error.message || "Login failed";
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -120,10 +138,16 @@ export default function AuthPage() {
     setIsLoading(true);
     setError(null);
     try {
+      console.log("Registration attempt with:", data);
       const result = await registerUser(data);
 
       if (!result.ok) {
         setError(result.message);
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
         return;
       }
 
@@ -134,13 +158,23 @@ export default function AuthPage() {
 
       if (result.user?.role === "business") {
         if (result.user.business?.id) {
-          navigate(`/dashboard/${result.user.business.id}`);
+          if (result.user.needsOnboarding) {
+            navigate(`/onboarding/${result.user.business.id}`);
+          } else {
+            navigate(`/dashboard/${result.user.business.id}`);
+          }
         }
       } else {
         navigate("/");
       }
     } catch (error: any) {
-      setError(error.message || "Registration failed");
+      const errorMessage = error.message || "Registration failed";
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -214,7 +248,6 @@ export default function AuthPage() {
             <TabsContent value="register">
               <Form {...registerForm}>
                 <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
-                  {/* Registration form fields */}
                   <FormField
                     control={registerForm.control}
                     name="username"
@@ -261,10 +294,7 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Account Type</FormLabel>
                         <Select
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            setShowBusinessFields(value === "business");
-                          }}
+                          onValueChange={field.onChange}
                           defaultValue={field.value}
                         >
                           <FormControl>

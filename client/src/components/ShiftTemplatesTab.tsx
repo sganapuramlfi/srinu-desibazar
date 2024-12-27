@@ -25,11 +25,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { breakTimeSchema, shiftTemplateSchema } from "@db/schema";
 
-// Extend the types to include ID for existing templates
-interface ShiftTemplate extends z.infer<typeof shiftTemplateSchema> {
-  id?: number;
-}
-
+type ShiftTemplateFormData = z.infer<typeof shiftTemplateSchema>;
 type Break = z.infer<typeof breakTimeSchema>;
 
 interface ShiftTemplatesTabProps {
@@ -41,14 +37,14 @@ const BREAK_TYPES = ["lunch", "coffee", "rest"] as const;
 export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingTemplate, setEditingTemplate] = useState<ShiftTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<ShiftTemplateFormData | null>(null);
   const [breaks, setBreaks] = useState<Break[]>([]);
 
-  const { data: templates = [], isLoading } = useQuery<ShiftTemplate[]>({
+  const { data: templates = [], isLoading } = useQuery<ShiftTemplateFormData[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
   });
 
-  const form = useForm<ShiftTemplate>({
+  const form = useForm<ShiftTemplateFormData>({
     resolver: zodResolver(shiftTemplateSchema),
     defaultValues: {
       name: "",
@@ -84,22 +80,29 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
       [field]: value,
     };
 
-    // Calculate duration when start or end time changes
+    // Auto-calculate duration when start or end time changes
     if (field === 'startTime' || field === 'endTime') {
-      const [startHours, startMinutes] = updatedBreaks[index].startTime.split(':').map(Number);
-      const [endHours, endMinutes] = updatedBreaks[index].endTime.split(':').map(Number);
-
-      const startInMinutes = startHours * 60 + startMinutes;
-      const endInMinutes = endHours * 60 + endMinutes;
-
-      updatedBreaks[index].duration = endInMinutes - startInMinutes;
+      const start = parseTime(updatedBreaks[index].startTime);
+      const end = parseTime(updatedBreaks[index].endTime);
+      if (start && end) {
+        const durationInMinutes = (end - start) / (1000 * 60);
+        updatedBreaks[index].duration = durationInMinutes;
+      }
     }
 
     setBreaks(updatedBreaks);
   };
 
+  // Helper function to parse time string to Date object
+  const parseTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
   const createTemplateMutation = useMutation({
-    mutationFn: async (data: ShiftTemplate) => {
+    mutationFn: async (data: ShiftTemplateFormData) => {
       const response = await fetch(
         `/api/businesses/${businessId}/shift-templates`,
         {
@@ -136,11 +139,15 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
   });
 
   const updateTemplateMutation = useMutation({
-    mutationFn: async (data: ShiftTemplate) => {
-      if (!data.id) throw new Error("Template ID is required for updates");
-
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: ShiftTemplateFormData;
+    }) => {
       const response = await fetch(
-        `/api/businesses/${businessId}/shift-templates/${data.id}`,
+        `/api/businesses/${businessId}/shift-templates/${id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -175,10 +182,10 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
     },
   });
 
-  const handleSubmit = (data: ShiftTemplate) => {
+  const handleSubmit = (data: ShiftTemplateFormData) => {
     const formData = { ...data, breaks };
-    if (editingTemplate?.id) {
-      updateTemplateMutation.mutate({ ...formData, id: editingTemplate.id });
+    if (editingTemplate) {
+      updateTemplateMutation.mutate({ id: editingTemplate.id!, data: formData });
     } else {
       createTemplateMutation.mutate(formData);
     }

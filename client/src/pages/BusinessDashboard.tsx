@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "../hooks/use-user";
@@ -43,177 +43,56 @@ interface Business {
   };
 }
 
-type TabConfig = {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  component: React.ReactNode;
-  supportedTypes: string[];
-};
-
-export default function BusinessDashboard({ businessId }: BusinessDashboardProps) {
+function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
   const { user } = useUser();
   const { toast } = useToast();
-  const [currentTab, setCurrentTab] = useState("profile");
 
-  // Check user authentication
   useEffect(() => {
     if (!user) {
       navigate("/auth");
       return;
     }
 
-    // Verify user is a business owner
     if (user.role !== "business") {
       toast({
         variant: "destructive",
         title: "Access Denied",
-        description: "Only business owners can access this dashboard."
+        description: "You don't have permission to access this dashboard."
       });
       navigate("/");
       return;
     }
   }, [user, navigate, toast]);
 
-  // Fetch business data with proper validation
   const { data: business, error: businessError, isLoading: isLoadingBusiness } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
-    enabled: !!businessId && !!user && user.role === "business",
+    enabled: !!businessId && !!user,
     staleTime: 0,
-    retry: 1,
-    onError: () => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load business data. Please try again."
-      });
-      navigate("/");
-    }
+    retry: 1
   });
 
-  // Fetch staff data for applicable business types
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && !!user && business?.industryType === "salon",
+    enabled: !!businessId && !!user,
     staleTime: 0,
     retry: 1
   });
 
-  // Fetch services data
   const { data: services = [], isLoading: isLoadingServices } = useQuery<SalonService[]>({
     queryKey: [`/api/businesses/${businessId}/services`],
-    enabled: !!businessId && !!user && business?.id === businessId,
+    enabled: !!businessId && !!user,
     staleTime: 0,
     retry: 1
   });
 
-  // Fetch templates for applicable business types
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId && !!user && ["salon", "restaurant"].includes(business?.industryType || ""),
+    enabled: !!businessId && !!user,
     staleTime: 0,
     retry: 1
   });
 
-  // Verify business ownership
-  useEffect(() => {
-    if (business && user && business.userId !== user.id) {
-      toast({
-        variant: "destructive",
-        title: "Access Denied",
-        description: "You don't have permission to access this business dashboard."
-      });
-      navigate("/");
-    }
-  }, [business, user, navigate, toast]);
-
-  // Memoized tabs configuration based on business type
-  const tabs = useMemo(() => {
-    if (!business) return [];
-
-    const tabConfigs: TabConfig[] = [
-      {
-        id: "profile",
-        label: "Profile",
-        icon: <Settings className="w-4 h-4 mr-2" />,
-        component: <BusinessProfileTab businessId={businessId} />,
-        supportedTypes: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
-      },
-      {
-        id: "services",
-        label: "Services",
-        icon: <Package className="w-4 h-4 mr-2" />,
-        component: <ServicesTab businessId={businessId} />,
-        supportedTypes: ["salon", "restaurant", "event", "professional"]
-      },
-      {
-        id: "staff",
-        label: "Staff",
-        icon: <Users className="w-4 h-4 mr-2" />,
-        component: <StaffTab businessId={businessId} />,
-        supportedTypes: ["salon", "restaurant", "event"]
-      },
-      {
-        id: "shift-templates",
-        label: "Shift Templates",
-        icon: <Clock className="w-4 h-4 mr-2" />,
-        component: <ShiftTemplatesTab businessId={businessId} />,
-        supportedTypes: ["salon", "restaurant"]
-      },
-      {
-        id: "roster",
-        label: "Roster",
-        icon: <CalendarDays className="w-4 h-4 mr-2" />,
-        component: (
-          <RosterTabUpdated
-            businessId={businessId}
-            staff={staff}
-            templates={templates}
-            isLoadingStaff={isLoadingStaff}
-            isLoadingTemplates={isLoadingTemplates}
-          />
-        ),
-        supportedTypes: ["salon", "restaurant"]
-      },
-      {
-        id: "service-staff",
-        label: "Service Staff",
-        icon: <Store className="w-4 h-4 mr-2" />,
-        component: (
-          <ServiceStaffTab
-            businessId={businessId}
-            industryType={business.industryType}
-          />
-        ),
-        supportedTypes: ["salon", "restaurant", "event"]
-      },
-      {
-        id: "slots",
-        label: "Service Slots",
-        icon: <Calendar className="w-4 h-4 mr-2" />,
-        component: (
-          <ServiceSlotsTab
-            businessId={businessId}
-            staff={staff}
-            services={services}
-          />
-        ),
-        supportedTypes: ["salon", "professional"]
-      },
-      {
-        id: "bookings",
-        label: "Bookings",
-        icon: <Bookmark className="w-4 h-4 mr-2" />,
-        component: <BookingsPage businessId={businessId.toString()} />,
-        supportedTypes: ["salon", "restaurant", "event", "professional"]
-      }
-    ];
-
-    return tabConfigs.filter(tab => tab.supportedTypes.includes(business.industryType));
-  }, [business, businessId, staff, services, templates, isLoadingStaff, isLoadingTemplates]);
-
-  // Loading state
   if (isLoadingBusiness) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -222,7 +101,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     );
   }
 
-  // Error state
   if (businessError) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
@@ -241,7 +119,6 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     );
   }
 
-  // Not found state
   if (!business) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
@@ -260,33 +137,102 @@ export default function BusinessDashboard({ businessId }: BusinessDashboardProps
     );
   }
 
+  // Check if the logged-in user owns this business
+  if (user && business.userId !== user.id) {
+    toast({
+      variant: "destructive",
+      title: "Access Denied",
+      description: "You don't have permission to access this business dashboard."
+    });
+    navigate("/");
+    return null;
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">{business.name}</h1>
-          <p className="text-muted-foreground">
-            {business.description || `Manage your ${business.industryType} business operations`}
-          </p>
+          <p className="text-muted-foreground">{business.description || 'Manage your business operations'}</p>
         </div>
       </div>
 
-      <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
-          {tabs.map(tab => (
-            <TabsTrigger key={tab.id} value={tab.id}>
-              {tab.icon}
-              {tab.label}
-            </TabsTrigger>
-          ))}
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="grid w-full grid-cols-8">
+          <TabsTrigger value="profile">
+            <Settings className="w-4 h-4 mr-2" />
+            Profile
+          </TabsTrigger>
+          <TabsTrigger value="services">
+            <Package className="w-4 h-4 mr-2" />
+            Services
+          </TabsTrigger>
+          <TabsTrigger value="staff">
+            <Users className="w-4 h-4 mr-2" />
+            Staff
+          </TabsTrigger>
+          <TabsTrigger value="shift-templates">
+            <Clock className="w-4 h-4 mr-2" />
+            Shift Templates
+          </TabsTrigger>
+          <TabsTrigger value="roster">
+            <CalendarDays className="w-4 h-4 mr-2" />
+            Roster
+          </TabsTrigger>
+          <TabsTrigger value="service-staff">
+            <Store className="w-4 h-4 mr-2" />
+            Service Staff
+          </TabsTrigger>
+          <TabsTrigger value="slots">
+            <Calendar className="w-4 h-4 mr-2" />
+            Service Slots
+          </TabsTrigger>
+          <TabsTrigger value="bookings">
+            <Bookmark className="w-4 h-4 mr-2" />
+            Bookings
+          </TabsTrigger>
         </TabsList>
 
-        {tabs.map(tab => (
-          <TabsContent key={tab.id} value={tab.id}>
-            {tab.component}
-          </TabsContent>
-        ))}
+        <TabsContent value="profile">
+          <BusinessProfileTab businessId={businessId} />
+        </TabsContent>
+        <TabsContent value="services">
+          <ServicesTab businessId={businessId} />
+        </TabsContent>
+        <TabsContent value="staff">
+          <StaffTab businessId={businessId} />
+        </TabsContent>
+        <TabsContent value="shift-templates">
+          <ShiftTemplatesTab businessId={businessId} />
+        </TabsContent>
+        <TabsContent value="roster">
+          <RosterTabUpdated
+            businessId={businessId}
+            staff={staff}
+            templates={templates}
+            isLoadingStaff={isLoadingStaff}
+            isLoadingTemplates={isLoadingTemplates}
+          />
+        </TabsContent>
+        <TabsContent value="service-staff">
+          <ServiceStaffTab
+            businessId={businessId}
+            industryType={business.industryType}
+          />
+        </TabsContent>
+        <TabsContent value="slots">
+          <ServiceSlotsTab
+            businessId={businessId}
+            staff={staff}
+            services={services}
+          />
+        </TabsContent>
+        <TabsContent value="bookings">
+          <BookingsPage businessId={businessId.toString()} />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
+
+export default BusinessDashboard;

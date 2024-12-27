@@ -11,6 +11,8 @@ import { eq } from "drizzle-orm";
 import express from "express";
 
 const scryptAsync = promisify(scrypt);
+
+// Enhanced password handling
 const crypto = {
   hash: async (password: string) => {
     const salt = randomBytes(16).toString("hex");
@@ -30,23 +32,23 @@ const crypto = {
 };
 
 // Define types for business data
-type BusinessData = {
+interface BusinessData {
   id: number;
   name: string;
   industryType: string;
   status: string;
   onboardingCompleted: boolean;
   description: string | null;
-};
+}
 
-type SanitizedUser = {
+interface SanitizedUser {
   id: number;
   username: string;
   email: string;
   role: string;
   createdAt: Date | null;
   business?: BusinessData;
-};
+}
 
 declare global {
   namespace Express {
@@ -56,6 +58,8 @@ declare global {
 
 async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null> {
   try {
+    console.log(`[Auth] Fetching user data for ID: ${userId}`);
+
     // Get user data without password
     const [user] = await db
       .select({
@@ -70,7 +74,7 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
       .limit(1);
 
     if (!user) {
-      console.log(`[Debug] No user found for ID: ${userId}`);
+      console.log(`[Auth] No user found for ID: ${userId}`);
       return null;
     }
 
@@ -85,15 +89,9 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
 
     // If user is a business owner, fetch business data
     if (user.role === "business") {
+      console.log(`[Auth] Fetching business data for user ID: ${userId}`);
       const [business] = await db
-        .select({
-          id: businesses.id,
-          name: businesses.name,
-          industryType: businesses.industryType,
-          status: businesses.status,
-          onboardingCompleted: businesses.onboardingCompleted,
-          description: businesses.description,
-        })
+        .select()
         .from(businesses)
         .where(eq(businesses.userId, userId))
         .limit(1);
@@ -110,29 +108,33 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
       }
     }
 
+    console.log(`[Auth] Successfully retrieved user data for ID: ${userId}`);
     return sanitizedUser;
   } catch (error) {
-    console.error('[Debug] Error in getUserWithBusiness:', error);
+    console.error('[Auth] Error in getUserWithBusiness:', error);
     throw error;
   }
 }
 
 export function setupAuth(app: Express) {
   const MemoryStore = createMemoryStore(session);
+
+  // Enhanced session settings
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.REPL_ID || "desibazaar-secret",
+    secret: process.env.SESSION_SECRET || process.env.REPL_ID || "desibazaar-secret",
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: app.get("env") === "production",
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: "lax",
+      sameSite: app.get("env") === "production" ? "strict" : "lax",
       path: "/",
     },
     store: new MemoryStore({
       checkPeriod: 86400000, // 24 hours
     }),
+    name: "desibazaar.sid", // Custom session cookie name
   };
 
   if (app.get("env") === "production") {
@@ -143,9 +145,12 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Configure Passport strategy
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
+        console.log(`[Auth] Login attempt for username: ${username}`);
+
         // Get user with password for verification
         const [userWithPassword] = await db
           .select()
@@ -154,39 +159,48 @@ export function setupAuth(app: Express) {
           .limit(1);
 
         if (!userWithPassword) {
+          console.log(`[Auth] Login failed: User not found - ${username}`);
           return done(null, false, { message: "Incorrect username." });
         }
 
         const isMatch = await crypto.compare(password, userWithPassword.password);
         if (!isMatch) {
+          console.log(`[Auth] Login failed: Invalid password - ${username}`);
           return done(null, false, { message: "Incorrect password." });
         }
 
         // Get sanitized user data
         const sanitizedUser = await getUserWithBusiness(userWithPassword.id);
         if (!sanitizedUser) {
+          console.log(`[Auth] Login failed: Could not load user data - ${username}`);
           return done(null, false, { message: "Failed to load user data." });
         }
 
+        console.log(`[Auth] Login successful: ${username}`);
         return done(null, sanitizedUser);
       } catch (err) {
+        console.error('[Auth] Login error:', err);
         return done(err);
       }
     })
   );
 
   passport.serializeUser((user, done) => {
+    console.log(`[Auth] Serializing user: ${user.id}`);
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
+      console.log(`[Auth] Deserializing user: ${id}`);
       const user = await getUserWithBusiness(id);
       if (!user) {
+        console.log(`[Auth] Deserialization failed: User not found - ${id}`);
         return done(null, false);
       }
       done(null, user);
     } catch (err) {
+      console.error('[Auth] Deserialization error:', err);
       done(err);
     }
   });
@@ -195,12 +209,15 @@ export function setupAuth(app: Express) {
   const authRouter = express.Router();
 
   authRouter.post("/login", (req, res, next) => {
+    console.log('[Auth] Processing login request');
     passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
       if (err) {
+        console.error('[Auth] Login error:', err);
         return next(err);
       }
 
       if (!user) {
+        console.log('[Auth] Login failed:', info.message);
         return res.status(400).json({
           ok: false,
           message: info.message ?? "Login failed"
@@ -209,9 +226,11 @@ export function setupAuth(app: Express) {
 
       req.logIn(user, (err) => {
         if (err) {
+          console.error('[Auth] Login error during session creation:', err);
           return next(err);
         }
 
+        console.log(`[Auth] Login successful for user: ${user.username}`);
         return res.json({
           ok: true,
           message: "Login successful",
@@ -223,6 +242,7 @@ export function setupAuth(app: Express) {
 
   authRouter.post("/register", async (req, res) => {
     try {
+      console.log('[Auth] Processing registration request');
       const { username, password, email, role, business } = req.body;
 
       // Check if username already exists
@@ -233,6 +253,7 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
+        console.log(`[Auth] Registration failed: Username exists - ${username}`);
         return res.status(400).json({
           ok: false,
           message: "Username already exists"
@@ -254,9 +275,12 @@ export function setupAuth(app: Express) {
         })
         .returning();
 
+      console.log(`[Auth] User created: ${user.id}`);
+
       // If business owner, create business record
       let businessData = null;
       if (role === "business" && business) {
+        console.log(`[Auth] Creating business record for user: ${user.id}`);
         const [createdBusiness] = await db
           .insert(businesses)
           .values({
@@ -273,41 +297,43 @@ export function setupAuth(app: Express) {
       }
 
       // Log the user in automatically
-      req.login(
-        {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          createdAt: user.createdAt,
-          business: businessData
-        },
-        (err) => {
-          if (err) {
-            console.error("Auto-login failed:", err);
-            return res.status(500).json({
-              ok: false,
-              message: "Registration successful but auto-login failed"
-            });
-          }
+      const userData: SanitizedUser = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        business: businessData ? {
+          id: businessData.id,
+          name: businessData.name,
+          industryType: businessData.industryType,
+          status: businessData.status,
+          onboardingCompleted: businessData.onboardingCompleted || false,
+          description: businessData.description
+        } : undefined
+      };
 
-          res.json({
-            ok: true,
-            message: "Registration successful",
-            user: {
-              id: user.id,
-              username: user.username,
-              email: user.email,
-              role: user.role,
-              createdAt: user.createdAt,
-              business: businessData,
-              needsOnboarding: role === "business"
-            }
+      req.login(userData, (err) => {
+        if (err) {
+          console.error('[Auth] Auto-login failed:', err);
+          return res.status(500).json({
+            ok: false,
+            message: "Registration successful but auto-login failed"
           });
         }
-      );
+
+        console.log(`[Auth] Registration and auto-login successful: ${user.username}`);
+        res.json({
+          ok: true,
+          message: "Registration successful",
+          user: {
+            ...userData,
+            needsOnboarding: role === "business"
+          }
+        });
+      });
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error('[Auth] Registration error:', error);
       res.status(500).json({
         ok: false,
         message: "Failed to create account"
@@ -316,14 +342,19 @@ export function setupAuth(app: Express) {
   });
 
   authRouter.post("/logout", (req, res) => {
+    const username = req.user?.username;
+    console.log(`[Auth] Processing logout request for user: ${username}`);
+
     req.logout((err) => {
       if (err) {
+        console.error('[Auth] Logout error:', err);
         return res.status(500).json({
           ok: false,
           message: "Logout failed"
         });
       }
 
+      console.log(`[Auth] Logout successful: ${username}`);
       res.json({
         ok: true,
         message: "Logout successful"
@@ -333,12 +364,14 @@ export function setupAuth(app: Express) {
 
   authRouter.get("/user", (req, res) => {
     if (!req.isAuthenticated()) {
+      console.log('[Auth] Unauthorized access to user info');
       return res.status(401).json({
         ok: false,
         message: "Not logged in"
       });
     }
 
+    console.log(`[Auth] User info requested: ${req.user.username}`);
     res.json({
       ok: true,
       user: req.user

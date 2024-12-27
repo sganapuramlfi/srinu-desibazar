@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
 import { db } from "@db";
 import multer from "multer";
 import path from "path";
@@ -54,19 +53,36 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express): Server {
-  // Set up authentication first
-  setupAuth(app);
+  // Create the HTTP server first
+  const httpServer = createServer(app);
 
-  // Apply global middleware before route registration
+  // API Routes prefix middleware
+  app.use('/api/*', (req, res, next) => {
+    res.type('json');
+    next();
+  });
+
+  // Business access middleware
   app.use('/api/businesses/:businessId/*', requireAuth, hasBusinessAccess);
 
-  // Register all business-related routes with proper middleware
+  // Register all API routes
   app.use("/api", salonRouter);
   app.use("/api", rosterRouter);
   app.use("/api", slotsRouter);
   app.use("/api", bookingsRouter);
 
   // Public Business Routes
+  app.get("/api/businesses", async (req, res) => {
+    try {
+      const result = await db
+        .select()
+        .from(businesses);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch businesses" });
+    }
+  });
+
   app.get("/api/businesses/:businessId/profile", async (req, res) => {
     try {
       const businessId = parseInt(req.params.businessId);
@@ -98,18 +114,6 @@ export function registerRoutes(app: Express): Server {
       res.json(business);
     } catch (error) {
       res.status(500).json({ error: "Failed to create business" });
-    }
-  });
-
-  // Public Business Listing
-  app.get("/api/businesses", async (req, res) => {
-    try {
-      const result = await db
-        .select()
-        .from(businesses);
-      res.json(result);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch businesses" });
     }
   });
 
@@ -391,6 +395,5 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  const httpServer = createServer(app);
   return httpServer;
 }

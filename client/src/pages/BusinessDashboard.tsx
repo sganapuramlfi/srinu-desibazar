@@ -43,6 +43,14 @@ interface Business {
   };
 }
 
+type TabConfig = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  component: React.ReactNode;
+  supportedTypes: string[];
+};
+
 function BusinessDashboard({ businessId }: BusinessDashboardProps) {
   const [, navigate] = useLocation();
   const { user } = useUser();
@@ -74,7 +82,7 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
 
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<SalonStaff[]>({
     queryKey: [`/api/businesses/${businessId}/staff`],
-    enabled: !!businessId && !!user,
+    enabled: !!businessId && !!user && business?.industryType === "salon",
     staleTime: 0,
     retry: 1
   });
@@ -88,10 +96,89 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
 
   const { data: templates = [], isLoading: isLoadingTemplates } = useQuery<ShiftTemplate[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
-    enabled: !!businessId && !!user,
+    enabled: !!businessId && !!user && ["salon", "restaurant"].includes(business?.industryType || ""),
     staleTime: 0,
     retry: 1
   });
+
+  // Define available tabs with their configurations
+  const getTabs = (business: Business): TabConfig[] => [
+    {
+      id: "profile",
+      label: "Profile",
+      icon: <Settings className="w-4 h-4 mr-2" />,
+      component: <BusinessProfileTab businessId={businessId} />,
+      supportedTypes: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
+    },
+    {
+      id: "services",
+      label: "Services",
+      icon: <Package className="w-4 h-4 mr-2" />,
+      component: <ServicesTab businessId={businessId} />,
+      supportedTypes: ["salon", "restaurant", "event", "professional"]
+    },
+    {
+      id: "staff",
+      label: "Staff",
+      icon: <Users className="w-4 h-4 mr-2" />,
+      component: <StaffTab businessId={businessId} />,
+      supportedTypes: ["salon", "restaurant", "event"]
+    },
+    {
+      id: "shift-templates",
+      label: "Shift Templates",
+      icon: <Clock className="w-4 h-4 mr-2" />,
+      component: <ShiftTemplatesTab businessId={businessId} />,
+      supportedTypes: ["salon", "restaurant"]
+    },
+    {
+      id: "roster",
+      label: "Roster",
+      icon: <CalendarDays className="w-4 h-4 mr-2" />,
+      component: (
+        <RosterTabUpdated
+          businessId={businessId}
+          staff={staff}
+          templates={templates}
+          isLoadingStaff={isLoadingStaff}
+          isLoadingTemplates={isLoadingTemplates}
+        />
+      ),
+      supportedTypes: ["salon", "restaurant"]
+    },
+    {
+      id: "service-staff",
+      label: "Service Staff",
+      icon: <Store className="w-4 h-4 mr-2" />,
+      component: (
+        <ServiceStaffTab
+          businessId={businessId}
+          industryType={business?.industryType}
+        />
+      ),
+      supportedTypes: ["salon", "restaurant", "event"]
+    },
+    {
+      id: "slots",
+      label: "Service Slots",
+      icon: <Calendar className="w-4 h-4 mr-2" />,
+      component: (
+        <ServiceSlotsTab
+          businessId={businessId}
+          staff={staff}
+          services={services}
+        />
+      ),
+      supportedTypes: ["salon", "professional"]
+    },
+    {
+      id: "bookings",
+      label: "Bookings",
+      icon: <Bookmark className="w-4 h-4 mr-2" />,
+      component: <BookingsPage businessId={businessId.toString()} />,
+      supportedTypes: ["salon", "restaurant", "event", "professional"]
+    }
+  ];
 
   if (isLoadingBusiness) {
     return (
@@ -148,88 +235,37 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
     return null;
   }
 
+  // Filter tabs based on business type
+  const availableTabs = getTabs(business).filter(tab => 
+    tab.supportedTypes.includes(business.industryType)
+  );
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">{business.name}</h1>
-          <p className="text-muted-foreground">{business.description || 'Manage your business operations'}</p>
+          <p className="text-muted-foreground">
+            {business.description || `Manage your ${business.industryType} business operations`}
+          </p>
         </div>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
-          <TabsTrigger value="profile">
-            <Settings className="w-4 h-4 mr-2" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="services">
-            <Package className="w-4 h-4 mr-2" />
-            Services
-          </TabsTrigger>
-          <TabsTrigger value="staff">
-            <Users className="w-4 h-4 mr-2" />
-            Staff
-          </TabsTrigger>
-          <TabsTrigger value="shift-templates">
-            <Clock className="w-4 h-4 mr-2" />
-            Shift Templates
-          </TabsTrigger>
-          <TabsTrigger value="roster">
-            <CalendarDays className="w-4 h-4 mr-2" />
-            Roster
-          </TabsTrigger>
-          <TabsTrigger value="service-staff">
-            <Store className="w-4 h-4 mr-2" />
-            Service Staff
-          </TabsTrigger>
-          <TabsTrigger value="slots">
-            <Calendar className="w-4 h-4 mr-2" />
-            Service Slots
-          </TabsTrigger>
-          <TabsTrigger value="bookings">
-            <Bookmark className="w-4 h-4 mr-2" />
-            Bookings
-          </TabsTrigger>
+        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)` }}>
+          {availableTabs.map(tab => (
+            <TabsTrigger key={tab.id} value={tab.id}>
+              {tab.icon}
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="profile">
-          <BusinessProfileTab businessId={businessId} />
-        </TabsContent>
-        <TabsContent value="services">
-          <ServicesTab businessId={businessId} />
-        </TabsContent>
-        <TabsContent value="staff">
-          <StaffTab businessId={businessId} />
-        </TabsContent>
-        <TabsContent value="shift-templates">
-          <ShiftTemplatesTab businessId={businessId} />
-        </TabsContent>
-        <TabsContent value="roster">
-          <RosterTabUpdated
-            businessId={businessId}
-            staff={staff}
-            templates={templates}
-            isLoadingStaff={isLoadingStaff}
-            isLoadingTemplates={isLoadingTemplates}
-          />
-        </TabsContent>
-        <TabsContent value="service-staff">
-          <ServiceStaffTab
-            businessId={businessId}
-            industryType={business.industryType}
-          />
-        </TabsContent>
-        <TabsContent value="slots">
-          <ServiceSlotsTab
-            businessId={businessId}
-            staff={staff}
-            services={services}
-          />
-        </TabsContent>
-        <TabsContent value="bookings">
-          <BookingsPage businessId={businessId.toString()} />
-        </TabsContent>
+        {availableTabs.map(tab => (
+          <TabsContent key={tab.id} value={tab.id}>
+            {tab.component}
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   );

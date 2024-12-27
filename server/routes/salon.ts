@@ -1,11 +1,141 @@
 import { Router } from "express";
 import { db } from "@db";
-import { salonServices, salonStaff, staffSkills, insertSalonServiceSchema, insertSalonStaffSchema, insertStaffSkillSchema } from "@db/schema";
+import { salonStaff } from "@db/schema";
 import { eq, and } from "drizzle-orm";
-import { shiftTemplates, staffSchedules, insertShiftTemplateSchema, insertStaffScheduleSchema } from "@db/schema";
 import { z } from "zod";
+import { salonServices, insertSalonServiceSchema } from "@db/schema";
+import { shiftTemplates, insertShiftTemplateSchema, staffSchedules, insertStaffScheduleSchema } from "@db/schema";
+
 
 const router = Router();
+
+// Validation schemas
+const staffSchema = z.object({
+  name: z.string().min(1, "Staff name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number is required"),
+  specialization: z.string().min(1, "Specialization is required"),
+  status: z.enum(["active", "inactive", "on_leave"]).default("active"),
+});
+
+// Staff Management Routes
+router.get("/businesses/:businessId/staff", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const staff = await db.select()
+      .from(salonStaff)
+      .where(eq(salonStaff.businessId, parseInt(req.params.businessId)));
+
+    res.json(staff);
+  } catch (error: any) {
+    console.error('Error fetching salon staff:', error);
+    res.status(500).json({
+      message: "Failed to fetch staff",
+      error: error.message
+    });
+  }
+});
+
+router.post("/businesses/:businessId/staff", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = staffSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [staff] = await db.insert(salonStaff)
+      .values({
+        ...result.data,
+        businessId: parseInt(req.params.businessId),
+        createdAt: new Date()
+      })
+      .returning();
+
+    res.json(staff);
+  } catch (error: any) {
+    console.error('Error creating salon staff:', error);
+    res.status(500).json({
+      message: "Failed to create staff",
+      error: error.message
+    });
+  }
+});
+
+router.put("/businesses/:businessId/staff/:staffId", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = staffSchema.partial().safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        errors: result.error.issues
+      });
+    }
+
+    const [staff] = await db.update(salonStaff)
+      .set({
+        ...result.data,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(salonStaff.id, parseInt(req.params.staffId)),
+        eq(salonStaff.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!staff) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+
+    res.json(staff);
+  } catch (error: any) {
+    console.error('Error updating salon staff:', error);
+    res.status(500).json({
+      message: "Failed to update staff",
+      error: error.message
+    });
+  }
+});
+
+router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const [deletedStaff] = await db.delete(salonStaff)
+      .where(and(
+        eq(salonStaff.id, parseInt(req.params.staffId)),
+        eq(salonStaff.businessId, parseInt(req.params.businessId))
+      ))
+      .returning();
+
+    if (!deletedStaff) {
+      return res.status(404).json({ message: "Staff member not found" });
+    }
+
+    res.json({ message: "Staff member deleted successfully" });
+  } catch (error: any) {
+    console.error('Error deleting staff member:', error);
+    res.status(500).json({
+      message: "Failed to delete staff member",
+      error: error.message
+    });
+  }
+});
 
 // Basic validation schemas
 const updateServiceSchema = insertSalonServiceSchema.partial();
@@ -130,6 +260,7 @@ router.delete("/businesses/:businessId/services/:serviceId", async (req, res) =>
   }
 });
 
+
 // Staff-skills routes
 router.get("/businesses/:businessId/staff-skills", async (req, res) => {
   try {
@@ -230,103 +361,6 @@ router.put("/businesses/:businessId/staff/:staffId/skills", async (req, res) => 
     });
   }
 });
-
-// Staff Management
-router.get("/businesses/:businessId/staff", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const staff = await db.select()
-      .from(salonStaff)
-      .where(eq(salonStaff.businessId, parseInt(req.params.businessId)));
-
-    const staffWithSkills = await Promise.all(staff.map(async (staffMember) => {
-      const skills = await db.select()
-        .from(staffSkills)
-        .where(eq(staffSkills.staffId, staffMember.id));
-
-      return {
-        ...staffMember,
-        skills,
-      };
-    }));
-
-    res.json(staffWithSkills);
-  } catch (error: any) {
-    console.error('Error fetching salon staff:', error);
-    res.status(500).json({
-      message: "Failed to fetch staff",
-      error: error.message
-    });
-  }
-});
-
-router.post("/businesses/:businessId/staff", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = insertSalonStaffSchema.safeParse({
-      ...req.body,
-      businessId: parseInt(req.params.businessId)
-    });
-
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
-
-    const [staff] = await db.insert(salonStaff)
-      .values(result.data)
-      .returning();
-
-    res.json(staff);
-  } catch (error: any) {
-    console.error('Error creating salon staff:', error);
-    res.status(500).json({
-      message: "Failed to create staff",
-      error: error.message
-    });
-  }
-});
-
-router.delete("/businesses/:businessId/staff/:staffId", async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    // First delete related skills
-    await db.delete(staffSkills)
-      .where(eq(staffSkills.staffId, parseInt(req.params.staffId)));
-
-    // Then delete the staff member
-    const [deletedStaff] = await db.delete(salonStaff)
-      .where(and(
-        eq(salonStaff.id, parseInt(req.params.staffId)),
-        eq(salonStaff.businessId, parseInt(req.params.businessId))
-      ))
-      .returning();
-
-    if (!deletedStaff) {
-      return res.status(404).json({ message: "Staff member not found" });
-    }
-
-    res.json({ message: "Staff member deleted successfully" });
-  } catch (error: any) {
-    console.error('Error deleting staff member:', error);
-    res.status(500).json({
-      message: "Failed to delete staff member",
-      error: error.message
-    });
-  }
-});
-
 
 // Shift Template Management
 router.get("/businesses/:businessId/shift-templates", async (req, res) => {

@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import { businesses, services, bookings } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { setupAuth } from "./auth";
+import salonRoutes from "./routes/salon";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,10 +58,14 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   // API Routes prefix middleware
-  app.use('/api/*', (req, res, next) => {
-    res.type('json');
+  app.use('/api', (req, res, next) => {
+    // Set headers to prevent Vite from intercepting API requests
+    res.setHeader('Content-Type', 'application/json');
     next();
   });
+
+  // Register salon routes
+  app.use('/api', salonRoutes);
 
   // Services Routes
   app.post("/api/businesses/:businessId/services", async (req, res) => {

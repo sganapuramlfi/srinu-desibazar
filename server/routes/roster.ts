@@ -13,12 +13,12 @@ const assignShiftSchema = z.object({
   date: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: "Invalid date format",
   }),
-  status: z.enum(["scheduled", "working", "completed", "leave", "sick", "absent"]).default("scheduled"),
+  status: z.enum(["scheduled", "completed", "absent", "on_leave"]).default("scheduled"),
 });
 
 const updateShiftSchema = z.object({
   templateId: z.number(),
-  status: z.enum(["scheduled", "working", "completed", "leave", "sick", "absent"]).optional(),
+  status: z.enum(["scheduled", "completed", "absent", "on_leave"]).optional(),
 });
 
 // Get roster data for a business
@@ -70,7 +70,7 @@ router.get("/businesses/:businessId/roster", async (req, res) => {
     }));
 
     res.json(schedulesWithDetails);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching roster:", error);
     res.status(500).json({ error: "Failed to fetch roster" });
   }
@@ -90,7 +90,7 @@ router.get("/businesses/:businessId/shift-templates", async (req, res) => {
       .where(eq(shiftTemplates.businessId, businessId));
 
     res.json(templates);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching shift templates:", error);
     res.status(500).json({ error: "Failed to fetch shift templates" });
   }
@@ -174,7 +174,7 @@ router.post("/businesses/:businessId/roster/assign", async (req, res) => {
     }
 
     res.json(shift);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error assigning shift:", error);
     res.status(500).json({ error: "Failed to assign shift", details: error.message });
   }
@@ -210,7 +210,7 @@ router.put("/businesses/:businessId/roster/:shiftId", async (req, res) => {
       .returning();
 
     res.json(updatedShift);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating shift:", error);
     res.status(500).json({ error: "Failed to update shift" });
   }

@@ -11,7 +11,7 @@ declare module 'express-serve-static-core' {
 export function responseHandler(req: Request, res: Response, next: NextFunction) {
   // Add success response method
   res.success = function(data?: any, message: string = "Success") {
-    return res.json({
+    return this.json({
       ok: true,
       message,
       ...(data && { data })
@@ -20,7 +20,7 @@ export function responseHandler(req: Request, res: Response, next: NextFunction)
 
   // Add error response method
   res.error = function(message: string, statusCode: number = 400) {
-    return res.status(statusCode).json({
+    return this.status(statusCode).json({
       ok: false,
       message
     });
@@ -30,13 +30,23 @@ export function responseHandler(req: Request, res: Response, next: NextFunction)
   const originalSend = res.send;
   res.send = function(data) {
     try {
-      // If data is already a string, try to parse it to validate JSON
+      // If data is already a string and not JSON, convert it
       if (typeof data === 'string') {
-        JSON.parse(data);
+        try {
+          JSON.parse(data);
+        } catch {
+          data = JSON.stringify({
+            ok: false,
+            message: data
+          });
+        }
       }
+
+      // Call original send with potentially modified data
       return originalSend.call(this, data);
     } catch (err) {
-      console.error('Invalid JSON response:', err);
+      console.error('Invalid response format:', err);
+      // If not valid JSON, send as proper JSON response
       return originalSend.call(this, JSON.stringify({
         ok: false,
         message: 'Internal Server Error: Invalid response format'
@@ -44,5 +54,7 @@ export function responseHandler(req: Request, res: Response, next: NextFunction)
     }
   };
 
+  // Ensure content type is set to JSON
+  res.setHeader('Content-Type', 'application/json');
   next();
 }

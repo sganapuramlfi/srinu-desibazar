@@ -344,10 +344,7 @@ export function setupAuth(app: Express) {
         res.json({
           ok: true,
           message: "Registration successful",
-          user: {
-            ...userData,
-            needsOnboarding: role === "business"
-          }
+          user: userData
         });
       });
     } catch (error) {

@@ -6,8 +6,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { businesses } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { businesses, messages, conversations, conversationParticipants, waitlist, adSpaces, adCampaigns, advertisements, bookingHistory } from "@db/schema";
+import { eq, and, gte, lte } from "drizzle-orm";
 import salonRouter from "./routes/salon";
 import rosterRouter from "./routes/roster";
 import slotsRouter from "./routes/slots";
@@ -251,6 +251,145 @@ export function registerRoutes(app: Express): Server {
       }
     }
   );
+
+  // Messaging System Routes
+  app.post("/api/conversations", requireAuth, async (req, res) => {
+    try {
+      const [conversation] = await db
+        .insert(conversations)
+        .values({
+          type: req.body.type,
+          status: "active",
+        })
+        .returning();
+
+      await db.insert(conversationParticipants).values({
+        conversationId: conversation.id,
+        userId: req.user!.id,
+        role: req.body.role,
+      });
+
+      res.json(conversation);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create conversation" });
+    }
+  });
+
+  app.post("/api/conversations/:conversationId/messages", requireAuth, async (req, res) => {
+    try {
+      const [message] = await db
+        .insert(messages)
+        .values({
+          conversationId: parseInt(req.params.conversationId),
+          senderId: req.user!.id,
+          content: req.body.content,
+          type: req.body.type || "text",
+          metadata: req.body.metadata,
+        })
+        .returning();
+
+      res.json(message);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // Waitlist Management Routes
+  app.post("/api/businesses/:businessId/waitlist", requireAuth, async (req, res) => {
+    try {
+      const [entry] = await db
+        .insert(waitlist)
+        .values({
+          businessId: parseInt(req.params.businessId),
+          customerId: req.user!.id,
+          serviceId: req.body.serviceId,
+          preferredStaffId: req.body.preferredStaffId,
+          preferredTimeSlots: req.body.preferredTimeSlots,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+        })
+        .returning();
+
+      res.json(entry);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to join waitlist" });
+    }
+  });
+
+  // Ad Space Management Routes
+  app.post("/api/businesses/:businessId/ad-campaigns", requireAuth, hasBusinessAccess, async (req, res) => {
+    try {
+      const [campaign] = await db
+        .insert(adCampaigns)
+        .values({
+          businessId: parseInt(req.params.businessId),
+          name: req.body.name,
+          budget: req.body.budget,
+          startDate: new Date(req.body.startDate),
+          endDate: new Date(req.body.endDate),
+          targetAudience: req.body.targetAudience,
+        })
+        .returning();
+
+      res.json(campaign);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create ad campaign" });
+    }
+  });
+
+  app.post("/api/businesses/:businessId/advertisements", requireAuth, hasBusinessAccess, async (req, res) => {
+    try {
+      const [ad] = await db
+        .insert(advertisements)
+        .values({
+          campaignId: req.body.campaignId,
+          spaceId: req.body.spaceId,
+          title: req.body.title,
+          description: req.body.description,
+          imageUrl: req.body.imageUrl,
+          targetUrl: req.body.targetUrl,
+          startDate: new Date(req.body.startDate),
+          endDate: new Date(req.body.endDate),
+        })
+        .returning();
+
+      res.json(ad);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create advertisement" });
+    }
+  });
+
+  // Booking Rescheduling Routes
+  app.post("/api/businesses/:businessId/bookings/:bookingId/reschedule", requireAuth, async (req, res) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      const newSlotId = req.body.newSlotId;
+      const reason = req.body.reason;
+
+      // Record the rescheduling action
+      await db.insert(bookingHistory).values({
+        bookingId,
+        action: "rescheduled",
+        previousSlotId: req.body.previousSlotId,
+        newSlotId,
+        reason,
+        performedBy: req.user!.id,
+      });
+
+      // Update the booking with the new slot
+      const [updatedBooking] = await db
+        .update(bookingHistory)
+        .set({
+          slotId: newSlotId,
+          updatedAt: new Date(),
+        })
+        .where(eq(bookingHistory.id, bookingId))
+        .returning();
+
+      res.json(updatedBooking);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to reschedule booking" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

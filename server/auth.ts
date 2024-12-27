@@ -141,6 +141,7 @@ export function setupAuth(app: Express) {
     app.set("trust proxy", 1);
   }
 
+  // Set up session and passport before routes
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -208,12 +209,21 @@ export function setupAuth(app: Express) {
   // API Routes
   const authRouter = express.Router();
 
+  // Ensure content-type is set to application/json for all auth routes
+  authRouter.use((req, res, next) => {
+    res.type('json');
+    next();
+  });
+
   authRouter.post("/login", (req, res, next) => {
     console.log('[Auth] Processing login request');
     passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
       if (err) {
         console.error('[Auth] Login error:', err);
-        return next(err);
+        return res.status(500).json({
+          ok: false,
+          message: "Internal server error during login"
+        });
       }
 
       if (!user) {
@@ -227,7 +237,10 @@ export function setupAuth(app: Express) {
       req.logIn(user, (err) => {
         if (err) {
           console.error('[Auth] Login error during session creation:', err);
-          return next(err);
+          return res.status(500).json({
+            ok: false,
+            message: "Failed to create session"
+          });
         }
 
         console.log(`[Auth] Login successful for user: ${user.username}`);
@@ -296,7 +309,7 @@ export function setupAuth(app: Express) {
         businessData = createdBusiness;
       }
 
-      // Log the user in automatically
+      // Create sanitized user data
       const userData: SanitizedUser = {
         id: user.id,
         username: user.username,
@@ -313,6 +326,7 @@ export function setupAuth(app: Express) {
         } : undefined
       };
 
+      // Log the user in automatically
       req.login(userData, (err) => {
         if (err) {
           console.error('[Auth] Auto-login failed:', err);

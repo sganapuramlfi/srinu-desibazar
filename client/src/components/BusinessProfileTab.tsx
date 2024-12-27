@@ -1,4 +1,4 @@
-import { useState, useEffect as ReactuseEffect } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
@@ -50,6 +50,16 @@ const defaultAmenities = [
   { name: "Refreshments", icon: "Coffee", enabled: false },
 ];
 
+const defaultOperatingHours = {
+  monday: { open: "09:00", close: "18:00", isOpen: true },
+  tuesday: { open: "09:00", close: "18:00", isOpen: true },
+  wednesday: { open: "09:00", close: "18:00", isOpen: true },
+  thursday: { open: "09:00", close: "18:00", isOpen: true },
+  friday: { open: "09:00", close: "18:00", isOpen: true },
+  saturday: { open: "10:00", close: "16:00", isOpen: true },
+  sunday: { open: "10:00", close: "16:00", isOpen: false },
+};
+
 interface BusinessProfileTabProps {
   businessId: number;
 }
@@ -60,7 +70,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch business profile data
   const { data: business, isLoading } = useQuery<Business>({
     queryKey: [`/api/businesses/${businessId}/profile`],
     enabled: !!businessId,
@@ -83,24 +92,15 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
         email: "",
         address: "",
       },
-      operatingHours: {
-        monday: { open: "09:00", close: "18:00", isOpen: true },
-        tuesday: { open: "09:00", close: "18:00", isOpen: true },
-        wednesday: { open: "09:00", close: "18:00", isOpen: true },
-        thursday: { open: "09:00", close: "18:00", isOpen: true },
-        friday: { open: "09:00", close: "18:00", isOpen: true },
-        saturday: { open: "10:00", close: "16:00", isOpen: true },
-        sunday: { open: "10:00", close: "16:00", isOpen: false },
-      },
+      operatingHours: defaultOperatingHours,
       amenities: defaultAmenities,
     },
   });
 
-  // Set form values when business data is loaded
-  ReactuseEffect(() => {
+  useEffect(() => {
     if (business) {
       form.reset({
-        name: business.name,
+        name: business.name || "",
         description: business.description || "",
         socialMedia: business.socialMedia || {
           facebook: "",
@@ -113,21 +113,12 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
           email: "",
           address: "",
         },
-        operatingHours: business.operatingHours || {
-          monday: { open: "09:00", close: "18:00", isOpen: true },
-          tuesday: { open: "09:00", close: "18:00", isOpen: true },
-          wednesday: { open: "09:00", close: "18:00", isOpen: true },
-          thursday: { open: "09:00", close: "18:00", isOpen: true },
-          friday: { open: "09:00", close: "18:00", isOpen: true },
-          saturday: { open: "10:00", close: "16:00", isOpen: true },
-          sunday: { open: "10:00", close: "16:00", isOpen: false },
-        },
+        operatingHours: business.operatingHours || defaultOperatingHours,
         amenities: business.amenities || defaultAmenities,
       });
     }
   }, [business, form]);
 
-  // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const response = await fetch(`/api/businesses/${businessId}/profile`, {
@@ -159,16 +150,12 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
 
   const onSubmit = async (data: BusinessProfileFormData) => {
     const formData = new FormData();
-
-    // Append form data
     formData.append("data", JSON.stringify(data));
 
-    // Append logo if selected
     if (selectedLogo) {
       formData.append("logo", selectedLogo);
     }
 
-    // Append gallery images if selected
     selectedGalleryImages.forEach((file) => {
       formData.append("gallery", file);
     });
@@ -204,7 +191,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
     <div className="p-6 space-y-8">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {/* Basic Information */}
           <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
@@ -220,7 +206,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                   <FormItem>
                     <FormLabel>Business Name</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -234,7 +220,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea {...field} />
+                      <Textarea {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -278,7 +264,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
             </CardContent>
           </Card>
 
-          {/* Social Media Links */}
           <Card>
             <CardHeader>
               <CardTitle>Social Media</CardTitle>
@@ -297,7 +282,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                       Facebook
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="https://facebook.com/your-page" />
+                      <Input {...field} placeholder="https://facebook.com/your-page" value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -314,7 +299,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                       Instagram
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="https://instagram.com/your-profile" />
+                      <Input {...field} placeholder="https://instagram.com/your-profile" value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -331,7 +316,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                       Twitter
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="https://twitter.com/your-profile" />
+                      <Input {...field} placeholder="https://twitter.com/your-profile" value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -348,7 +333,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                       Website
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="https://your-website.com" />
+                      <Input {...field} placeholder="https://your-website.com" value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -357,7 +342,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
             </CardContent>
           </Card>
 
-          {/* Contact Information */}
           <Card>
             <CardHeader>
               <CardTitle>Contact Information</CardTitle>
@@ -373,7 +357,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -387,7 +371,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" />
+                      <Input {...field} type="email" value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -401,7 +385,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                   <FormItem>
                     <FormLabel>Address</FormLabel>
                     <FormControl>
-                      <Textarea {...field} />
+                      <Textarea {...field} value={field.value || ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -410,7 +394,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
             </CardContent>
           </Card>
 
-          {/* Operating Hours */}
           <Card>
             <CardHeader>
               <CardTitle>Operating Hours</CardTitle>
@@ -452,6 +435,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                                   type="time"
                                   {...field}
                                   className="w-32"
+                                  value={field.value || ""}
                                 />
                               </FormControl>
                             </FormItem>
@@ -468,6 +452,7 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
                                   type="time"
                                   {...field}
                                   className="w-32"
+                                  value={field.value || ""}
                                 />
                               </FormControl>
                             </FormItem>
@@ -481,7 +466,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
             </CardContent>
           </Card>
 
-          {/* Amenities */}
           <Card>
             <CardHeader>
               <CardTitle>Amenities</CardTitle>
@@ -536,7 +520,6 @@ export function BusinessProfileTab({ businessId }: BusinessProfileTabProps) {
         </form>
       </Form>
 
-      {/* Gallery Upload */}
       <Card>
         <CardHeader>
           <CardTitle>Gallery</CardTitle>

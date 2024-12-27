@@ -1,9 +1,9 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
 
-// Users table with enhanced fields
+// Base table: Users
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").unique().notNull(),
@@ -13,7 +13,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Businesses table with required fields
+// Business table (depends only on users)
 export const businesses = pgTable("businesses", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -26,34 +26,29 @@ export const businesses = pgTable("businesses", {
     enum: ["pending", "active", "suspended"]
   }).default("pending").notNull(),
   onboardingCompleted: boolean("onboarding_completed").default(false),
-  gallery: jsonb("gallery").$type<Array<{
-    url: string;
-    caption?: string;
-    sortOrder: number;
-  }>>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at"),
 });
 
-// Relations
-export const businessRelations = relations(businesses, ({ one }) => ({
-  owner: one(users, {
-    fields: [businesses.userId],
-    references: [users.id],
-    relationName: "business",
-  }),
-}));
-
-export const userRelations = relations(users, ({ one }) => ({
-  business: one(businesses, {
-    fields: [users.id],
-    references: [businesses.userId],
-  }),
-}));
-
-// Basic schemas
+// Basic schemas for users
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+// Business schemas
+export const insertBusinessSchema = createInsertSchema(businesses);
+export const selectBusinessSchema = createSelectSchema(businesses);
+export type Business = typeof businesses.$inferSelect;
+export type InsertBusiness = typeof businesses.$inferInsert;
+
+// Business profile schema for forms
+export const businessProfileSchema = z.object({
+  name: z.string().min(2, "Business name must be at least 2 characters"),
+  description: z.string().optional(),
+  industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
+  status: z.enum(["pending", "active", "suspended"]).default("pending"),
+});
 
 // Registration schema with business info
 export const userRegistrationSchema = createInsertSchema(users).extend({
@@ -64,464 +59,19 @@ export const userRegistrationSchema = createInsertSchema(users).extend({
   }).optional(),
 });
 
-// Types
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-export type Business = typeof businesses.$inferSelect;
-export type InsertBusiness = typeof businesses.$inferInsert;
 export type UserRegistration = z.infer<typeof userRegistrationSchema>;
 
-
-// Salon-specific Tables with cascade delete
-export const salonServices = pgTable("salon_services", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
-  name: text("name").notNull(),
-  description: text("description"),
-  duration: integer("duration").notNull(), // in minutes
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  category: text("category").notNull(), // e.g., 'hair', 'spa', 'nails'
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const salonStaff = pgTable("salon_staff", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
-  name: text("name").notNull(),
-  email: text("email").unique().notNull(),
-  phone: text("phone"),
-  specialization: text("specialization"),
-  status: text("status", {
-    enum: ["active", "inactive", "on_leave"]
-  }).default("active"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const staffSkills = pgTable("staff_skills", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
-  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
-  proficiencyLevel: text("proficiency_level", {
-    enum: ["trainee", "junior", "senior", "expert"]
-  }).default("junior"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const shiftTemplates = pgTable("shift_templates", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
-  name: text("name").notNull(),
-  description: text("description"),
-  startTime: text("start_time").notNull(),
-  endTime: text("end_time").notNull(),
-  breaks: jsonb("breaks").$type<Array<{
-    startTime: string;
-    endTime: string;
-    duration: number;
-    type: "lunch" | "short_break" | "other";
-  }>>(),
-  type: text("type", {
-    enum: ["regular", "overtime", "holiday", "leave"]
-  }).default("regular"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const staffShifts = pgTable("staff_shifts", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id, {onDelete: 'cascade'}),
-  templateId: integer("template_id").references(() => shiftTemplates.id, {onDelete: 'cascade'}),
-  date: timestamp("date").notNull(),
-  actualStartTime: timestamp("actual_start_time"),
-  actualEndTime: timestamp("actual_end_time"),
-  status: text("status", {
-    enum: ["scheduled", "in_progress", "completed", "cancelled"]
-  }).default("scheduled"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const serviceSlots = pgTable("service_slots", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
-  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
-  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
-  startTime: timestamp("start_time").notNull(),
-  endTime: timestamp("end_time").notNull(),
-  status: text("status", {
-    enum: ["available", "booked", "blocked"]
-  }).default("available"),
-  isManual: boolean("is_manual").default(false),
-  conflictingSlotIds: jsonb("conflicting_slot_ids").$type<number[]>(), // Track conflicting slots
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const salonBookings = pgTable("salon_bookings", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, {onDelete: 'cascade'}),
-  customerId: integer("customer_id").references(() => users.id, {onDelete: 'cascade'}),
-  slotId: integer("slot_id").references(() => serviceSlots.id, { onDelete: 'cascade' }),
-  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
-  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }),
-  status: text("status", {
-    enum: ["pending", "confirmed", "completed", "cancelled"]
-  }).default("pending").notNull(),
-  notes: text("notes"),
-  scheduledAt: timestamp("scheduled_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Update the staff schema to better handle schedules and template assignments
-export const staffSchedules = pgTable("staff_schedules", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id, {onDelete: 'cascade'}),
-  templateId: integer("template_id").references(() => shiftTemplates.id, {onDelete: 'cascade'}),
-  date: timestamp("date").notNull(),
-  status: text("status", {
-    enum: ["scheduled", "working", "completed", "leave", "sick", "absent"]
-  }).default("scheduled"),
-  actualStartTime: timestamp("actual_start_time"),
-  actualEndTime: timestamp("actual_end_time"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Basic schemas
-export const insertBusinessSchema = createInsertSchema(businesses);
-export const insertSalonServiceSchema = createInsertSchema(salonServices);
-export const insertSalonStaffSchema = createInsertSchema(salonStaff);
-export const insertStaffSkillSchema = createInsertSchema(staffSkills);
-export const insertShiftTemplateSchema = createInsertSchema(shiftTemplates);
-export const insertStaffShiftSchema = createInsertSchema(staffShifts);
-export const insertServiceSlotSchema = createInsertSchema(serviceSlots);
-export const insertSalonBookingSchema = createInsertSchema(salonBookings);
-
-// Create insert schemas
-export const insertStaffScheduleSchema = createInsertSchema(staffSchedules);
-
-// Create select schemas
-export const selectStaffScheduleSchema = createSelectSchema(staffSchedules);
-
-// Create zod schemas for the new template functionality
-export const shiftTemplateFormSchema = z.object({
-  name: z.string().min(1, "Template name is required"),
-  description: z.string().optional(),
-  startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  breaks: z.array(z.object({
-    startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-    endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-    duration: z.number().min(1, "Break duration must be at least 1 minute"),
-    type: z.enum(["lunch", "short_break", "other"]),
-  })).default([]),
-  type: z.enum(["regular", "overtime", "holiday", "leave"]).default("regular"),
-  isActive: z.boolean().default(true),
-});
-
-// Update the staff form schema to handle all possible fields
-export const staffFormSchema = z.object({
-  name: z.string().min(1, "Staff name is required"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().min(10, "Phone number is required"),
-  specialization: z.string().min(1, "Specialization is required"),
-  status: z.enum(["active", "inactive", "on_leave"]).default("active"),
-  schedule: z.record(
-    z.string(),
-    z.object({
-      start: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-      end: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-    })
-  ).optional(),
-});
-
-// Add relations
-export const shiftTemplateRelations = relations(shiftTemplates, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [shiftTemplates.businessId],
-    references: [businesses.id],
-  }),
-  schedules: many(staffSchedules),
-}));
-
-export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
-  staff: one(salonStaff, {
-    fields: [staffSchedules.staffId],
-    references: [salonStaff.id],
-  }),
-  template: one(shiftTemplates, {
-    fields: [staffSchedules.templateId],
-    references: [shiftTemplates.id],
-  }),
-}));
-
-export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonServices.businessId],
-    references: [businesses.id],
-  }),
-  staffSkills: many(staffSkills),
-  slots: many(serviceSlots),
-  bookings: many(salonBookings),
-}));
-
-export const salonStaffRelations = relations(salonStaff, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonStaff.businessId],
-    references: [businesses.id],
-  }),
-  skills: many(staffSkills),
-  shifts: many(staffShifts),
-  slots: many(serviceSlots),
-  bookings: many(salonBookings),
-}));
-
-export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
-  staff: one(salonStaff, {
-    fields: [staffSkills.staffId],
-    references: [salonStaff.id],
-  }),
-  service: one(salonServices, {
-    fields: [staffSkills.serviceId],
-    references: [salonServices.id],
-  }),
-}));
-
-export const salonBookingRelations = relations(salonBookings, ({ one }) => ({
-  business: one(businesses, {
-    fields: [salonBookings.businessId],
-    references: [businesses.id],
-  }),
-  customer: one(users, {
-    fields: [salonBookings.customerId],
-    references: [users.id],
-  }),
-  service: one(salonServices, {
-    fields: [salonBookings.serviceId],
-    references: [salonServices.id],
-  }),
-  staff: one(salonStaff, {
-    fields: [salonBookings.staffId],
-    references: [salonStaff.id],
-  }),
-  slot: one(serviceSlots, {
-    fields: [salonBookings.slotId],
-    references: [serviceSlots.id],
-  }),
-}));
-
-// Types
-export type SalonService = typeof salonServices.$inferSelect;
-export type InsertSalonService = typeof salonServices.$inferInsert;
-export type SalonStaff = typeof salonStaff.$inferSelect;
-export type InsertSalonStaff = typeof salonStaff.$inferInsert;
-export type StaffSkill = typeof staffSkills.$inferSelect;
-export type InsertStaffSkill = typeof staffSkills.$inferInsert;
-export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
-export type InsertShiftTemplate = typeof shiftTemplates.$inferInsert;
-export type StaffShift = typeof staffShifts.$inferSelect;
-export type InsertStaffShift = typeof staffShifts.$inferInsert;
-export type ServiceSlot = typeof serviceSlots.$inferSelect;
-export type InsertServiceSlot = typeof serviceSlots.$inferInsert;
-export type SalonBooking = typeof salonBookings.$inferSelect;
-export type InsertSalonBooking = typeof salonBookings.$inferInsert;
-
-// Add types
-export type StaffSchedule = typeof staffSchedules.$inferSelect;
-export type InsertStaffSchedule = typeof staffSchedules.$inferInsert;
-
-// Messaging System
-export const conversations = pgTable("conversations", {
-  id: serial("id").primaryKey(),
-  type: text("type", { enum: ["booking", "support", "general"] }).notNull(),
-  status: text("status", { enum: ["active", "archived"] }).default("active"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const conversationParticipants = pgTable("conversation_participants", {
-  id: serial("id").primaryKey(),
-  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }),
-  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
-  role: text("role", { enum: ["customer", "business", "admin"] }).notNull(),
-  lastReadAt: timestamp("last_read_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const messages = pgTable("messages", {
-  id: serial("id").primaryKey(),
-  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }),
-  senderId: integer("sender_id").references(() => users.id, { onDelete: 'cascade' }),
-  content: text("content").notNull(),
-  type: text("type", { enum: ["text", "image", "system"] }).default("text"),
-  metadata: jsonb("metadata").$type<{
-    bookingId?: number;
-    attachmentUrl?: string;
-    systemAction?: string;
-  }>(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Rescheduling and Waitlist System
-export const bookingHistory = pgTable("booking_history", {
-  id: serial("id").primaryKey(),
-  bookingId: integer("booking_id").references(() => salonBookings.id, { onDelete: 'cascade' }),
-  action: text("action", {
-    enum: ["created", "rescheduled", "cancelled", "completed"]
-  }).notNull(),
-  previousSlotId: integer("previous_slot_id").references(() => serviceSlots.id),
-  newSlotId: integer("new_slot_id").references(() => serviceSlots.id),
-  reason: text("reason"),
-  performedBy: integer("performed_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const waitlist = pgTable("waitlist", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }),
-  customerId: integer("customer_id").references(() => users.id, { onDelete: 'cascade' }),
-  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }),
-  preferredStaffId: integer("preferred_staff_id").references(() => salonStaff.id),
-  preferredTimeSlots: jsonb("preferred_time_slots").$type<{
-    dayOfWeek: number[];
-    timeRanges: { start: string; end: string }[];
-  }>(),
-  status: text("status", {
-    enum: ["waiting", "notified", "booked", "expired"]
-  }).default("waiting"),
-  expiresAt: timestamp("expires_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Advertising System
-export const adSpaces = pgTable("ad_spaces", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  placement: text("placement", {
-    enum: ["header", "sidebar", "footer", "search", "category"]
-  }).notNull(),
-  dimensions: jsonb("dimensions").$type<{
-    width: number;
-    height: number;
-    unit: "px" | "rem";
-  }>(),
-  maxAds: integer("max_ads").default(1),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const adCampaigns = pgTable("ad_campaigns", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }),
-  name: text("name").notNull(),
-  budget: decimal("budget", { precision: 10, scale: 2 }).notNull(),
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
-  status: text("status", {
-    enum: ["draft", "pending", "active", "paused", "completed", "rejected"]
-  }).default("draft"),
-  targetAudience: jsonb("target_audience").$type<{
-    locations?: string[];
-    interests?: string[];
-    age?: { min: number; max: number };
-  }>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const advertisements = pgTable("advertisements", {
-  id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").references(() => adCampaigns.id, { onDelete: 'cascade' }),
-  spaceId: integer("space_id").references(() => adSpaces.id, { onDelete: 'cascade' }),
-  title: text("title").notNull(),
-  description: text("description"),
-  imageUrl: text("image_url").notNull(),
-  targetUrl: text("target_url").notNull(),
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
-  status: text("status", {
-    enum: ["pending", "active", "paused", "completed", "rejected"]
-  }).default("pending"),
-  metrics: jsonb("metrics").$type<{
-    impressions: number;
-    clicks: number;
-    conversions: number;
-  }>().default({ impressions: 0, clicks: 0, conversions: 0 }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Add relations for new tables
-export const conversationRelations = relations(conversations, ({ many }) => ({
-  participants: many(conversationParticipants),
-  messages: many(messages),
-}));
-
-export const messageRelations = relations(messages, ({ one }) => ({
-  conversation: one(conversations, {
-    fields: [messages.conversationId],
-    references: [conversations.id],
-  }),
-  sender: one(users, {
-    fields: [messages.senderId],
+// Define relationships
+export const businessRelations = relations(businesses, ({ one }) => ({
+  owner: one(users, {
+    fields: [businesses.userId],
     references: [users.id],
   }),
 }));
 
-export const waitlistRelations = relations(waitlist, ({ one }) => ({
+export const userRelations = relations(users, ({ one }) => ({
   business: one(businesses, {
-    fields: [waitlist.businessId],
-    references: [businesses.id],
-  }),
-  customer: one(users, {
-    fields: [waitlist.customerId],
-    references: [users.id],
-  }),
-  service: one(salonServices, {
-    fields: [waitlist.serviceId],
-    references: [salonServices.id],
-  }),
-  preferredStaff: one(salonStaff, {
-    fields: [waitlist.preferredStaffId],
-    references: [salonStaff.id],
+    fields: [users.id],
+    references: [businesses.userId],
   }),
 }));
-
-export const adCampaignRelations = relations(adCampaigns, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [adCampaigns.businessId],
-    references: [businesses.id],
-  }),
-  advertisements: many(advertisements),
-}));
-
-export const advertisementRelations = relations(advertisements, ({ one }) => ({
-  campaign: one(adCampaigns, {
-    fields: [advertisements.campaignId],
-    references: [adCampaigns.id],
-  }),
-  space: one(adSpaces, {
-    fields: [advertisements.spaceId],
-    references: [adSpaces.id],
-  }),
-}));
-
-// Add new types
-export type Conversation = typeof conversations.$inferSelect;
-export type InsertConversation = typeof conversations.$inferInsert;
-export type Message = typeof messages.$inferSelect;
-export type InsertMessage = typeof messages.$inferInsert;
-export type BookingHistory = typeof bookingHistory.$inferSelect;
-export type InsertBookingHistory = typeof bookingHistory.$inferInsert;
-export type Waitlist = typeof waitlist.$inferSelect;
-export type InsertWaitlist = typeof waitlist.$inferInsert;
-export type AdSpace = typeof adSpaces.$inferSelect;
-export type InsertAdSpace = typeof adSpaces.$inferInsert;
-export type AdCampaign = typeof adCampaigns.$inferSelect;
-export type InsertAdCampaign = typeof adCampaigns.$inferInsert;
-export type Advertisement = typeof advertisements.$inferSelect;
-export type InsertAdvertisement = typeof advertisements.$inferInsert;

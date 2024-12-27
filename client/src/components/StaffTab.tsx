@@ -53,7 +53,7 @@ const staffFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   phone: z.string().min(10, "Phone number is required"),
   specialization: z.string().min(1, "Specialization is required"),
-  status: z.enum(["active", "inactive", "on_leave"]).default("active"),
+  status: z.enum(["active", "inactive", "on_leave"]),
 });
 
 interface SalonStaff {
@@ -76,14 +76,14 @@ export const StaffTab = ({ businessId }: Props) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const staffForm = useForm({
+  const staffForm = useForm<z.infer<typeof staffFormSchema>>({
     resolver: zodResolver(staffFormSchema),
     defaultValues: {
       name: "",
       email: "",
       phone: "",
       specialization: "",
-      status: "active" as const,
+      status: "active",
     },
   });
 
@@ -100,7 +100,7 @@ export const StaffTab = ({ businessId }: Props) => {
         email: isEditingStaff.email,
         phone: isEditingStaff.phone || "",
         specialization: isEditingStaff.specialization || "",
-        status: isEditingStaff.status || "active",
+        status: isEditingStaff.status,
       });
     }
   }, [isEditingStaff, staffForm]);
@@ -372,7 +372,12 @@ export const StaffTab = ({ businessId }: Props) => {
       </Dialog>
 
       {/* Edit Staff Dialog */}
-      <Dialog open={!!isEditingStaff} onOpenChange={(open) => !open && setIsEditingStaff(null)}>
+      <Dialog open={!!isEditingStaff} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditingStaff(null);
+          staffForm.reset();
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Staff Member</DialogTitle>
@@ -381,15 +386,11 @@ export const StaffTab = ({ businessId }: Props) => {
             </DialogDescription>
           </DialogHeader>
           <Form {...staffForm}>
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              staffForm.handleSubmit((data) => {
-                if (isEditingStaff) {
-                  console.log('Submitting edit form with data:', { ...data, id: isEditingStaff.id });
-                  editStaffMutation.mutate({ ...data, id: isEditingStaff.id });
-                }
-              })(e);
-            }}>
+            <form onSubmit={staffForm.handleSubmit((data) => {
+              if (isEditingStaff) {
+                editStaffMutation.mutate({ ...data, id: isEditingStaff.id });
+              }
+            })}>
               <div className="space-y-4">
                 <FormField
                   control={staffForm.control}
@@ -451,6 +452,7 @@ export const StaffTab = ({ businessId }: Props) => {
                       <FormLabel>Status</FormLabel>
                       <Select
                         onValueChange={field.onChange}
+                        value={field.value}
                         defaultValue={field.value}
                       >
                         <FormControl>

@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useUser } from "./hooks/use-user";
 import { Layout } from "./components/layout/Layout";
@@ -11,6 +11,7 @@ import ConsumerDashboard from "./pages/ConsumerDashboard";
 
 function App() {
   const { user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -24,15 +25,6 @@ function App() {
   // If not logged in, show auth page
   if (!user) {
     return <AuthPage />;
-  }
-
-  // If business user but no business associated, show landing page
-  if (user.role === "business" && !user.business) {
-    return (
-      <Layout>
-        <LandingPage />
-      </Layout>
-    );
   }
 
   return (
@@ -50,7 +42,7 @@ function App() {
               !user.business || 
               user.business.id !== parseInt(params.businessId)
             ) {
-              window.location.href = "/";
+              setLocation("/");
               return null;
             }
 
@@ -62,7 +54,7 @@ function App() {
         <Route path="/my-dashboard">
           {() => {
             if (!user) {
-              window.location.href = "/auth";
+              setLocation("/auth");
               return null;
             }
             return <ConsumerDashboard />;
@@ -76,7 +68,7 @@ function App() {
         <Route path="/my-bookings">
           {() => {
             if (!user) {
-              window.location.href = "/auth";
+              setLocation("/auth");
               return null;
             }
             return <BookingsPage />;

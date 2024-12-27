@@ -146,7 +146,7 @@ export const shiftTemplates = pgTable("shift_templates", {
   name: text("name").notNull(),
   startTime: text("start_time").notNull(), // Store as HH:mm format
   endTime: text("end_time").notNull(), // Store as HH:mm format
-  breakDuration: integer("break_duration").default(0), // in minutes
+  breaks: jsonb("breaks").default([]).notNull(), // Array of break objects with start, end, and type
   daysOfWeek: jsonb("days_of_week").default([]).notNull(), // Array of days when this shift applies
   color: text("color").default("#000000"),
   isActive: boolean("is_active").default(true),
@@ -453,3 +453,21 @@ export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
     references: [shiftTemplates.id],
   }),
 }));
+
+// Add validation schema for break times
+export const breakTimeSchema = z.object({
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  type: z.enum(["lunch", "coffee", "rest"]),
+  duration: z.number().min(1).max(120), // Duration in minutes
+});
+
+export const shiftTemplateSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
+  breaks: z.array(breakTimeSchema).optional().default([]),
+  daysOfWeek: z.array(z.number().min(0).max(6)).min(1, "Select at least one day"),
+  color: z.string().optional(),
+  isActive: z.boolean().optional(),
+});

@@ -6,6 +6,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import {
   Form,
@@ -16,34 +17,30 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Plus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { ShiftTemplate } from "@db/schema";
-
-const shiftTemplateSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  startTime: z.string().min(1, "Start time is required"),
-  endTime: z.string().min(1, "End time is required"),
-  breakDuration: z.coerce.number().min(0, "Break duration must be positive"),
-  daysOfWeek: z.array(z.string()).min(1, "Select at least one day"),
-  color: z.string(),
-});
+import { breakTimeSchema, shiftTemplateSchema } from "@db/schema";
 
 type ShiftTemplateFormData = z.infer<typeof shiftTemplateSchema>;
+type Break = z.infer<typeof breakTimeSchema>;
 
 interface ShiftTemplatesTabProps {
   businessId: number;
 }
 
+const BREAK_TYPES = ["lunch", "coffee", "rest"] as const;
+
 export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingTemplate, setEditingTemplate] = useState<ShiftTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<ShiftTemplateFormData | null>(null);
+  const [breaks, setBreaks] = useState<Break[]>([]);
 
-  const { data: templates = [], isLoading } = useQuery<ShiftTemplate[]>({
+  const { data: templates = [], isLoading } = useQuery<ShiftTemplateFormData[]>({
     queryKey: [`/api/businesses/${businessId}/shift-templates`],
   });
 
@@ -53,11 +50,56 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
       name: "",
       startTime: "09:00",
       endTime: "17:00",
-      breakDuration: 60,
-      daysOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      breaks: [],
+      daysOfWeek: [0, 1, 2, 3, 4], // Monday to Friday
       color: "#000000",
+      isActive: true,
     },
   });
+
+  const addBreak = () => {
+    setBreaks([
+      ...breaks,
+      {
+        startTime: "12:00",
+        endTime: "13:00",
+        type: "lunch",
+        duration: 60,
+      },
+    ]);
+  };
+
+  const removeBreak = (index: number) => {
+    setBreaks(breaks.filter((_, i) => i !== index));
+  };
+
+  const updateBreak = (index: number, field: keyof Break, value: string | number) => {
+    const updatedBreaks = [...breaks];
+    updatedBreaks[index] = {
+      ...updatedBreaks[index],
+      [field]: value,
+    };
+
+    // Auto-calculate duration when start or end time changes
+    if (field === 'startTime' || field === 'endTime') {
+      const start = parseTime(updatedBreaks[index].startTime);
+      const end = parseTime(updatedBreaks[index].endTime);
+      if (start && end) {
+        const durationInMinutes = (end - start) / (1000 * 60);
+        updatedBreaks[index].duration = durationInMinutes;
+      }
+    }
+
+    setBreaks(updatedBreaks);
+  };
+
+  // Helper function to parse time string to Date object
+  const parseTime = (timeStr: string) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
 
   const createTemplateMutation = useMutation({
     mutationFn: async (data: ShiftTemplateFormData) => {
@@ -66,7 +108,7 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify({ ...data, breaks }),
         }
       );
 
@@ -81,6 +123,7 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
         queryKey: [`/api/businesses/${businessId}/shift-templates`],
       });
       form.reset();
+      setBreaks([]);
       toast({
         title: "Success",
         description: "Shift template created successfully",
@@ -108,7 +151,7 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify({ ...data, breaks }),
         }
       );
 
@@ -124,6 +167,7 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
       });
       setEditingTemplate(null);
       form.reset();
+      setBreaks([]);
       toast({
         title: "Success",
         description: "Shift template updated successfully",
@@ -139,10 +183,11 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
   });
 
   const handleSubmit = (data: ShiftTemplateFormData) => {
+    const formData = { ...data, breaks };
     if (editingTemplate) {
-      updateTemplateMutation.mutate({ id: editingTemplate.id, data });
+      updateTemplateMutation.mutate({ id: editingTemplate.id!, data: formData });
     } else {
-      createTemplateMutation.mutate(data);
+      createTemplateMutation.mutate(formData);
     }
   };
 
@@ -161,6 +206,9 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
           <CardTitle>
             {editingTemplate ? "Edit Shift Template" : "Create New Shift Template"}
           </CardTitle>
+          <CardDescription>
+            Define shift timings and breaks for staff scheduling
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -209,19 +257,73 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="breakDuration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Break Duration (minutes)</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} min="0" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <FormLabel>Breaks</FormLabel>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addBreak}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Break
+                  </Button>
+                </div>
+
+                {breaks.map((breakItem, index) => (
+                  <div key={index} className="grid grid-cols-4 gap-2 items-end">
+                    <div>
+                      <FormLabel className="text-sm">Start</FormLabel>
+                      <Input
+                        type="time"
+                        value={breakItem.startTime}
+                        onChange={(e) =>
+                          updateBreak(index, "startTime", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <FormLabel className="text-sm">End</FormLabel>
+                      <Input
+                        type="time"
+                        value={breakItem.endTime}
+                        onChange={(e) =>
+                          updateBreak(index, "endTime", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <FormLabel className="text-sm">Type</FormLabel>
+                      <Select
+                        value={breakItem.type}
+                        onValueChange={(value) =>
+                          updateBreak(index, "type", value as Break["type"])
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BREAK_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => removeBreak(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
 
               <FormField
                 control={form.control}
@@ -254,32 +356,44 @@ export function ShiftTemplatesTab({ businessId }: ShiftTemplatesTabProps) {
             {templates.map((template) => (
               <div
                 key={template.id}
-                className="p-4 border rounded-lg flex items-center justify-between"
+                className="p-4 border rounded-lg space-y-2"
                 style={{ borderLeftColor: template.color, borderLeftWidth: 4 }}
               >
-                <div>
+                <div className="flex items-center justify-between">
                   <h3 className="font-medium">{template.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {template.startTime} - {template.endTime} ({template.breakDuration}
-                    min break)
-                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingTemplate(template);
+                      setBreaks(template.breaks || []);
+                      form.reset({
+                        name: template.name,
+                        startTime: template.startTime,
+                        endTime: template.endTime,
+                        daysOfWeek: template.daysOfWeek,
+                        color: template.color,
+                        isActive: template.isActive,
+                      });
+                    }}
+                  >
+                    Edit
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingTemplate(template);
-                    form.reset({
-                      name: template.name,
-                      startTime: template.startTime,
-                      endTime: template.endTime,
-                      breakDuration: template.breakDuration,
-                      daysOfWeek: template.daysOfWeek as string[],
-                      color: template.color,
-                    });
-                  }}
-                >
-                  Edit
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  {template.startTime} - {template.endTime}
+                </p>
+                {template.breaks && template.breaks.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium">Breaks:</p>
+                    <ul className="list-disc list-inside">
+                      {template.breaks.map((breakItem, index) => (
+                        <li key={index}>
+                          {breakItem.type}: {breakItem.startTime} - {breakItem.endTime} ({breakItem.duration} min)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ))}
           </div>

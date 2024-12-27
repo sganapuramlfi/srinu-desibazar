@@ -8,6 +8,7 @@ import { promisify } from "util";
 import { users, businesses } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
+import express from "express";
 
 const scryptAsync = promisify(scrypt);
 const crypto = {
@@ -190,7 +191,10 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
+  // API Routes
+  const authRouter = express.Router();
+
+  authRouter.post("/login", (req, res, next) => {
     passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
       if (err) {
         return next(err);
@@ -217,7 +221,101 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  app.post("/api/logout", (req, res) => {
+  authRouter.post("/register", async (req, res) => {
+    try {
+      const { username, password, email, role, business } = req.body;
+
+      // Check if username already exists
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUser) {
+        return res.status(400).json({
+          ok: false,
+          message: "Username already exists"
+        });
+      }
+
+      // Hash password
+      const hashedPassword = await crypto.hash(password);
+
+      // Create user
+      const [user] = await db
+        .insert(users)
+        .values({
+          username,
+          password: hashedPassword,
+          email,
+          role,
+          createdAt: new Date()
+        })
+        .returning();
+
+      // If business owner, create business record
+      let businessData = null;
+      if (role === "business" && business) {
+        const [createdBusiness] = await db
+          .insert(businesses)
+          .values({
+            userId: user.id,
+            name: business.name,
+            industryType: business.industryType,
+            description: business.description || null,
+            status: "active",
+            onboardingCompleted: false,
+            createdAt: new Date()
+          })
+          .returning();
+        businessData = createdBusiness;
+      }
+
+      // Log the user in automatically
+      req.login(
+        {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          createdAt: user.createdAt,
+          business: businessData
+        },
+        (err) => {
+          if (err) {
+            console.error("Auto-login failed:", err);
+            return res.status(500).json({
+              ok: false,
+              message: "Registration successful but auto-login failed"
+            });
+          }
+
+          res.json({
+            ok: true,
+            message: "Registration successful",
+            user: {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+              role: user.role,
+              createdAt: user.createdAt,
+              business: businessData,
+              needsOnboarding: role === "business"
+            }
+          });
+        }
+      );
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({
+        ok: false,
+        message: "Failed to create account"
+      });
+    }
+  });
+
+  authRouter.post("/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
         return res.status(500).json({
@@ -233,7 +331,7 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
+  authRouter.get("/user", (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({
         ok: false,
@@ -246,4 +344,9 @@ export function setupAuth(app: Express) {
       user: req.user
     });
   });
+
+  // Mount auth routes under /api prefix
+  app.use("/api", authRouter);
+
+  return app;
 }

@@ -22,26 +22,22 @@ function App() {
     );
   }
 
-  // If not logged in, show auth page
-  if (!user) {
-    return <AuthPage />;
-  }
-
-  // Redirect business users to their dashboard if they're on the root page
-  if (location === "/" && user.role === "business" && user.business) {
-    setLocation(`/dashboard/${user.business.id}`);
-    return null;
-  }
-
   return (
     <Layout>
       <Switch>
-        {/* Landing page */}
+        {/* Public routes */}
         <Route path="/" component={LandingPage} />
+        <Route path="/auth" component={AuthPage} />
+        <Route path="/business/:businessId" component={StorefrontPage} />
 
-        {/* Business Dashboard - only for business users */}
+        {/* Protected routes - require authentication */}
         <Route path="/dashboard/:businessId">
           {(params) => {
+            if (!user) {
+              setLocation("/auth");
+              return null;
+            }
+
             // Only allow if user is a business owner and owns this business
             if (
               user.role !== "business" || 
@@ -56,7 +52,6 @@ function App() {
           }}
         </Route>
 
-        {/* Consumer Dashboard - requires authentication */}
         <Route path="/my-dashboard">
           {() => {
             if (!user) {
@@ -67,10 +62,6 @@ function App() {
           }}
         </Route>
 
-        {/* Public business storefront */}
-        <Route path="/business/:businessId" component={StorefrontPage} />
-
-        {/* Customer bookings - requires authentication */}
         <Route path="/my-bookings">
           {() => {
             if (!user) {

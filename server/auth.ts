@@ -207,45 +207,53 @@ export function setupAuth(app: Express) {
 
   // Ensure JSON content type for all auth routes
   authRouter.use((req, res, next) => {
-    res.type('json');
+    res.type('application/json');
     next();
   });
 
   authRouter.post("/login", (req, res, next) => {
     console.log('[Auth] Processing login request');
     passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
-      if (err) {
-        console.error('[Auth] Login error:', err);
-        return res.status(500).json({
-          ok: false,
-          message: "Internal server error during login"
-        });
-      }
-
-      if (!user) {
-        console.log('[Auth] Login failed:', info.message);
-        return res.status(400).json({
-          ok: false,
-          message: info.message ?? "Login failed"
-        });
-      }
-
-      req.logIn(user, (err) => {
+      try {
         if (err) {
-          console.error('[Auth] Login error during session creation:', err);
+          console.error('[Auth] Login error:', err);
           return res.status(500).json({
             ok: false,
-            message: "Failed to create session"
+            message: "Internal server error during login"
           });
         }
 
-        console.log(`[Auth] Login successful for user: ${user.username}`);
-        return res.json({
-          ok: true,
-          message: "Login successful",
-          user
+        if (!user) {
+          console.log('[Auth] Login failed:', info.message);
+          return res.status(400).json({
+            ok: false,
+            message: info.message ?? "Login failed"
+          });
+        }
+
+        req.logIn(user, (err) => {
+          if (err) {
+            console.error('[Auth] Login error during session creation:', err);
+            return res.status(500).json({
+              ok: false,
+              message: "Failed to create session"
+            });
+          }
+
+          console.log(`[Auth] Login successful for user: ${user.username}`);
+          return res.json({
+            ok: true,
+            message: "Login successful",
+            user
+          });
         });
-      });
+      } catch (error) {
+        console.error('[Auth] Unexpected login error:', error);
+        return res.status(500).json({
+          ok: false,
+          message: "Internal server error"
+        });
+      }
     })(req, res, next);
   });
 
@@ -396,7 +404,10 @@ export function setupAuth(app: Express) {
     }
 
     console.log(`[Auth] User info request successful for: ${req.user.username}`);
-    res.json(req.user);
+    res.json({
+      ok: true,
+      user: req.user
+    });
   });
 
   // Mount auth routes under /api prefix

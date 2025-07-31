@@ -1,0 +1,191 @@
+{
+  "salon": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "defaultBookingRules": {
+        "advanceBookingHours": 2,
+        "maxAdvanceBookingDays": 60,
+        "cancellationHours": 24,
+        "bufferMinutes": 15,
+        "allowDoubleBooking": false,
+        "requireDeposit": false
+      },
+      "staffManagement": {
+        "enableSkillTracking": true,
+        "enableRosterManagement": true,
+        "enablePerformanceMetrics": true
+      },
+      "clientManagement": {
+        "enableLoyaltyProgram": true,
+        "enableClientHistory": true,
+        "enablePreferences": true
+      },
+      "features": {
+        "walkInBookings": true,
+        "onlineBookings": true,
+        "staffSelection": true,
+        "servicePackages": false,
+        "membershipPrograms": false
+      }
+    }
+  },
+  "restaurant": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "defaultBookingRules": {
+        "advanceBookingHours": 1,
+        "maxAdvanceBookingDays": 30,
+        "cancellationHours": 2,
+        "bufferMinutes": 30,
+        "allowDoubleBooking": true,
+        "requireDeposit": false
+      },
+      "tableManagement": {
+        "enableTableSelection": true,
+        "enableWaitingList": true,
+        "enableSpecialRequests": true
+      },
+      "features": {
+        "walkInBookings": true,
+        "onlineReservations": true,
+        "tableSelection": false,
+        "menuIntegration": false,
+        "preOrdering": false
+      }
+    }
+  },
+  "realestate": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "defaultBookingRules": {
+        "advanceBookingHours": 24,
+        "maxAdvanceBookingDays": 90,
+        "cancellationHours": 24,
+        "bufferMinutes": 60,
+        "allowDoubleBooking": false,
+        "requireDeposit": false
+      },
+      "propertyManagement": {
+        "enableVirtualTours": false,
+        "enableDocumentSharing": false,
+        "enableAgentSelection": true
+      },
+      "features": {
+        "propertyViewings": true,
+        "consultations": true,
+        "documentSigning": false,
+        "mortgageCalculator": false
+      }
+    }
+  },
+  "eventmanagement": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "defaultBookingRules": {
+        "advanceBookingHours": 168,
+        "maxAdvanceBookingDays": 365,
+        "cancellationHours": 168,
+        "bufferMinutes": 120,
+        "allowDoubleBooking": false,
+        "requireDeposit": true
+      },
+      "eventManagement": {
+        "enableVenueSelection": true,
+        "enableCatering": false,
+        "enableEquipmentRental": false
+      },
+      "features": {
+        "eventPlanning": true,
+        "venueBooking": true,
+        "multiDayEvents": false,
+        "recurringEvents": false
+      }
+    }
+  },
+  "retail": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "defaultBookingRules": {
+        "advanceBookingHours": 1,
+        "maxAdvanceBookingDays": 14,
+        "cancellationHours": 2,
+        "bufferMinutes": 15,
+        "allowDoubleBooking": true,
+        "requireDeposit": false
+      },
+      "retailManagement": {
+        "enableInventoryTracking": false,
+        "enablePersonalShopping": true,
+        "enableProductReservation": true
+      },
+      "features": {
+        "appointmentShopping": true,
+        "productConsultation": true,
+        "pickupBooking": false,
+        "deliveryScheduling": false
+      }
+    }
+  },
+  "professionalservices": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "defaultBookingRules": {
+        "advanceBookingHours": 4,
+        "maxAdvanceBookingDays": 60,
+        "cancellationHours": 24,
+        "bufferMinutes": 30,
+        "allowDoubleBooking": false,
+        "requireDeposit": false
+      },
+      "professionalManagement": {
+        "enableConsultations": true,
+        "enableDocumentSharing": true,
+        "enableVideoMeetings": false
+      },
+      "features": {
+        "consultations": true,
+        "serviceDelivery": true,
+        "followUpBooking": true,
+        "documentReview": false
+      }
+    }
+  },
+  "ai": {
+    "enabled": true,
+    "version": "1.0.0",
+    "settings": {
+      "provider": "mock",
+      "providerConfig": {
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.7,
+        "maxTokens": 1000
+      },
+      "features": {
+        "smartBooking": true,
+        "customerInsights": true,
+        "staffOptimization": true,
+        "priceOptimization": false,
+        "reviewAnalysis": true,
+        "marketingInsights": false,
+        "predictiveAnalytics": false,
+        "chatbot": false
+      },
+      "dataRetention": {
+        "days": 30,
+        "anonymize": true,
+        "excludePersonalData": true
+      },
+      "rateLimit": {
+        "requestsPerMinute": 10,
+        "requestsPerHour": 100,
+        "requestsPerDay": 1000
+      }
+    }
+  }
+}

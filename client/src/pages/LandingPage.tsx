@@ -27,7 +27,7 @@ import {
   Briefcase,
   MapPin,
 } from "lucide-react";
-import type { Business } from "@db/schema";
+import type { Business } from "../types/db";
 
 const industries = [
   { id: "salon", icon: Scissors, name: "Salon & Spa" },

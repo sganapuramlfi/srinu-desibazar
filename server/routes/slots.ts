@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db } from "@db";
-import { serviceSlots, salonServices, salonStaff, shiftTemplates, staffSchedules } from "@db/schema";
+import { db } from "../db";
+import { serviceSlots, salonServices, salonStaff, shiftTemplates, staffSchedules } from "../db/schema";
 import { eq, and, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { format, parse, addMinutes, isWithinInterval } from "date-fns";
@@ -236,3 +236,10 @@ const normalizeDate = (date: Date): Date => {
 };
 
 export default router;
+
+// Helper function to get the end of the day
+const endOfDay = (date: Date): Date => {
+  const d = new Date(date);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+};

@@ -248,6 +248,23 @@ export const bookingRelations = relations(bookings, ({ one, many }) => ({
   messages: many(messages),
 }));
 
+// AI Subscriptions table for managing user interest in AI features
+export const aiSubscriptions = pgTable("ai_subscriptions", {
+  id: serial("id").primaryKey(),
+  email: text("email").unique().notNull(),
+  features: text("features").default('[]'), // JSON string of subscribed features
+  notifyOnLaunch: boolean("notify_on_launch").default(true),
+  subscribed: boolean("subscribed").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// AI Subscription schemas
+export const insertAISubscriptionSchema = createInsertSchema(aiSubscriptions);
+export const selectAISubscriptionSchema = createSelectSchema(aiSubscriptions);
+export type AISubscription = typeof aiSubscriptions.$inferSelect;
+export type InsertAISubscription = typeof aiSubscriptions.$inferInsert;
+
 export const messageRelations = relations(messages, ({ one }) => ({
   sender: one(users, {
     fields: [messages.senderId],

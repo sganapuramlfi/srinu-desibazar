@@ -1,0 +1,1302 @@
+E-Commerce and Service Business Platform - V2 Architecture
+
+1. Core System Components
+
+    A. Navigation System
+        1. Global Navbar
+            - User authentication status
+            - Search with auto-suggestions
+            - Quick access menu (Home, Services, Orders)
+            - Shopping cart with preview
+            - Notification center
+            - Language selector
+            - User profile dropdown
+
+        2. Footer Structure
+            - Company information and links
+            - Quick navigation links
+            - Social media integration
+            - Newsletter signup
+            - Support contact information
+            - Legal links (Terms, Privacy)
+            - App download links
+
+    B. Database Models
+        1. User Management
+            A. User
+                - user_id (PK)
+                - email
+                - phone
+                - password_hash
+                - user_type (admin/business/customer)
+                - status
+                - created_at
+                - last_login
+                - preferences_id (FK)
+                - settings_id (FK)
+
+            B. UserProfile
+                - profile_id (PK)
+                - user_id (FK)
+                - first_name
+                - last_name
+                - profile_image
+                - contact_preferences
+                - notification_settings
+                - language_preference
+                - timezone
+
+        2. Business Management
+            A. Business
+                - business_id (PK)
+                - user_id (FK)
+                - business_name
+                - business_type
+                - description
+                - logo_url
+                - cover_image_url
+                - status
+                - verification_status
+                - created_at
+                - updated_at
+
+            B. BusinessLocation
+                - location_id (PK)
+                - business_id (FK)
+                - address_line1
+                - address_line2
+                - city
+                - state
+                - country
+                - postal_code
+                - latitude
+                - longitude
+                - operating_hours
+                - contact_info
+
+            C. BusinessCategory
+                - category_id (PK)
+                - parent_category_id (FK)
+                - name
+                - description
+                - icon_url
+                - status
+                - display_order
+
+        3. Service Management
+            A. Service
+                - service_id (PK)
+                - business_id (FK)
+                - name
+                - description
+                - duration
+                - price
+                - category_id (FK)
+                - status
+                - created_at
+                - updated_at
+                - version
+
+            B. ServiceVariant
+                - variant_id (PK)
+                - service_id (FK)
+                - name
+                - duration
+                - price
+                - description
+                - status
+
+        4. Staff Management
+            A. Staff
+                - staff_id (PK)
+                - business_id (FK)
+                - user_id (FK)
+                - role
+                - status
+                - joining_date
+                - skills
+                - certifications
+                - availability_template
+
+            B. StaffService
+                - staff_service_id (PK)
+                - staff_id (FK)
+                - service_id (FK)
+                - proficiency_level
+                - is_primary
+
+        5. Schedule Management
+            A. Schedule
+                - schedule_id (PK)
+                - business_id (FK)
+                - staff_id (FK)
+                - date
+                - start_time
+                - end_time
+                - status
+                - created_at
+
+            B. TimeSlot
+                - slot_id (PK)
+                - schedule_id (FK)
+                - start_time
+                - end_time
+                - status
+                - booking_id (FK)
+                - created_at
+
+        6. Booking Management
+            A. Booking
+                - booking_id (PK)
+                - customer_id (FK)
+                - service_id (FK)
+                - staff_id (FK)
+                - slot_id (FK)
+                - status
+                - created_at
+                - updated_at
+                - notes
+                - payment_status
+
+            B. BookingHistory
+                - history_id (PK)
+                - booking_id (FK)
+                - status
+                - changed_by
+                - changed_at
+                - notes
+
+        7. Ad Space Management
+            A. AdSpace
+                - space_id (PK)
+                - location_type (landing/category/storefront/search)
+                - position_name
+                - dimensions
+                - price_per_day
+                - min_duration
+                - max_duration
+                - status
+                - availability_status
+                - targeting_rules
+                - rotation_rules
+
+            B. AdCampaign
+                - campaign_id (PK)
+                - business_id (FK)
+                - space_id (FK)
+                - start_date
+                - end_date
+                - budget
+                - status
+                - approval_status
+                - targeting_settings
+                - performance_metrics
+
+            C. AdContent
+                - content_id (PK)
+                - campaign_id (FK)
+                - media_url
+                - headline
+                - description
+                - call_to_action
+                - landing_url
+                - status
+                - version
+
+            D. AdPerformance
+                - performance_id (PK)
+                - campaign_id (FK)
+                - date
+                - impressions
+                - clicks
+                - conversions
+                - spend
+                - roi
+                - engagement_metrics
+
+        8. Media Management
+            A. Media
+                - media_id (PK)
+                - business_id (FK)
+                - type
+                - url
+                - thumbnail_url
+                - status
+                - created_at
+                - metadata
+                - usage_context
+
+            B. MediaGallery
+                - gallery_id (PK)
+                - business_id (FK)
+                - name
+                - description
+                - status
+                - created_at
+
+        9. Payment Management
+            A. Payment
+                - payment_id (PK)
+                - booking_id (FK)
+                - amount
+                - currency
+                - status
+                - payment_method
+                - transaction_id
+                - created_at
+
+            B. AdPayment
+                - ad_payment_id (PK)
+                - campaign_id (FK)
+                - amount
+                - currency
+                - status
+                - payment_method
+                - transaction_id
+                - created_at
+
+        10. Notification Management
+            A. Notification
+                - notification_id (PK)
+                - user_id (FK)
+                - type
+                - content
+                - status
+                - created_at
+                - read_at
+
+            B. NotificationPreference
+                - preference_id (PK)
+                - user_id (FK)
+                - notification_type
+                - channel
+                - enabled
+                - updated_at
+
+        11. Review Management
+            A. Review
+                - review_id (PK)
+                - business_id (FK)
+                - customer_id (FK)
+                - booking_id (FK)
+                - rating
+                - comment
+                - status
+                - created_at
+                - response_id (FK)
+
+            B. ReviewResponse
+                - response_id (PK)
+                - review_id (FK)
+                - response_text
+                - responded_by
+                - created_at
+
+        12. Analytics
+            A. BusinessAnalytics
+                - analytics_id (PK)
+                - business_id (FK)
+                - date
+                - views
+                - bookings
+                - revenue
+                - ad_performance
+                - customer_satisfaction
+
+            B. AdAnalytics
+                - ad_analytics_id (PK)
+                - campaign_id (FK)
+                - date
+                - impressions
+                - clicks
+                - conversions
+                - cost
+                - roi
+
+    2. User Interface Components
+
+    A. Business Directory Features
+        1. Advanced Search and Discovery
+            - Multi-parameter search
+            - Location-based results
+            - Category navigation
+            - Filter by ratings/reviews
+            - Business verification badges
+            - Featured listings
+
+        2. Business Listing Display
+            - Comprehensive business profiles
+            - Rich media galleries
+            - Service/product catalogs
+            - Operating hours
+            - Location maps
+            - Social proof elements
+            - Direct contact options
+
+        3. Ad Space Grid Layout
+            - Premium ad spaces (top banner)
+            - Featured business grid (4x4)
+            - Category-specific ad slots
+            - Sidebar promotional space
+            - Sponsored search results
+            - Each ad box includes:
+                * High-quality image
+                * Business name
+                * Rating preview
+                * Clear CTA button
+                * Special offer tag
+                * Verification badge
+
+        4. Business Showcase
+            - Trending businesses
+            - New additions
+            - Special offers
+            - Success stories
+            - Industry leaders
+            - Local favorites
+
+    B. Modern Storefront
+        1. Header Components
+            - Business banner/hero image
+            - Business logo
+            - Quick contact options
+            - Operating hours
+            - Rating overview
+            - Social media links
+            - Instant messaging
+
+        2. Business Amenities Display
+            - Featured amenities grid
+            - Facility photos
+            - Service highlights
+            - Special equipment/features
+            - Accessibility options
+            - Business certifications
+            - Awards and recognition
+
+        3. Service Presentation
+            - Service categories
+            - Pricing tables
+            - Booking options
+            - Special packages
+            - Team profiles
+            - Service guarantees
+            - Customer testimonials
+
+3. Business Operations
+
+    A. Quote Management
+        1. Quote Generation
+            - Service selection interface
+            - Custom pricing options
+            - Terms and conditions
+            - Validity period
+
+        2. Quote Processing
+            - Quote approval workflow
+            - Client communication
+            - Quote modification
+            - Conversion to order
+
+    B. Order Management
+        1. Order Processing
+            - Order creation
+            - COD handling
+            - Status tracking
+            - Delivery management
+
+        2. Payment Options
+            - Online payment
+            - Cash on Delivery (COD)
+            - Split payment
+            - Refund processing
+
+    C. Messaging System
+        1. Basic Messaging
+            - Customer inquiries
+            - Order communications
+            - Quote discussions
+            - Template responses
+
+        2. Notification System
+            - Order updates
+            - Quote status
+            - Booking confirmations
+            - Payment receipts
+
+4. Business Management Tools
+
+    A. Ad Space Management
+        1. Ad Space Inventory
+            - Premium positions
+            - Category-specific spaces
+            - Sidebar placements
+            - Featured slots
+            - Search result placements
+            - Industry-specific packages
+
+        2. Ad Campaign Tools
+            - Campaign creator
+            - Pricing calculator
+            - Performance metrics
+            - Scheduling system
+            - Target audience selection
+            - Budget management
+            - ROI tracking
+
+        3. Business Promotion Tools
+            - Promotional offer manager
+            - Event announcements
+            - Special deals creator
+            - Seasonal campaign tools
+            - Local area targeting
+            - Customer segment targeting
+
+        4. Analytics and Reporting
+            - Ad performance metrics
+            - Engagement analytics
+            - Conversion tracking
+            - Competitor analysis
+            - Market insights
+            - Budget optimization
+            - ROI reports
+
+    B. Staff and Resource Management
+        1. Employee Management
+            - Employee profiles with skill matrix
+            - Performance tracking
+            - Certification management
+            - Training records
+            - Leave management
+            - Document storage
+            - Access control levels
+
+        2. Roster Management
+            - Shift templates creation
+            - Drag-and-drop scheduling
+            - Leave request handling
+            - Shift swapping system
+            - Break management
+            - Overtime tracking
+            - Availability preferences
+
+        3. Service Mapping
+            - Staff-to-service assignment
+            - Skill requirement matching
+            - Resource allocation
+            - Workload distribution
+            - Coverage analysis
+            - Capacity planning
+            - Training needs identification
+
+    C. Booking and Slot Management
+        1. Auto Slot System
+            - Automatic slot generation
+            - Service duration rules
+            - Staff availability check
+            - Resource availability check
+            - Buffer time management
+            - Concurrent booking handling
+            - Overbooking prevention
+
+        2. Manual Slot Configuration
+            - Custom slot creation
+            - Block time management
+            - Special hour settings
+            - Holiday management
+            - Exception handling
+            - Capacity adjustments
+            - Priority booking rules
+
+        3. Booking Integration
+            - Real-time availability updates
+            - Multi-service booking
+            - Resource dependency check
+            - Conflict resolution
+            - Waitlist management
+            - Booking modification rules
+            - Cancellation handling
+
+        4. Schedule Optimization
+            - Peak hour management
+            - Resource utilization
+            - Staff workload balancing
+            - Service time optimization
+            - Break time coordination
+            - Shift transition handling
+            - Emergency coverage
+
+5. Industry-Specific Features
+
+    A. Common Dashboard Features
+        1. Core Functions
+            - Order management
+            - Customer management
+            - Staff management
+            - Financial overview
+
+        2. Analytics
+            - Performance metrics
+            - Revenue tracking
+            - Customer insights
+            - Ad performance
+
+    B. Industry Customization
+        1. Restaurant Module
+            - Menu management with categories
+            - Table reservations
+            - Kitchen display system
+            - Delivery integration
+            - Order tracking
+            - Ingredient management
+            - Real-time updates
+
+        2. Real Estate
+            - Property listings with media
+            - Virtual tours
+            - Lead management
+            - Market analysis
+            - Property tour scheduling
+            - Agent availability
+            - Property comparisons
+
+        3. Professional Services
+            - Appointment scheduling
+            - Client portfolio
+            - Project tracking
+            - Document management
+            - Service packages
+            - Custom quotes
+            - Client history
+
+        4. Event Management
+            - Event page creation
+            - Ticket management
+            - Venue booking
+            - Vendor coordination
+            - Guest list management
+            - Event timeline
+            - Promotional tools
+
+        5. E-commerce
+            - Product catalog
+            - Inventory management
+            - Shopping cart
+            - Order processing
+            - Payment gateway
+            - Shipping integration
+            - Returns handling
+
+        6. Retail
+            - POS integration
+            - Stock management
+            - Customer loyalty
+            - Discount management
+            - Sales analytics
+            - Store locations
+            - Staff scheduling
+
+        Each industry module includes:
+            - Industry-specific dashboard
+            - Custom reporting
+            - Specialized features
+            - Unique workflows
+            - Integration options
+            - Compliance tools
+            - Industry metrics
+
+6. Onboarding Workflows
+
+    A. Business Onboarding
+        1. Setup Process
+            - Industry selection
+            - Profile creation
+            - Service setup
+            - Staff configuration
+
+        2. Industry-Specific Setup
+            - Custom field configuration
+            - Feature activation
+            - Integration setup
+            - Compliance checks
+
+    B. Customer Onboarding
+        1. Registration
+            - Basic profile
+            - Preferences setup
+            - Location settings
+
+        2. Feature Introduction
+            - Guided tour
+            - Feature highlights
+            - Quick start guide
+
+7. Data Management and Reporting
+
+    A. Data Import System
+        1. Bulk Data Import
+            - Excel/CSV file import
+            - Template-based imports
+            - Data validation rules
+            - Error handling
+            - Duplicate detection
+            - Batch processing
+            - Import history
+
+        2. Import Templates
+            - Employee data templates
+            - Roster templates
+            - Service catalog templates
+            - Product inventory templates
+            - Customer data templates
+            - Supplier templates
+            - Price list templates
+
+    B. Data Export System
+        1. Report Exports
+            - Financial reports
+            - Performance reports
+            - Staff attendance reports
+            - Service analytics
+            - Customer insights
+            - Ad performance reports
+            - Custom report builder
+
+        2. Operational Exports
+            - Roster schedules
+            - Employee timesheets
+            - Service schedules
+            - Inventory lists
+            - Customer databases
+            - Order histories
+            - Booking records
+
+        3. Export Formats
+            - Excel/CSV
+            - PDF reports
+            - JSON/XML data
+            - API integrations
+            - Scheduled exports
+            - Email delivery
+            - Cloud storage sync
+
+    C. Data Integration
+        1. API Connections
+            - REST API endpoints
+            - Webhook support
+            - Real-time sync
+            - Third-party integrations
+            - Custom API keys
+            - Rate limiting
+            - Security protocols
+
+        2. External Systems
+            - Accounting software
+            - HR systems
+            - CRM platforms
+            - Payment gateways
+            - Marketing tools
+            - Analytics platforms
+            - Cloud storage
+
+    D. Report Builder
+        1. Custom Reports
+            - Drag-and-drop builder
+            - Field selection
+            - Filter creation
+            - Custom calculations
+            - Chart generation
+            - Conditional formatting
+            - Saved templates
+
+        2. Scheduling Options
+            - Automated generation
+            - Email distribution
+            - Export scheduling
+            - Report archiving
+            - Access permissions
+            - Version control
+            - Audit trails
+
+8. Ad Space Management System
+
+    A. Admin Ad Space Configuration
+        1. Ad Space Definition
+            - Define ad positions on all pages
+                * Landing page spaces
+                * Category page spaces
+                * Storefront spaces
+                * Search result spaces
+                * Industry-specific page spaces
+            - Set pricing for each position
+            - Define duration options
+            - Set targeting rules
+            - Configure approval workflow
+
+        2. Ad Space Management
+            - Enable/disable ad spaces
+            - Set space dimensions
+            - Define content guidelines
+            - Set minimum bid prices
+            - Configure rotation rules
+            - Manage space availability
+            - Set industry restrictions
+
+    B. Business User Ad Purchasing
+        1. Ad Space Discovery
+            - Browse available spaces
+            - View space specifications
+            - See current rates
+            - Check availability
+            - Preview ad positions
+            - View traffic statistics
+            - See demographic data
+
+        2. Ad Purchase Process
+            - Select ad space location
+                * Landing page options
+                * Category-specific placements
+                * Cross-industry targeting
+                * Geographic targeting
+            - Choose duration
+            - Set budget
+            - Upload ad content
+            - Preview placement
+            - Make payment
+            - Submit for approval
+
+    C. Ad Space Locations
+        1. Landing Page
+            - Hero banner space
+            - Featured business grid
+            - Category header spaces
+            - Sidebar promotions
+            - Footer banner spaces
+            - Pop-up ad spaces
+            - Sticky banner positions
+
+        2. Category Pages
+            - Category header banners
+            - Sidebar promotional spaces
+            - In-grid ad positions
+            - Featured listing spaces
+            - Bottom banner spaces
+            - Interstitial spaces
+
+        3. Storefront Integration
+            - Header banner spaces
+            - Side panel promotions
+            - Related business spaces
+            - Service section ads
+            - Footer promotion spaces
+
+        4. Search Results
+            - Top banner positions
+            - Sponsored listing spots
+            - Side banner spaces
+            - Bottom banner positions
+            - Featured result spaces
+
+    D. Ad Targeting Options
+        1. Demographic Targeting
+            - Age groups
+            - Location
+            - Interests
+            - Behavior patterns
+            - Device types
+            - Time of day
+            - User preferences
+
+        2. Industry Targeting
+            - Cross-industry promotion
+            - Complementary services
+            - Geographic relevance
+            - Customer segment match
+            - Business size targeting
+            - Service type matching
+
+    E. Admin Approval System
+        1. Approval Workflow
+            - Review new ad submissions
+            - Check content compliance
+            - Verify targeting rules
+            - Validate budget allocation
+            - Approve/reject with comments
+            - Request modifications
+            - Track approval history
+
+        2. Monitoring Tools
+            - Performance tracking
+            - Content moderation
+            - Budget utilization
+            - Engagement metrics
+            - ROI analysis
+            - Compliance checking
+            - Issue resolution
+
+    F. Ad Performance Management
+        1. Analytics Dashboard
+            - View impressions
+            - Track click-through rates
+            - Monitor conversions
+            - Analyze user behavior
+            - Review engagement metrics
+            - Track ROI
+            - Compare placements
+
+        2. Optimization Tools
+            - A/B testing
+            - Budget optimization
+            - Targeting refinement
+            - Content suggestions
+            - Performance alerts
+            - Automated adjustments
+
+    G. Business User Dashboard Integration
+        1. Ad Management Section
+            - View active campaigns
+            - Monitor performance
+            - Manage budgets
+            - Edit ad content
+            - Schedule changes
+            - Request new placements
+            - View approval status
+
+        2. Quick Actions
+            - Extend campaigns
+            - Adjust budgets
+            - Pause/resume ads
+            - Request changes
+            - View reports
+            - Contact support
+            - Schedule future ads
+
+9. Business User Journey and Workflow
+
+    1. Initial Login & Setup
+        A. Business User Login
+            - Login using email/phone and password
+            - Option for social login or SSO
+            - Two-factor authentication if enabled
+            - Password recovery options
+
+        B. First-Time Setup Wizard
+            1. Business Profile Setup
+                - Business name and contact details
+                - Business category selection
+                - Operating hours
+                - Location details and map pin
+                - Upload logo and business photos
+
+            2. Storefront Creation
+                - Choose storefront template
+                - Customize colors and layout
+                - Add business description
+                - Set up amenities list
+                - Upload gallery images
+                - Add business certificates/awards
+
+    2. Business Dashboard Overview
+        A. Main Dashboard Tabs
+            1. Overview Tab
+                - Today's appointments/bookings
+                - Recent customer messages
+                - Pending tasks
+                - Revenue snapshot
+                - Recent reviews
+                - Quick action buttons
+                - Industry-specific metrics
+                - Promotional alerts
+
+            2. Bookings Tab
+                - Calendar view of all bookings
+                - List view of appointments
+                - Booking status indicators
+                - Filter options (date, service, staff)
+                - Action buttons (confirm/reject)
+                - Slot availability view
+                - Resource allocation view
+
+            3. Services Tab
+                - Service catalog
+                - Add/edit services
+                - Service pricing
+                - Service duration settings
+                - Service-staff mapping
+                - Industry-specific service templates
+                - Bulk service import/export
+
+            4. Staff Tab
+                - Employee list
+                - Staff schedules
+                - Leave management
+                - Performance metrics
+                - Training records
+                - Skill matrix
+                - Document management
+
+            5. Schedule Tab
+                - Roster management
+                - Shift templates
+                - Staff availability
+                - Holiday calendar
+                - Break management
+                - Roster templates import/export
+                - Bulk schedule updates
+
+            6. Marketing Tab
+                - Ad space management
+                    * Premium ad positions
+                    * Ad performance metrics
+                    * Ad budget management
+                    * Target audience settings
+                - Promotional offers
+                    * Create/edit promotions
+                    * Promotion templates
+                    * Scheduling tools
+                    * Target customer segments
+                - Campaign analytics
+                - Customer feedback
+                - Social media integration
+
+            7. Messages Tab
+                - Customer inquiries
+                - Booking-related messages
+                - Quote requests
+                - Template responses
+                - Message categories
+                - Chat history
+                - File attachments
+
+            8. Industry Tools Tab (Dynamic based on industry)
+                - Restaurant:
+                    * Menu management
+                    * Table layout
+                    * Delivery integration
+                - Real Estate:
+                    * Property listings
+                    * Client management
+                    * Viewing schedule
+                - Professional Services:
+                    * Project tracking
+                    * Client files
+                    * Consultation notes
+
+            9. Reports Tab
+                - Business analytics
+                - Staff performance
+                - Service popularity
+                - Revenue reports
+                - Export options
+                    * PDF reports
+                    * Excel/CSV exports
+                    * Scheduled reports
+                    * Custom report builder
+
+    3. Business Setup Workflow
+        A. Service Management
+            1. Define Services
+                - Add service name and description
+                - Set pricing and duration
+                - Add service images
+                - Specify required resources
+                - Set availability rules
+                - Import services from template
+                - Bulk service upload
+
+            2. Staff Setup
+                - Create employee profiles
+                - Set qualifications
+                - Define working hours
+                - Specify service capabilities
+                - Import staff data
+                - Bulk staff upload
+
+            3. Shift Templates
+                - Create standard shifts
+                - Set shift timings
+                - Define break periods
+                - Set staff capacity
+                - Import shift templates
+                - Export roster data
+
+            4. Service-Employee Mapping
+                - Assign services to staff
+                - Set individual timings
+                - Define service priorities
+                - Set backup staff
+                - Bulk mapping import/export
+
+    4. Booking Management
+        A. Slot Configuration
+            1. Auto Slot System
+                - Set service intervals
+                - Define buffer times
+                - Set maximum bookings
+                - Configure overlap rules
+                - Peak hour settings
+                - Resource dependency rules
+                - Holiday exceptions
+
+            2. Manual Slot System
+                - Create custom time slots
+                - Block off times
+                - Set special hours
+                - Manage exceptions
+                - Import slot templates
+                - Bulk slot creation
+
+            3. Advanced Slot Settings
+                - Service-specific rules
+                - Staff-specific availability
+                - Resource allocation rules
+                - Concurrent booking limits
+                - Waitlist management
+                - Overbooking rules
+                - Emergency slot creation
+
+    5. Media Management
+        A. Image Gallery
+            - Storefront images
+            - Service photos
+            - Staff photos
+            - Promotional banners
+            - Slider images
+            - Before/after photos
+            - Virtual tour images
+
+        B. Media Library
+            - Folder organization
+            - Bulk upload
+            - Image optimization
+            - Watermark management
+            - Caption management
+            - Alt text settings
+            - Usage tracking
+
+    6. Communication Center
+        A. In-App Messaging
+            1. Message Categories
+                - Booking inquiries
+                - Quote requests
+                - General questions
+                - Feedback/complaints
+                - Staff communications
+
+            2. Message Features
+                - Quick replies
+                - Message templates
+                - File attachments
+                - Read receipts
+                - Message history
+                - Contact management
+                - Message export
+
+    7. Management Operations
+
+        A. Service Management
+            1. Service Operations
+                - Add new service
+                - Edit existing service
+                - Delete service (with dependency check)
+                - Preview service listing
+                - Duplicate service
+                - Bulk service actions
+                - Service status toggle
+                - Version history
+
+            2. Service Validation
+                - Dependency checking
+                - Price validation
+                - Duration validation
+                - Resource availability check
+                - Staff capability check
+                - Preview before publish
+
+        B. Staff Management
+            1. Staff Operations
+                - Add new staff member
+                - Edit staff details
+                - Deactivate/reactivate staff
+                - Archive staff records
+                - Transfer staff assignments
+                - Preview staff profile
+                - Bulk staff updates
+                - Document verification
+
+            2. Staff Validation
+                - Qualification check
+                - Service capability validation
+                - Schedule conflict check
+                - Document expiry alerts
+                - Training requirement check
+
+        C. Shift Management
+            1. Shift Operations
+                - Create new shift
+                - Edit shift details
+                - Delete shift (with warning)
+                - Copy shift template
+                - Preview shift schedule
+                - Bulk shift creation
+                - Shift status toggle
+                - Emergency shift creation
+
+            2. Shift Validation
+                - Staff availability check
+                - Service coverage check
+                - Break time validation
+                - Overlap detection
+                - Resource allocation check
+
+        D. Media Management
+            1. Image Operations
+                - Upload new images
+                - Edit image details
+                - Delete images
+                - Preview images
+                - Crop/resize images
+                - Add watermarks
+                - Bulk image actions
+                - Gallery organization
+
+            2. Media Validation
+                - File size check
+                - Format validation
+                - Resolution check
+                - Usage dependency check
+                - Storage limit check
+
+        E. Roster Management
+            1. Roster Operations
+                - Create new roster
+                - Edit roster entries
+                - Delete roster entries
+                - Copy roster template
+                - Preview roster
+                - Publish roster
+                - Bulk roster updates
+                - Emergency changes
+
+            2. Roster Validation
+                - Staff availability check
+                - Service coverage validation
+                - Break time compliance
+                - Overtime rules check
+                - Skill requirement check
+
+        F. Promotion Management
+            1. Promotion Operations
+                - Create new promotion
+                - Edit promotion details
+                - Delete promotion
+                - Preview promotion
+                - Duplicate promotion
+                - Schedule promotion
+                - Track promotion usage
+                - Bulk promotion actions
+
+            2. Promotion Validation
+                - Date range check
+                - Price validation
+                - Target audience check
+                - Conflict detection
+                - Usage limit check
+
+        G. Ad Management
+            1. Ad Operations
+                - Create new ad
+                - Edit ad content
+                - Delete ad
+                - Preview ad
+                - Schedule ad
+                - Duplicate ad
+                - Track ad performance
+                - Bulk ad management
+
+            2. Ad Validation
+                - Content guidelines check
+                - Image quality check
+                - Target audience validation
+                - Budget verification
+                - Placement availability
+
+        H. Common Operations Features
+            1. Action Confirmation
+                - Warning messages
+                - Dependency alerts
+                - Impact assessment
+                - Undo options
+                - Action logging
+
+            2. Bulk Operations
+                - Select multiple items
+                - Batch processing
+                - Progress tracking
+                - Error handling
+                - Result summary
+
+            3. Preview Functions
+                - Live preview
+                - Mobile view
+                - Desktop view
+                - Print preview
+                - Email preview
+
+            4. Version Control
+                - Change history
+                - Revision tracking
+                - Rollback options
+                - Audit trail
+                - Change comparison
+
+    7. Booking Management Workflow
+        A. New Booking Notification
+            - Instant dashboard alert
+            - Email notification
+            - Mobile app notification
+            - Booking details preview
+
+        B. Booking Actions
+            1. Review Booking
+                - Check customer details
+                - Verify service requirements
+                - Check staff availability
+                - Review special requests
+
+            2. Confirm Booking
+                - Send confirmation to customer
+                - Update staff schedule
+                - Generate booking reference
+                - Add to calendar
+
+            3. Reject Booking
+                - Select rejection reason
+                - Provide alternative options
+                - Send notification to customer
+                - Update availability
+
+            4. Modify Booking
+                - Change date/time
+                - Reassign staff
+                - Update service details
+                - Send update notification
+
+    8. Dashboard Views
+        A. Calendar View
+            - Daily/weekly/monthly views
+            - Color-coded services
+            - Staff assignments
+            - Booking status indicators
+
+        B. List View
+            - Upcoming appointments
+            - Recent bookings
+            - Pending confirmations
+            - Booking history
+
+        C. Staff View
+            - Individual schedules
+            - Service assignments
+            - Break times
+            - Performance metrics

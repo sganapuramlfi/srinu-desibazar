@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { breakTimeSchema, shiftTemplateSchema } from "@db/schema";
+import { breakTimeSchema, shiftTemplateSchema } from "../types/db";
 
 type ShiftTemplateFormData = z.infer<typeof shiftTemplateSchema>;
 type Break = z.infer<typeof breakTimeSchema>;

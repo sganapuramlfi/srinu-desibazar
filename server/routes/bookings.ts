@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { db } from "@db";
+import { db } from "../db";
 import { eq, and, not } from "drizzle-orm";
 import { z } from "zod";
-import { salonBookings, serviceSlots, salonServices, salonStaff, users } from "@db/schema";
+import { salonBookings, serviceSlots, salonServices, salonStaff, users } from "../db/schema";
 import { format } from 'date-fns';
 import { requireAuth, hasBusinessAccess } from "../middleware/businessAccess";
 

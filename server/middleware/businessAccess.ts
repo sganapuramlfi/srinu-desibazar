@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { db } from "@db";
-import { businesses, salonBookings } from "@db/schema";
+import { db } from "./db";
+import { businesses, salonBookings } from "./db/schema";
 import { eq, and } from "drizzle-orm";
 
 declare global {

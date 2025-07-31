@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=desibazaar
+    ports:
+      - "9100:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "9101:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/desibazaar
+      - SESSION_SECRET=your_strong_session_secret
+      - NODE_ENV=development
+    volumes:
+      - ./server:/app/server
+      - ./db:/app/db
+      - /app/node_modules
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    restart: always
+    ports:
+      - "9102:5173"
+    volumes:
+      - ./client:/app/client
+      - ./db:/app/db
+      - /app/node_modules
+
+volumes:
+  postgres_data:

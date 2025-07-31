@@ -8,10 +8,16 @@ import BusinessDashboard from "./pages/BusinessDashboard";
 import StorefrontPage from "./pages/StorefrontPage";
 import BookingsPage from "./pages/BookingsPage";
 import ConsumerDashboard from "./pages/ConsumerDashboard";
+import AdminLoginPage from "./pages/AdminLoginPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import { AIGenieIntroPopup } from "./components/AIGenieIntroPopup";
+import { useAIGenieIntro } from "./hooks/useAIGenieIntro";
+import { AIGenieTestButton } from "./components/AIGenieTestButton";
 
 function App() {
   const { user, isLoading } = useUser();
   const [location, setLocation] = useLocation();
+  const { showPopup, handleClosePopup, handleSubscribe } = useAIGenieIntro();
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -72,6 +78,12 @@ function App() {
           }}
         </Route>
 
+        {/* Admin Routes */}
+        <Route path="/admin/login" component={AdminLoginPage} />
+        <Route path="/admin/modules" component={AdminDashboard} />
+        <Route path="/admin/dashboard" component={AdminDashboard} />
+        <Route path="/admin" component={AdminDashboard} />
+
         {/* 404 Not Found */}
         <Route>
           {() => (
@@ -84,6 +96,16 @@ function App() {
           )}
         </Route>
       </Switch>
+
+      {/* AI Genie Introduction Popup */}
+      <AIGenieIntroPopup
+        isOpen={showPopup}
+        onClose={handleClosePopup}
+        onSubscribe={handleSubscribe}
+      />
+      
+      {/* Development test button */}
+      <AIGenieTestButton />
     </Layout>
   );
 }

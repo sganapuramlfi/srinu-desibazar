@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { db } from "@db";
-import { businesses } from "@db/schema";
+import { db } from "./db";
+import { businesses } from "./db/schema";
 import { eq } from "drizzle-orm";
 
 // Extend Express Request type to include business

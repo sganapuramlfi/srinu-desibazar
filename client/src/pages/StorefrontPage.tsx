@@ -39,7 +39,7 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-import type { Business } from "@db/schema";
+import type { Business } from "../types/db";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-user";
 import { useState } from "react";

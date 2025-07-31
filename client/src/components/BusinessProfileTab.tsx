@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { type Business, businessProfileSchema } from "@db/schema";
+import { type Business, businessProfileSchema } from "../types/db";
 import { z } from "zod";
 import {
   Clock,

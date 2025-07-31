@@ -1,14 +1,17 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { db } from "@db";
+import { db } from "./db";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { businesses, businessProfileSchema } from "@db/schema";
+import { businesses, businessProfileSchema } from "./db/schema";
 import { eq } from "drizzle-orm";
 import { setupAuth } from "./auth";
 import salonRoutes from "./routes/salon";
+import aiSubscriptionRoutes from "./routes/ai-subscription";
+import { ModuleLoader } from "./ModuleLoader";
+import { adminAuthMiddleware, adminLoginHandler, adminLogoutHandler, adminStatusHandler } from "./middleware/adminAuth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,8 +66,55 @@ export function registerRoutes(app: Express): Server {
     next();
   });
 
-  // Register salon routes
+  // Initialize and load modular system
+  const moduleLoader = new ModuleLoader();
+  
+  // Load modules on startup
+  moduleLoader.loadModules().catch(error => {
+    console.error('Failed to load modules:', error);
+  });
+
+  // Register module routes
+  app.use('/api/modules', moduleLoader.getRouter());
+
+  // Admin authentication endpoints
+  app.post('/api/admin/login', adminLoginHandler);
+  app.post('/api/admin/logout', adminLogoutHandler);
+  app.get('/api/admin/status', adminStatusHandler);
+
+  // Module management endpoints (protected with admin auth)
+  app.get('/api/admin/modules/status', adminAuthMiddleware, (req, res) => {
+    res.json(moduleLoader.getModuleStatus());
+  });
+
+  app.get('/api/admin/modules/health', adminAuthMiddleware, async (req, res) => {
+    try {
+      const health = await moduleLoader.healthCheck();
+      res.json(health);
+    } catch (error) {
+      res.status(500).json({ error: 'Health check failed' });
+    }
+  });
+
+  app.post('/api/admin/modules/:moduleId/toggle', adminAuthMiddleware, async (req, res) => {
+    try {
+      const { moduleId } = req.params;
+      const { enabled } = req.body;
+      
+      await moduleLoader.toggleModule(moduleId, enabled);
+      res.json({ success: true, moduleId, enabled });
+    } catch (error) {
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to toggle module' 
+      });
+    }
+  });
+
+  // Register legacy routes (will be migrated to modules)
   app.use('/api', salonRoutes);
+  
+  // Register AI subscription routes
+  app.use('/api/ai', aiSubscriptionRoutes);
 
   // Services Routes
   app.post("/api/businesses/:businessId/services", async (req, res) => {

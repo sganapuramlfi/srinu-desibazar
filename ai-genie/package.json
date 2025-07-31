@@ -1,0 +1,29 @@
+{
+  "name": "@desibazaar/ai-genie",
+  "version": "1.0.0",
+  "description": "Pluggable AI Assistant module for DesiBazaar platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "openai": "^4.69.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "@types/node": "^20.16.11"
+  },
+  "peerDependencies": {
+    "express": "^4.21.2",
+    "drizzle-orm": "^0.38.2"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./types": "./dist/types.js",
+    "./server": "./dist/server.js",
+    "./client": "./dist/client.js"
+  }
+}

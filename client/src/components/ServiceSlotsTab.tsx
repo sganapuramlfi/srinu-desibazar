@@ -28,7 +28,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, AlertCircle } from "lucide-react";
-import type { SalonStaff, ServiceSlot } from "@db/schema";
+import type { SalonStaff, ServiceSlot } from "../types/db";
 
 interface ServiceSlotsTabProps {
   businessId: number;

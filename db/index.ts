@@ -1,6 +1,6 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
-import * as schema from "@db/schema";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client } from "pg";
+import * as schema from "./schema";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -8,8 +8,14 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const db = drizzle({
-  connection: process.env.DATABASE_URL,
-  schema,
-  ws: ws,
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
 });
+
+async function connect() {
+  await client.connect();
+}
+
+connect();
+
+export const db = drizzle(client, { schema });

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Business, InsertBusiness } from "@db/schema";
+import type { Business, InsertBusiness } from "../types/db";
 
 type RequestResult = {
   ok: true;

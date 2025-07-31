@@ -1,0 +1,75 @@
+               - availability_template
+
+            B. StaffService
+                - staff_service_id (PK)
+                - staff_id (FK)
+                - service_id (FK)
+                - proficiency_level
+                - is_primary
+
+        5. Schedule Management
+            A. Schedule
+                - schedule_id (PK)
+                - business_id (FK)
+                - staff_id (FK)
+                - date
+                - start_time
+                - end_time
+                - status
+                - created_at
+
+            B. TimeSlot
+                - slot_id (PK)
+                - schedule_id (FK)
+                - start_time
+                - end_time
+                - status
+                - booking_id (FK)
+                - created_at
+
+        6. Booking Management
+            A. Booking
+                - booking_id (PK)
+                - customer_id (FK)
+                - service_id (FK)
+                - staff_id (FK)
+                - slot_id (FK)
+                - status
+                - created_at
+                - updated_at
+                - notes
+                - payment_status
+
+            B. BookingHistory
+                - history_id (PK)
+                - booking_id (FK)
+                - status
+                - changed_by
+                - changed_at
+                - notes
+
+        7. Ad Space Management
+            A. AdSpace
+                - space_id (PK)
+                - location_type (landing/category/storefront/search)
+                - position_name
+                - dimensions
+                - price_per_day
+                - min_duration
+                - max_duration
+                - status
+                - availability_status
+                - targeting_rules
+                - rotation_rules
+
+            B. AdCampaign
+                - campaign_id (PK)
+                - business_id (FK)
+                - space_id (FK)
+                - start_date
+                - end_date
+                - budget
+                - status
+                - approval_status
+                - targeting_settings
+                - performance_metrics

@@ -1,6 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { setupAuth } from "./auth";
@@ -61,7 +60,7 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      console.log(logLine);
     }
   });
 
@@ -86,15 +85,8 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
     res.status(status).json({ error: message });
   });
 
-  // Setup Vite or serve static files last
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  const PORT = 5000;
+  const PORT = process.env.PORT || 3000;
   server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
+    console.log(`serving on port ${PORT}`);
   });
 })();

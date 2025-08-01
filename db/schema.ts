@@ -388,6 +388,84 @@ export const bookingNotifications = pgTable("booking_notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Business Subscription System - Startup Strategy with 180-day free trial
+export const businessSubscriptions = pgTable("business_subscriptions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull().unique(),
+  tier: text("tier", {
+    enum: ["free", "premium", "enterprise"]
+  }).default("free").notNull(),
+  status: text("status", {
+    enum: ["trial", "active", "cancelled", "expired"]
+  }).default("trial").notNull(),
+  trialStartDate: timestamp("trial_start_date").defaultNow().notNull(),
+  trialEndDate: timestamp("trial_end_date").notNull(), // Set to +180 days
+  paidStartDate: timestamp("paid_start_date"),
+  enabledModules: jsonb("enabled_modules").default([]).notNull(), // ["salon", "restaurant", etc.]
+  adTargeting: text("ad_targeting", {
+    enum: ["global", "local", "both"]
+  }).default("global").notNull(),
+  adPriority: integer("ad_priority").default(1).notNull(), // Higher = better positioning
+  locationCoordinates: jsonb("location_coordinates").default({}), // {lat, lng, city, suburb}
+  maxAdsPerMonth: integer("max_ads_per_month").default(5).notNull(),
+  features: jsonb("features").default({}).notNull(), // Feature flags
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Business Location Tags - Smart Location Focus
+export const businessLocations = pgTable("business_locations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  suburb: text("suburb"),
+  state: text("state").notNull(),
+  postcode: text("postcode"),
+  country: text("country").default("Australia").notNull(),
+  isVerified: boolean("is_verified").default(false),
+  verificationMethod: text("verification_method"), // "google_places", "manual", "gps"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Smart Ad Campaigns - Self-Service for Businesses
+export const businessAdCampaigns = pgTable("business_ad_campaigns", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("image_url"),
+  clickUrl: text("click_url"),
+  adType: text("ad_type", {
+    enum: ["sidebar_left", "sidebar_right", "banner", "featured"]
+  }).default("sidebar_left").notNull(),
+  size: text("size", {
+    enum: ["small", "medium", "large", "full"]
+  }).default("medium").notNull(),
+  animationType: text("animation_type", {
+    enum: ["static", "slide", "fade", "flash", "bounce"]
+  }).default("fade").notNull(),
+  priority: integer("priority").default(1).notNull(),
+  targeting: text("targeting", {
+    enum: ["local", "global", "both"]
+  }).default("local").notNull(),
+  targetRadius: integer("target_radius").default(25).notNull(), // km
+  targetCategories: jsonb("target_categories").default([]).notNull(),
+  status: text("status", {
+    enum: ["draft", "active", "paused", "completed"]
+  }).default("draft").notNull(),
+  budget: decimal("budget", { precision: 10, scale: 2 }).default("0").notNull(),
+  startDate: timestamp("start_date").defaultNow(),
+  endDate: timestamp("end_date"),
+  impressions: integer("impressions").default(0),
+  clicks: integer("clicks").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
 // Add new table for service conflicts tracking
 export const serviceConflicts = pgTable("service_conflicts", {
   id: serial("id").primaryKey(),
@@ -457,10 +535,139 @@ export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
 export type BookingNotification = typeof bookingNotifications.$inferSelect;
 export type ServiceConflict = typeof serviceConflicts.$inferSelect;
 
+// Advertising Revenue System Tables
+export const adCampaigns = pgTable("ad_campaigns", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("image_url"),
+  clickUrl: text("click_url"),
+  adType: text("ad_type", { 
+    enum: ["banner_top", "sidebar_left", "sidebar_right"] 
+  }).notNull(),
+  size: text("size", { 
+    enum: ["small", "medium", "large", "full"] 
+  }).default("medium").notNull(),
+  animationType: text("animation_type", { 
+    enum: ["static", "slide", "fade", "flash", "bounce"] 
+  }).default("static").notNull(),
+  targetingRules: jsonb("targeting_rules").default({}).notNull(), // location, interests, search history
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  budget: decimal("budget", { precision: 10, scale: 2 }).notNull(),
+  spent: decimal("spent", { precision: 10, scale: 2 }).default("0").notNull(),
+  clicks: integer("clicks").default(0),
+  impressions: integer("impressions").default(0),
+  status: text("status", { 
+    enum: ["draft", "active", "paused", "completed", "rejected"] 
+  }).default("draft").notNull(),
+  priority: integer("priority").default(1), // Higher number = higher priority
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const adminAnnouncements = pgTable("admin_announcements", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  type: text("type", { 
+    enum: ["news", "promotion", "feature", "alert", "maintenance"] 
+  }).default("news").notNull(),
+  icon: text("icon"), // Lucide icon name
+  color: text("color").default("blue"), // Theme color
+  scrollSpeed: integer("scroll_speed").default(50), // pixels per second
+  displayDuration: integer("display_duration").default(10000), // milliseconds
+  isActive: boolean("is_active").default(true),
+  priority: integer("priority").default(1),
+  templateId: text("template_id").default("default"),
+  targetAudience: jsonb("target_audience").default({}).notNull(), // roles, locations
+  scheduledAt: timestamp("scheduled_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const userInterests = pgTable("user_interests", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  sessionId: text("session_id"), // For non-logged users
+  searchHistory: jsonb("search_history").default([]).notNull(),
+  categoryViews: jsonb("category_views").default({}).notNull(), // category -> count
+  businessViews: jsonb("business_views").default([]).notNull(),
+  locationData: jsonb("location_data").default({}).notNull(),
+  deviceInfo: jsonb("device_info").default({}).notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export const adAnalytics = pgTable("ad_analytics", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").references(() => adCampaigns.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer("user_id").references(() => users.id),
+  sessionId: text("session_id"),
+  action: text("action", { enum: ["impression", "click", "conversion"] }).notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  referrer: text("referrer"),
+  metadata: jsonb("metadata").default({}).notNull(),
+});
+
+// Relations for advertising system
+export const adCampaignRelations = relations(adCampaigns, ({ one, many }) => ({
+  business: one(businesses, {
+    fields: [adCampaigns.businessId],
+    references: [businesses.id],
+  }),
+  analytics: many(adAnalytics),
+}));
+
+export const adAnalyticsRelations = relations(adAnalytics, ({ one }) => ({
+  campaign: one(adCampaigns, {
+    fields: [adAnalytics.campaignId],
+    references: [adCampaigns.id],
+  }),
+  user: one(users, {
+    fields: [adAnalytics.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userInterestsRelations = relations(userInterests, ({ one }) => ({
+  user: one(users, {
+    fields: [userInterests.userId],
+    references: [users.id],
+  }),
+}));
+
+// Export types for advertising system
+export type AdCampaign = typeof adCampaigns.$inferSelect;
+export type AdminAnnouncement = typeof adminAnnouncements.$inferSelect;
+export type UserInterest = typeof userInterests.$inferSelect;
+export type AdAnalytic = typeof adAnalytics.$inferSelect;
+
+// Schemas for validation
+export const adCampaignSchema = createInsertSchema(adCampaigns);
+export const adminAnnouncementSchema = createInsertSchema(adminAnnouncements);
+export const userInterestSchema = createInsertSchema(userInterests);
+
 // Export schemas for new tables
 export const waitlistEntrySchema = createInsertSchema(waitlistEntries);
 export const notificationSchema = createInsertSchema(bookingNotifications);
 export const conflictSchema = createInsertSchema(serviceConflicts);
+
+// Export schemas for business subscription system
+export const businessSubscriptionSchema = createInsertSchema(businessSubscriptions);
+export const businessLocationSchema = createInsertSchema(businessLocations);
+export const businessAdCampaignSchema = createInsertSchema(businessAdCampaigns);
+
+// TypeScript types for new tables
+export type BusinessSubscription = typeof businessSubscriptions.$inferSelect;
+export type InsertBusinessSubscription = typeof businessSubscriptions.$inferInsert;
+export type BusinessLocation = typeof businessLocations.$inferSelect;
+export type InsertBusinessLocation = typeof businessLocations.$inferInsert;
+export type BusinessAdCampaign = typeof businessAdCampaigns.$inferSelect;
+export type InsertBusinessAdCampaign = typeof businessAdCampaigns.$inferInsert;
 
 // Add relations for the new tables
 export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({

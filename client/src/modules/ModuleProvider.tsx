@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { ModuleRegistry } from '../../../modules/core/ModuleRegistry';
-import { BaseModule, IndustryType } from '../../../modules/core/types';
+import { ClientModuleRegistry, BaseModule, IndustryType } from './ClientModuleRegistry';
 
 interface ModuleContextType {
-  registry: ModuleRegistry;
+  registry: ClientModuleRegistry;
   enabledModules: BaseModule[];
   isModuleEnabled: (moduleId: string) => boolean;
   getModulesByIndustry: (industry: IndustryType) => BaseModule[];
@@ -14,7 +13,7 @@ interface ModuleContextType {
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
 
 export function ModuleProvider({ children }: { children: React.ReactNode }) {
-  const [registry] = useState(() => ModuleRegistry.getInstance());
+  const [registry] = useState(() => ClientModuleRegistry.getInstance());
   const [enabledModules, setEnabledModules] = useState<BaseModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,55 +27,66 @@ export function ModuleProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
+      // Clear existing modules
+      registry.clear();
+
       // Fetch module configuration from server
       const response = await fetch('/api/admin/modules/status');
       if (!response.ok) {
+        // If admin endpoint fails, try to get basic module info from public endpoint
+        const publicResponse = await fetch('/api/modular/registration/industries');
+        if (publicResponse.ok) {
+          const industriesData = await publicResponse.json();
+          
+          // Register modules based on available industries
+          for (const industry of industriesData.industries) {
+            const moduleDefinition: BaseModule = {
+              config: {
+                id: industry.id,
+                name: industry.name,
+                version: '1.0.0',
+                enabled: industry.isAvailable,
+                industry: industry.id,
+                features: industry.features || [],
+                dependencies: []
+              }
+            };
+            await registry.registerModule(moduleDefinition);
+          }
+          
+          setEnabledModules(registry.getEnabledModules());
+          return;
+        }
+        
         throw new Error('Failed to fetch module status');
       }
 
       const moduleStatus = await response.json();
       
-      // Load enabled modules
-      for (const moduleInfo of moduleStatus.modules) {
-        if (moduleInfo.enabled) {
-          try {
-            // Dynamic import of module components
-            const moduleComponents = await import(`./components/${moduleInfo.id}/index.js`);
-            
-            // Create module definition with components
-            const moduleDefinition: BaseModule = {
-              config: {
-                id: moduleInfo.id,
-                name: moduleInfo.name,
-                version: moduleInfo.version,
-                enabled: moduleInfo.enabled,
-                industry: moduleInfo.industry,
-                features: moduleInfo.features,
-                dependencies: moduleInfo.dependencies
-              },
-              components: moduleComponents.components || [],
-              routes: moduleComponents.routes || []
-            };
+      // Load all modules (not just enabled ones)
+      for (const moduleInfo of moduleStatus.modules || []) {
+        try {
+          // Skip dynamic component imports for now - components are optional
+          let moduleComponents = {};
+          
+          // Create module definition
+          const moduleDefinition: BaseModule = {
+            config: {
+              id: moduleInfo.id,
+              name: moduleInfo.name,
+              version: moduleInfo.version,
+              enabled: moduleInfo.enabled,
+              industry: moduleInfo.industry,
+              features: moduleInfo.features || [],
+              dependencies: moduleInfo.dependencies || []
+            },
+            components: moduleComponents.components || [],
+            routes: moduleComponents.routes || []
+          };
 
-            await registry.registerModule(moduleDefinition);
-          } catch (importError) {
-            console.warn(`Failed to load components for module ${moduleInfo.id}:`, importError);
-            
-            // Register module without components
-            const basicModule: BaseModule = {
-              config: {
-                id: moduleInfo.id,
-                name: moduleInfo.name,
-                version: moduleInfo.version,
-                enabled: moduleInfo.enabled,
-                industry: moduleInfo.industry,
-                features: moduleInfo.features,
-                dependencies: moduleInfo.dependencies
-              }
-            };
-
-            await registry.registerModule(basicModule);
-          }
+          await registry.registerModule(moduleDefinition);
+        } catch (error) {
+          console.warn(`Failed to register module ${moduleInfo.id}:`, error);
         }
       }
 

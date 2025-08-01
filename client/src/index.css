@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Abrakadabra animations for sidebar ads */
+@keyframes wiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(1deg) scale(1.02);
+  }
+  50% {
+    transform: rotate(-1deg) scale(1.05);
+  }
+  75% {
+    transform: rotate(1deg) scale(1.02);
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

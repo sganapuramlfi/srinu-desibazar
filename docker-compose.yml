@@ -37,7 +37,7 @@ services:
     ports:
       - "9102:5173"
     volumes:
-      - ./client:/app/client
+      - ./client:/app
       - ./db:/app/db
       - /app/node_modules
 

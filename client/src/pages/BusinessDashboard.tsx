@@ -12,7 +12,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings, Bookmark, Clock } from "lucide-react";
+import { Package, Users, Store, Loader2, AlertCircle, CalendarDays, Calendar, Settings, Bookmark, Clock, Crown } from "lucide-react";
 import { StaffTab } from "../components/StaffTab";
 import { ServiceStaffTab } from "../components/ServiceStaffTab";
 import { RosterTabUpdated } from "../components/RosterTabUpdated";
@@ -20,6 +20,7 @@ import { ServicesTab } from "../components/ServicesTab";
 import { ServiceSlotsTab } from "../components/ServiceSlotsTab";
 import { BusinessProfileTab } from "../components/BusinessProfileTab";
 import { ShiftTemplatesTab } from "../components/ShiftTemplatesTab";
+import { BusinessSubscriptionTab } from "../components/BusinessSubscriptionTab";
 import BookingsPage from "../pages/BookingsPage";
 import type { SalonStaff, ShiftTemplate, SalonService } from "../types/salon";
 import { useToast } from "@/hooks/use-toast";
@@ -157,8 +158,12 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
         </div>
       </div>
 
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+      <Tabs defaultValue="subscription" className="w-full">
+        <TabsList className="grid w-full grid-cols-9">
+          <TabsTrigger value="subscription">
+            <Crown className="w-4 h-4 mr-2" />
+            Subscription
+          </TabsTrigger>
           <TabsTrigger value="profile">
             <Settings className="w-4 h-4 mr-2" />
             Profile
@@ -193,6 +198,9 @@ function BusinessDashboard({ businessId }: BusinessDashboardProps) {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="subscription">
+          <BusinessSubscriptionTab businessId={businessId} />
+        </TabsContent>
         <TabsContent value="profile">
           <BusinessProfileTab businessId={businessId} />
         </TabsContent>

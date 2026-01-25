@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Heart, Star, MapPin, Clock, Eye, X, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,16 +49,85 @@ const animationClasses = {
 export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
   const [visibleAds, setVisibleAds] = useState<Set<number>>(new Set());
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const trackedImpressions = useRef<Set<number>>(new Set());
 
   const adType = position;
 
   const { data: ads } = useQuery<AdCampaign[]>({
     queryKey: [`/api/advertising/targeted-ads`, adType],
-    enabled: true,
+    enabled: false, // Disabled until server API is working
     refetchInterval: 60000, // Refresh every minute
   });
 
-  const activeAds = ads?.filter(ad => !visibleAds.has(ad.id)) || [];
+  // Mock ads for development when no real ads exist
+  const mockAds: AdCampaign[] = position === "sidebar_left" ? [
+    {
+      id: 1,
+      businessId: 16,
+      title: "🍛 Dosa Hut Special!",
+      content: "Authentic South Indian dosas. Fresh ingredients, traditional recipes. Book your table now!",
+      adType: "sidebar_left",
+      size: "medium",
+      animationType: "fade",
+      priority: 5,
+      business: {
+        name: "Dosa Hut",
+        industryType: "restaurant",
+        contactInfo: { address: "Richmond" }
+      }
+    },
+    {
+      id: 2,
+      businessId: 18,
+      title: "🥙 Kebab Station",
+      content: "Authentic Turkish kebabs & mezze. Halal certified. Order online now!",
+      adType: "sidebar_left", 
+      size: "small",
+      animationType: "bounce",
+      priority: 4,
+      business: {
+        name: "Kebab Station",
+        industryType: "restaurant",
+        contactInfo: { address: "Brunswick" }
+      }
+    }
+  ] : [
+    {
+      id: 3,
+      businessId: 19,
+      title: "🍜 Thai Smile",
+      content: "Beachside Thai restaurant. Fresh ingredients, Bangkok recipes. Dine-in special!",
+      adType: "sidebar_right",
+      size: "medium", 
+      animationType: "slide",
+      priority: 5,
+      business: {
+        name: "Thai Smile",
+        industryType: "restaurant",
+        contactInfo: { address: "St Kilda" }
+      }
+    },
+    {
+      id: 4,
+      businessId: 20,
+      title: "🍛 Punjabi Dhaba",
+      content: "Highway-style Punjabi food. Tandoor specialties & fresh lassi bar!",
+      adType: "sidebar_right",
+      size: "small",
+      animationType: "fade",
+      priority: 4,
+      business: {
+        name: "Punjabi Dhaba",
+        industryType: "restaurant",
+        contactInfo: { address: "Dandenong" }
+      }
+    }
+  ];
+
+  // Use real ads if available, otherwise use mock ads for development
+  const displayAds = ads && ads.length > 0 ? ads : mockAds;
+
+  const activeAds = displayAds?.filter(ad => !visibleAds.has(ad.id)) || [];
 
   // Rotate ads every 15 seconds
   useEffect(() => {
@@ -74,7 +143,7 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
   const handleAdClick = async (ad: AdCampaign) => {
     // Track click analytics
     try {
-      await fetch('/api/advertising/track', {
+      const response = await fetch('/api/advertising/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,18 +153,27 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
         })
       });
 
-      // Open ad URL
+      if (!response.ok) {
+        console.warn(`Ad click tracking failed with status: ${response.status}`);
+      }
+
+      // Open ad URL even if tracking fails
       if (ad.clickUrl) {
         window.open(ad.clickUrl, '_blank');
       }
     } catch (error) {
-      console.error('Failed to track ad click:', error);
+      console.debug('Ad click tracking unavailable:', error);
+      
+      // Still allow the click action even if tracking fails
+      if (ad.clickUrl) {
+        window.open(ad.clickUrl, '_blank');
+      }
     }
   };
 
   const handleAdImpression = async (adId: number) => {
     try {
-      await fetch('/api/advertising/track', {
+      const response = await fetch('/api/advertising/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,8 +182,13 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
           metadata: { position, timestamp: Date.now() }
         })
       });
+      
+      if (!response.ok) {
+        console.warn(`Ad impression tracking failed with status: ${response.status}`);
+      }
     } catch (error) {
-      console.error('Failed to track ad impression:', error);
+      // Silently fail in development to avoid spam
+      console.debug('Ad impression tracking unavailable:', error);
     }
   };
 
@@ -121,14 +204,19 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
 
   const positionClass = position === "sidebar_left" ? "left-4" : "right-4";
   
-  return (
-    <div className={`fixed ${positionClass} top-24 w-64 space-y-4 z-30 hidden xl:block`}>
-      {currentAds.map((ad, index) => {
-        // Track impression when ad becomes visible
-        useEffect(() => {
-          handleAdImpression(ad.id);
-        }, [ad.id]);
+  // Track impressions for ads only once when they first become visible
+  useEffect(() => {
+    currentAds.forEach(ad => {
+      if (!trackedImpressions.current.has(ad.id)) {
+        handleAdImpression(ad.id);
+        trackedImpressions.current.add(ad.id);
+      }
+    });
+  }, [currentAds.map(ad => ad.id).join(',')]);
 
+  return (
+    <div className={`fixed ${positionClass} top-24 w-64 space-y-4 z-30 hidden lg:block`}>
+      {currentAds.map((ad, index) => {
         const sizeClass = sizeClasses[ad.size];
         const animationClass = animationClasses[ad.animationType];
 

@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { db } from "../db";
-import { salonStaff, staffSkills, salonServices, shiftTemplates, staffSchedules } from "../db/schema";
+import { db } from "../../db/index.js";
+import { salonStaff, salonServices, salonStaffServices } from "../../db/index.js";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { insertSalonServiceSchema, insertShiftTemplateSchema, insertStaffScheduleSchema } from "../db/schema";
+import { insertSalonServiceSchema, insertSalonStaffSchema } from "../../db/index.js";
+import { requireBusinessAccess } from "../middleware/businessAccess.js";
 
 const router = Router();
 
@@ -17,49 +18,59 @@ const staffSchema = z.object({
 });
 
 // Staff Management Routes
-router.get("/businesses/:businessId/staff", async (req, res) => {
-  try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+router.get("/businesses/:businessId/staff", 
+  requireBusinessAccess(["owner", "manager", "staff"]), 
+  async (req, res) => {
+    try {
+      const businessId = req.businessContext!.businessId;
 
-    const staff = await db.select()
-      .from(salonStaff)
-      .where(eq(salonStaff.businessId, parseInt(req.params.businessId)));
+      const staff = await db.select()
+        .from(salonStaff)
+        .where(and(
+          eq(salonStaff.businessId, businessId),
+          eq(salonStaff.isActive, true)
+        ));
 
-    res.json(staff);
-  } catch (error: any) {
-    console.error('Error fetching salon staff:', error);
-    res.status(500).json({
-      message: "Failed to fetch staff",
-      error: error.message
-    });
-  }
-});
-
-router.post("/businesses/:businessId/staff", async (req, res) => {
-  try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const result = staffSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
+      res.json(staff);
+    } catch (error: any) {
+      console.error('Error fetching salon staff:', error);
+      res.status(500).json({
+        message: "Failed to fetch staff",
+        error: error.message
       });
     }
+  }
+);
 
-    const [staff] = await db.insert(salonStaff)
-      .values({
-        ...result.data,
-        businessId: parseInt(req.params.businessId),
-        createdAt: new Date()
-      })
-      .returning();
+router.post("/businesses/:businessId/staff", 
+  requireBusinessAccess(["owner", "manager"], ["canManageStaff"]),
+  async (req, res) => {
+    try {
+      const businessId = req.businessContext!.businessId;
 
-    res.json(staff);
+      const result = staffSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues
+        });
+      }
+
+      const [staff] = await db.insert(salonStaff)
+        .values({
+          firstName: result.data.name.split(' ')[0] || result.data.name,
+          lastName: result.data.name.split(' ').slice(1).join(' ') || '',
+          email: result.data.email,
+          phone: result.data.phone,
+          title: result.data.specialization,
+          businessId: businessId,
+          isActive: true,
+          isBookable: true,
+          createdAt: new Date()
+        })
+        .returning();
+
+      res.json(staff);
   } catch (error: any) {
     console.error('Error creating salon staff:', error);
     res.status(500).json({
@@ -69,28 +80,38 @@ router.post("/businesses/:businessId/staff", async (req, res) => {
   }
 });
 
-router.put("/businesses/:businessId/staff/:staffId", async (req, res) => {
-  try {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+router.put("/businesses/:businessId/staff/:staffId", 
+  requireBusinessAccess(["owner", "manager"], ["canManageStaff"]),
+  async (req, res) => {
+    try {
+      const businessId = req.businessContext!.businessId;
 
-    const result = staffSchema.partial().safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        message: "Invalid input",
-        errors: result.error.issues
-      });
-    }
+      const result = staffSchema.partial().safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          message: "Invalid input",
+          errors: result.error.issues
+        });
+      }
 
-    const [staff] = await db.update(salonStaff)
-      .set({
-        ...result.data,
+      const updateData: any = {
         updatedAt: new Date()
-      })
-      .where(and(
-        eq(salonStaff.id, parseInt(req.params.staffId)),
-        eq(salonStaff.businessId, parseInt(req.params.businessId))
+      };
+
+      // Map the partial data to the new schema structure
+      if (result.data.name) {
+        updateData.firstName = result.data.name.split(' ')[0] || result.data.name;
+        updateData.lastName = result.data.name.split(' ').slice(1).join(' ') || '';
+      }
+      if (result.data.email) updateData.email = result.data.email;
+      if (result.data.phone) updateData.phone = result.data.phone;
+      if (result.data.specialization) updateData.title = result.data.specialization;
+
+      const [staff] = await db.update(salonStaff)
+        .set(updateData)
+        .where(and(
+          eq(salonStaff.id, parseInt(req.params.staffId)),
+          eq(salonStaff.businessId, businessId)
       ))
       .returning();
 

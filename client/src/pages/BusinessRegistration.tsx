@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation as useGeoLocation } from "@/hooks/use-location";
+import { useQueryClient } from "@tanstack/react-query";
 
 const businessRegistrationSchema = z.object({
   name: z.string().min(2, "Business name must be at least 2 characters"),
@@ -54,6 +55,7 @@ const businessRegistrationSchema = z.object({
   address: z.string().min(5, "Please enter a valid address"),
   phone: z.string().min(10, "Please enter a valid phone number"),
   email: z.string().email("Please enter a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   subscriptionTier: z.enum(["free", "premium", "enterprise"]),
   selectedModules: z.array(z.string()).min(1, "Please select at least one module"),
 });
@@ -109,6 +111,7 @@ const STEPS = [
 export default function BusinessRegistration() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { location, isLoading: locationLoading, requestLocation } = useGeoLocation();
@@ -116,6 +119,13 @@ export default function BusinessRegistration() {
   const form = useForm<BusinessRegistrationData>({
     resolver: zodResolver(businessRegistrationSchema),
     defaultValues: {
+      name: "",
+      description: "",
+      industryType: "restaurant", // Default to restaurant since it's most common
+      address: "",
+      phone: "",
+      email: "",
+      password: "",
       subscriptionTier: "premium", // Default to recommended
       selectedModules: [],
     },
@@ -168,10 +178,16 @@ export default function BusinessRegistration() {
         }
       };
 
-      const response = await fetch("/api/businesses/register", {
+      const response = await fetch("/api/simple/register/business", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(registrationData),
+        body: JSON.stringify({
+          businessName: data.name,
+          email: data.email,
+          password: data.password,
+          industryType: data.industryType
+        }),
+        credentials: "include"
       });
 
       if (!response.ok) {
@@ -180,13 +196,37 @@ export default function BusinessRegistration() {
 
       const result = await response.json();
       
-      toast({
-        title: "🎉 Registration Successful!",
-        description: `Welcome to DesiBazaar! Your 180-day free trial starts now.`,
-      });
-
-      // Navigate to business dashboard
-      navigate(`/dashboard/${result.businessId}`);
+      if (!result.success) {
+        throw new Error(result.message || "Registration failed");
+      }
+      
+      // Refresh user data since backend auto-logs user in
+      await queryClient.invalidateQueries({ queryKey: ['user'] });
+      
+      if (result.data.devMode && result.data.redirectTo) {
+        // Development mode: auto-verified and logged in
+        toast({
+          title: "🎉 Registration Successful!",
+          description: `Welcome to DesiBazaar! You're now logged in.`,
+        });
+        // Small delay to ensure user data is refreshed
+        setTimeout(() => navigate(result.data.redirectTo), 100);
+      } else if (result.data.emailVerificationRequired) {
+        // Production mode: requires email verification
+        toast({
+          title: "🎉 Registration Successful!",
+          description: `Welcome to DesiBazaar! Please check your email for verification.`,
+        });
+        navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      } else {
+        // Fallback: redirect to dashboard
+        toast({
+          title: "🎉 Registration Successful!",
+          description: `Welcome to DesiBazaar!`,
+        });
+        // Small delay to ensure user data is refreshed
+        setTimeout(() => navigate(result.data.redirectTo || `/dashboard/${result.data.businessId}`), 100);
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -360,6 +400,20 @@ export default function BusinessRegistration() {
                       <FormLabel>Business Email *</FormLabel>
                       <FormControl>
                         <Input placeholder="info@yourbusiness.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Password *</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Create a secure password" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

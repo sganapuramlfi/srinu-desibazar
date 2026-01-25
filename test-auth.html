@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        input { margin: 5px; padding: 10px; width: 200px; }
+        button { margin: 5px; padding: 10px 20px; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Test</h1>
+    
+    <div class="form">
+        <h3>Registration Test</h3>
+        <input type="email" id="regEmail" placeholder="Email" value="testuser@example.com">
+        <input type="password" id="regPassword" placeholder="Password" value="Test@1234">
+        <input type="text" id="regName" placeholder="Full Name" value="Test User">
+        <button onclick="testRegister()">Register</button>
+        <div id="regResult" class="result"></div>
+    </div>
+    
+    <div class="form">
+        <h3>Login Test</h3>
+        <input type="email" id="loginEmail" placeholder="Email" value="testuser@example.com">
+        <input type="password" id="loginPassword" placeholder="Password" value="Test@1234">
+        <button onclick="testLogin()">Login</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <script>
+        async function testRegister() {
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const fullName = document.getElementById('regName').value;
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/simple/register/customer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email,
+                        password,
+                        fullName,
+                        username: email.split('@')[0]
+                    })
+                });
+                
+                const result = await response.json();
+                document.getElementById('regResult').innerHTML = 
+                    `<strong>Status:</strong> ${response.status}<br>
+                     <strong>Result:</strong> ${JSON.stringify(result, null, 2)}`;
+                     
+                if (result.ok) {
+                    document.getElementById('loginEmail').value = email;
+                    document.getElementById('loginPassword').value = password;
+                }
+            } catch (error) {
+                document.getElementById('regResult').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/simple/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const result = await response.json();
+                document.getElementById('loginResult').innerHTML = 
+                    `<strong>Status:</strong> ${response.status}<br>
+                     <strong>Result:</strong> ${JSON.stringify(result, null, 2)}`;
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        // Generate random email for testing
+        document.getElementById('regEmail').value = `test${Math.floor(Math.random()*10000)}@example.com`;
+    </script>
+</body>
+</html>

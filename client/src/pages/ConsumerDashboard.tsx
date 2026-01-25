@@ -1,7 +1,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, MessageCircle, Heart, User, Sparkles, Zap, Brain, TrendingUp } from "lucide-react";
+import { Calendar, MessageCircle, Heart, User, Sparkles, Zap, Brain, TrendingUp, ShoppingCart, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import BookingsPage from "./BookingsPage";
+import OrderHistoryPage from "./OrderHistoryPage";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { AIAssistantWidgetWrapper, useAIStatusWrapper } from "@/components/AIIntegration";
+import { useUser } from "@/hooks/use-user";
+import CustomerProfile from "@/components/CustomerProfile";
 
 
 interface Message {
@@ -27,6 +30,7 @@ interface FavoriteBusiness {
 }
 
 export default function ConsumerDashboard() {
+  const { user } = useUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
@@ -45,6 +49,12 @@ export default function ConsumerDashboard() {
   const { data: favorites = [] } = useQuery<FavoriteBusiness[]>({
     queryKey: ['/api/favorites'],
     enabled: true,
+  });
+
+  // Fetch consumer orders
+  const { data: orders = [] } = useQuery<any[]>({
+    queryKey: ['/api/orders'],
+    enabled: !!user,
   });
 
   // Send message mutation
@@ -152,10 +162,14 @@ export default function ConsumerDashboard() {
       )}
 
       <Tabs defaultValue="bookings" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="bookings" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             My Bookings
+          </TabsTrigger>
+          <TabsTrigger value="orders" className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            My Orders
           </TabsTrigger>
           <TabsTrigger value="messages" className="flex items-center gap-2">
             <MessageCircle className="h-4 w-4" />
@@ -177,6 +191,10 @@ export default function ConsumerDashboard() {
 
         <TabsContent value="bookings">
           <BookingsPage />
+        </TabsContent>
+
+        <TabsContent value="orders">
+          <OrderHistoryPage />
         </TabsContent>
 
         <TabsContent value="messages">
@@ -384,16 +402,7 @@ export default function ConsumerDashboard() {
         </TabsContent>
 
         <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>My Profile</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center text-muted-foreground">
-                Coming soon: Update your profile information and preferences
-              </div>
-            </CardContent>
-          </Card>
+          <CustomerProfile />
         </TabsContent>
       </Tabs>
 

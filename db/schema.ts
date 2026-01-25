@@ -1,727 +1,532 @@
-import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb, uuid, date, time } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
 
-// Base table: Users
-export const users = pgTable("users", {
+// =============================================================================
+// CORE PLATFORM FOUNDATION
+// =============================================================================
+
+// Platform users (people who can login)
+export const platformUsers = pgTable("platform_users", {
   id: serial("id").primaryKey(),
-  username: text("username").unique().notNull(),
-  password: text("password").notNull(),
   email: text("email").unique().notNull(),
-  role: text("role", { enum: ["admin", "business", "customer"] }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Business table with all necessary fields
-export const businesses = pgTable("businesses", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  industryType: text("industry_type", {
-    enum: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
-  }).notNull(),
-  status: text("status", {
-    enum: ["pending", "active", "suspended"]
-  }).default("pending").notNull(),
-  logo: text("logo"),
-  gallery: jsonb("gallery").default([]),
-  socialMedia: jsonb("social_media").default({}),
-  contactInfo: jsonb("contact_info").default({}),
-  operatingHours: jsonb("operating_hours").default({}),
-  amenities: jsonb("amenities").default([]),
-  onboardingCompleted: boolean("onboarding_completed").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// New table: Services offered by businesses
-export const services = pgTable("services", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  duration: integer("duration").notNull(), // in minutes
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  category: text("category"), // Preserve existing column
-  isActive: boolean("is_active").default(true),
-  maxParticipants: integer("max_participants").default(1),
-  settings: jsonb("settings").default({}).notNull(), // For service-specific settings
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// New table: Service bookings
-export const bookings = pgTable("bookings", {
-  id: serial("id").primaryKey(),
-  serviceId: integer("service_id").references(() => services.id).notNull(),
-  customerId: integer("customer_id").references(() => users.id).notNull(),
-  startTime: timestamp("start_time").notNull(),
-  endTime: timestamp("end_time").notNull(),
-  status: text("status", {
-    enum: ["pending", "confirmed", "completed", "cancelled", "no_show"]
-  }).default("pending").notNull(),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// New table: Messages between users
-export const messages = pgTable("messages", {
-  id: serial("id").primaryKey(),
-  senderId: integer("sender_id").references(() => users.id).notNull(),
-  receiverId: integer("receiver_id").references(() => users.id).notNull(),
-  bookingId: integer("booking_id").references(() => bookings.id),
-  content: text("content").notNull(),
-  isRead: boolean("is_read").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// New table: Business advertisements
-export const advertisements = pgTable("advertisements", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id).notNull(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  imageUrl: text("image_url"),
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
-  status: text("status", {
-    enum: ["draft", "active", "paused", "ended"]
-  }).default("draft").notNull(),
-  type: text("type", {
-    enum: ["banner", "featured", "promoted"]
-  }).notNull(),
-  targetAudience: jsonb("target_audience").default({}).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Add new tables for service slots and staff management
-export const salonStaff = pgTable("salon_staff", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  name: text("name").notNull(),
-  email: text("email"),
+  passwordHash: text("password_hash").notNull(),
+  fullName: text("full_name"),
   phone: text("phone"),
-  specialization: text("specialization"),
-  status: text("status", { enum: ["active", "inactive", "on_leave"] }).default("active").notNull(),
-  settings: jsonb("settings").default({}), // Preserve existing column
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const serviceSlots = pgTable("service_slots", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  serviceId: integer("service_id").references(() => services.id).notNull(),
-  staffId: integer("staff_id").references(() => salonStaff.id).notNull(),
-  startTime: timestamp("start_time").notNull(),
-  endTime: timestamp("end_time").notNull(),
-  status: text("status", { enum: ["available", "booked", "blocked"] }).default("available").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Add new tables for salon services and staff skills 
-export const salonServices = pgTable("salon_services", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  duration: integer("duration").notNull(), // in minutes
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  isActive: boolean("is_active").default(true),
-  maxParticipants: integer("max_participants").default(1),
-  settings: jsonb("settings").default({}).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const staffSkills = pgTable("staff_skills", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }).notNull(),
-  serviceId: integer("service_id").references(() => salonServices.id, { onDelete: 'cascade' }).notNull(),
-  proficiencyLevel: text("proficiency_level", { enum: ["junior", "intermediate", "senior"] }).default("junior").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const shiftTemplates = pgTable("shift_templates", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  name: text("name").notNull(),
-  startTime: text("start_time").notNull(), // Store as HH:mm format
-  endTime: text("end_time").notNull(), // Store as HH:mm format
-  breaks: jsonb("breaks").default([]).notNull(), // Array of break objects with start, end, and type
-  breakDuration: integer("break_duration"), // Preserve existing column
-  daysOfWeek: jsonb("days_of_week").default([]).notNull(), // Array of days when this shift applies
-  color: text("color").default("#000000"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const staffSchedules = pgTable("staff_schedules", {
-  id: serial("id").primaryKey(),
-  staffId: integer("staff_id").references(() => salonStaff.id, { onDelete: 'cascade' }).notNull(),
-  templateId: integer("template_id").references(() => shiftTemplates.id).notNull(),
-  date: timestamp("date").notNull(),
-  status: text("status", { enum: ["scheduled", "completed", "absent", "on_leave"] }).default("scheduled").notNull(),
-  actualStartTime: timestamp("actual_start_time"),
-  actualEndTime: timestamp("actual_end_time"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Business profile schema for forms
-export const businessProfileSchema = z.object({
-  name: z.string().min(2, "Business name must be at least 2 characters"),
-  description: z.string().optional(),
-  industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
-  status: z.enum(["pending", "active", "suspended"]).default("pending"),
-  socialMedia: z.object({
-    facebook: z.string().optional(),
-    instagram: z.string().optional(),
-    twitter: z.string().optional(),
-    website: z.string().optional(),
-  }).optional(),
-  contactInfo: z.object({
-    phone: z.string().optional(),
-    email: z.string().email().optional(),
-    address: z.string().optional(),
-  }).optional(),
-  operatingHours: z.record(z.object({
-    open: z.string(),
-    close: z.string(),
-    isOpen: z.boolean(),
-  })).optional(),
-  amenities: z.array(z.object({
-    name: z.string(),
-    icon: z.string(),
-    enabled: z.boolean(),
-  })).optional(),
-});
-
-// Basic schemas for users
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-
-// Business schemas
-export const insertBusinessSchema = createInsertSchema(businesses);
-export const selectBusinessSchema = createSelectSchema(businesses);
-export type Business = typeof businesses.$inferSelect;
-export type InsertBusiness = typeof businesses.$inferInsert;
-
-
-// Define relationships
-export const businessRelations = relations(businesses, ({ one, many }) => ({
-  owner: one(users, {
-    fields: [businesses.userId],
-    references: [users.id],
-  }),
-  services: many(services),
-  advertisements: many(advertisements),
-}));
-
-export const serviceRelations = relations(services, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [services.businessId],
-    references: [businesses.id],
-  }),
-  bookings: many(bookings),
-}));
-
-export const bookingRelations = relations(bookings, ({ one, many }) => ({
-  service: one(services, {
-    fields: [bookings.serviceId],
-    references: [services.id],
-  }),
-  customer: one(users, {
-    fields: [bookings.customerId],
-    references: [users.id],
-  }),
-  messages: many(messages),
-}));
-
-// AI Subscriptions table for managing user interest in AI features
-export const aiSubscriptions = pgTable("ai_subscriptions", {
-  id: serial("id").primaryKey(),
-  email: text("email").unique().notNull(),
-  features: text("features").default('[]'), // JSON string of subscribed features
-  notifyOnLaunch: boolean("notify_on_launch").default(true),
-  subscribed: boolean("subscribed").default(true),
+  avatarUrl: text("avatar_url"),
+  isEmailVerified: boolean("is_email_verified").default(false),
+  isPhoneVerified: boolean("is_phone_verified").default(false),
+  
+  // User preferences and settings
+  preferences: jsonb("preferences").default({}), // {favoriteCategories: [], preferredLocations: [], bookingReminders: true}
+  notificationSettings: jsonb("notification_settings").default({}), // {bookingConfirmations: true, smsNotifications: true}
+  
+  lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// AI Subscription schemas
-export const insertAISubscriptionSchema = createInsertSchema(aiSubscriptions);
-export const selectAISubscriptionSchema = createSelectSchema(aiSubscriptions);
-export type AISubscription = typeof aiSubscriptions.$inferSelect;
-export type InsertAISubscription = typeof aiSubscriptions.$inferInsert;
-
-export const messageRelations = relations(messages, ({ one }) => ({
-  sender: one(users, {
-    fields: [messages.senderId],
-    references: [users.id],
-  }),
-  receiver: one(users, {
-    fields: [messages.receiverId],
-    references: [users.id],
-  }),
-  booking: one(bookings, {
-    fields: [messages.bookingId],
-    references: [bookings.id],
-  }),
-}));
-
-export const advertisementRelations = relations(advertisements, ({ one }) => ({
-  business: one(businesses, {
-    fields: [advertisements.businessId],
-    references: [businesses.id],
-  }),
-}));
-
-// Add new relations
-export const staffRelations = relations(salonStaff, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonStaff.businessId],
-    references: [businesses.id],
-  }),
-  slots: many(serviceSlots),
-}));
-
-export const serviceSlotRelations = relations(serviceSlots, ({ one }) => ({
-  business: one(businesses, {
-    fields: [serviceSlots.businessId],
-    references: [businesses.id],
-  }),
-  service: one(services, {
-    fields: [serviceSlots.serviceId],
-    references: [services.id],
-  }),
-  staff: one(salonStaff, {
-    fields: [serviceSlots.staffId],
-    references: [salonStaff.id],
-  }),
-}));
-
-// Schemas for forms and validation
-export const serviceSchema = createInsertSchema(services);
-export const bookingSchema = createInsertSchema(bookings);
-export const messageSchema = createInsertSchema(messages);
-export const advertisementSchema = createInsertSchema(advertisements);
-
-// Add schemas for the new tables
-export const insertSalonServiceSchema = createInsertSchema(salonServices);
-export const insertStaffSkillSchema = createInsertSchema(staffSkills);
-export const insertShiftTemplateSchema = createInsertSchema(shiftTemplates);
-export const insertStaffScheduleSchema = createInsertSchema(staffSchedules);
-
-
-// Export types
-export type Service = typeof services.$inferSelect;
-export type Booking = typeof bookings.$inferSelect;
-export type Message = typeof messages.$inferSelect;
-export type Advertisement = typeof advertisements.$inferSelect;
-// Add export types for new tables
-export type SalonStaff = typeof salonStaff.$inferSelect;
-export type ServiceSlot = typeof serviceSlots.$inferSelect;
-export type SalonService = typeof salonServices.$inferSelect;
-export type StaffSkill = typeof staffSkills.$inferSelect;
-export type ShiftTemplate = typeof shiftTemplates.$inferSelect;
-export type StaffSchedule = typeof staffSchedules.$inferSelect;
-
-// Registration schema with business info
-export const userRegistrationSchema = createInsertSchema(users).extend({
-  business: z.object({
-    name: z.string().min(2),
-    industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
-    description: z.string().optional(),
-  }).optional(),
-});
-
-export type UserRegistration = z.infer<typeof userRegistrationSchema>;
-
-export const userRelations = relations(users, ({ one }) => ({
-  business: one(businesses, {
-    fields: [users.id],
-    references: [businesses.userId],
-  }),
-}));
-
-// Add new tables for waitlist and notifications
-export const waitlistEntries = pgTable("waitlist_entries", {
+// Business tenants (isolated business contexts)
+export const businessTenants = pgTable("business_tenants", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  customerId: integer("customer_id").references(() => users.id).notNull(),
-  serviceId: integer("service_id").references(() => services.id).notNull(),
-  preferredStaffId: integer("preferred_staff_id").references(() => salonStaff.id),
-  preferredTimeSlots: jsonb("preferred_time_slots").default({}).notNull(), // Store preferred days and time ranges
-  status: text("status", {
-    enum: ["pending", "allocated", "expired", "cancelled"]
-  }).default("pending").notNull(),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const bookingNotifications = pgTable("booking_notifications", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  bookingId: integer("booking_id").references(() => bookings.id).notNull(),
-  recipientId: integer("recipient_id").references(() => users.id).notNull(),
-  type: text("type", {
-    enum: ["reminder", "confirmation", "cancellation", "reschedule", "waitlist_available"]
+  name: text("name").notNull(),
+  slug: text("slug").unique().notNull(),
+  industryType: text("industry_type", {
+    enum: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
   }).notNull(),
+  
+  // Tenant isolation
+  tenantKey: uuid("tenant_key").defaultRandom().unique().notNull(),
   status: text("status", {
-    enum: ["pending", "sent", "failed"]
+    enum: ["pending", "active", "suspended", "closed"]
   }).default("pending").notNull(),
-  content: text("content").notNull(),
-  scheduledFor: timestamp("scheduled_for"),
-  sentAt: timestamp("sent_at"),
+  
+  // Business metadata
+  description: text("description"),
+  logoUrl: text("logo_url"),
+  coverImageUrl: text("cover_image_url"),
+  gallery: jsonb("gallery").default([]),
+  contactInfo: jsonb("contact_info").default({}), // {phone, email, whatsapp, address}
+  socialMedia: jsonb("social_media").default({}), // {facebook, instagram, twitter, linkedin}
+  operatingHours: jsonb("operating_hours").default({}), // {monday: {open: "09:00", close: "18:00"}}
+  amenities: jsonb("amenities").default([]), // ["parking", "wifi", "wheelchair_access"]
+  
+  // Location
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  city: text("city"),
+  state: text("state"),
+  postalCode: text("postal_code"),
+  country: text("country").default("Australia"),
+  latitude: decimal("latitude", { precision: 10, scale: 8 }),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }),
+  
+  // Storefront Publishing Control
+  publishedSections: jsonb("published_sections").default([]).notNull(), // ["menu", "services", "gallery", "reviews", "bookings", "staff", "tables"]
+  storefrontSettings: jsonb("storefront_settings").default({
+    showReviews: true,
+    showGallery: true,
+    showContactInfo: true,
+    showSocialMedia: true,
+    showOperatingHours: true,
+    theme: "default"
+  }).notNull(),
+  
+  // Platform tracking
+  onboardingCompleted: boolean("onboarding_completed").default(false),
+  isVerified: boolean("is_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Business access control (who can access which business)
+export const businessAccess = pgTable("business_access", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer("user_id").references(() => platformUsers.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Role within THIS business
+  role: text("role", {
+    enum: ["owner", "manager", "staff", "customer"]
+  }).notNull(),
+  
+  // Granular permissions
+  permissions: jsonb("permissions").default({}).notNull(),
+  
+  // Access control
+  isActive: boolean("is_active").default(true),
+  grantedBy: integer("granted_by").references(() => platformUsers.id),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
+// =============================================================================
+// SUBSCRIPTION & REVENUE MODEL
+// =============================================================================
+
+// Subscription plans
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  priceMonthly: decimal("price_monthly", { precision: 10, scale: 2 }).notNull(),
+  priceYearly: decimal("price_yearly", { precision: 10, scale: 2 }),
+  
+  // Feature limits
+  maxStaff: integer("max_staff"),
+  maxCustomers: integer("max_customers"),
+  maxBookingsPerMonth: integer("max_bookings_per_month"),
+  maxProducts: integer("max_products"),
+  storageGb: integer("storage_gb").default(5),
+  
+  // AI & Advanced features
+  aiCreditsPerMonth: integer("ai_credits_per_month").default(0),
+  apiAccess: boolean("api_access").default(false),
+  whiteLabel: boolean("white_label").default(false),
+  
+  // Module access
+  enabledModules: jsonb("enabled_modules").default([]).notNull(),
+  enabledFeatures: jsonb("enabled_features").default([]).notNull(),
+  
+  // Display
+  isActive: boolean("is_active").default(true),
+  isPopular: boolean("is_popular").default(false),
+  displayOrder: integer("display_order").default(0),
+  
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Business Subscription System - Startup Strategy with 180-day free trial
+// Business subscriptions
 export const businessSubscriptions = pgTable("business_subscriptions", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull().unique(),
-  tier: text("tier", {
-    enum: ["free", "premium", "enterprise"]
-  }).default("free").notNull(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+  planId: integer("plan_id").references(() => subscriptionPlans.id).notNull(),
+  
+  // Billing
   status: text("status", {
-    enum: ["trial", "active", "cancelled", "expired"]
-  }).default("trial").notNull(),
-  trialStartDate: timestamp("trial_start_date").defaultNow().notNull(),
-  trialEndDate: timestamp("trial_end_date").notNull(), // Set to +180 days
-  paidStartDate: timestamp("paid_start_date"),
-  enabledModules: jsonb("enabled_modules").default([]).notNull(), // ["salon", "restaurant", etc.]
-  adTargeting: text("ad_targeting", {
-    enum: ["global", "local", "both"]
-  }).default("global").notNull(),
-  adPriority: integer("ad_priority").default(1).notNull(), // Higher = better positioning
-  locationCoordinates: jsonb("location_coordinates").default({}), // {lat, lng, city, suburb}
-  maxAdsPerMonth: integer("max_ads_per_month").default(5).notNull(),
-  features: jsonb("features").default({}).notNull(), // Feature flags
+    enum: ["trial", "active", "past_due", "cancelled", "suspended"]
+  }).default("active").notNull(),
+  billingEmail: text("billing_email").notNull(),
+  billingCycle: text("billing_cycle", {
+    enum: ["monthly", "yearly"]
+  }).default("monthly").notNull(),
+  
+  // Usage tracking
+  currentUsage: jsonb("current_usage").default({}).notNull(), // {staff: 5, customers: 150, bookings: 45}
+  
+  // Subscription lifecycle
+  trialEndsAt: timestamp("trial_ends_at"),
+  currentPeriodStart: timestamp("current_period_start").defaultNow(),
+  currentPeriodEnd: timestamp("current_period_end"),
+  cancelledAt: timestamp("cancelled_at"),
+  
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Business Location Tags - Smart Location Focus
-export const businessLocations = pgTable("business_locations", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
-  longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
-  address: text("address").notNull(),
-  city: text("city").notNull(),
-  suburb: text("suburb"),
-  state: text("state").notNull(),
-  postcode: text("postcode"),
-  country: text("country").default("Australia").notNull(),
-  isVerified: boolean("is_verified").default(false),
-  verificationMethod: text("verification_method"), // "google_places", "manual", "gps"
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
+// =============================================================================
+// ABRAKADABRA AI SYSTEM
+// =============================================================================
 
-// Smart Ad Campaigns - Self-Service for Businesses
-export const businessAdCampaigns = pgTable("business_ad_campaigns", {
+// AI contexts and sessions
+export const aiSessions = pgTable("ai_sessions", {
   id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  imageUrl: text("image_url"),
-  clickUrl: text("click_url"),
-  adType: text("ad_type", {
-    enum: ["sidebar_left", "sidebar_right", "banner", "featured"]
-  }).default("sidebar_left").notNull(),
-  size: text("size", {
-    enum: ["small", "medium", "large", "full"]
-  }).default("medium").notNull(),
-  animationType: text("animation_type", {
-    enum: ["static", "slide", "fade", "flash", "bounce"]
-  }).default("fade").notNull(),
-  priority: integer("priority").default(1).notNull(),
-  targeting: text("targeting", {
-    enum: ["local", "global", "both"]
-  }).default("local").notNull(),
-  targetRadius: integer("target_radius").default(25).notNull(), // km
-  targetCategories: jsonb("target_categories").default([]).notNull(),
-  status: text("status", {
-    enum: ["draft", "active", "paused", "completed"]
-  }).default("draft").notNull(),
-  budget: decimal("budget", { precision: 10, scale: 2 }).default("0").notNull(),
-  startDate: timestamp("start_date").defaultNow(),
-  endDate: timestamp("end_date"),
-  impressions: integer("impressions").default(0),
-  clicks: integer("clicks").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Add new table for service conflicts tracking
-export const serviceConflicts = pgTable("service_conflicts", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  serviceId: integer("service_id").references(() => services.id).notNull(),
-  conflictingServiceId: integer("conflicting_service_id").references(() => services.id).notNull(),
-  conflictType: text("conflict_type", {
-    enum: ["time_overlap", "resource_conflict", "staff_unavailable"]
+  sessionKey: uuid("session_key").defaultRandom().unique().notNull(),
+  
+  // User context
+  userId: integer("user_id").references(() => platformUsers.id, { onDelete: 'cascade' }),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }),
+  
+  // AI role and permissions
+  aiRole: text("ai_role", {
+    enum: ["helper", "surrogate", "system"]
   }).notNull(),
+  permissions: jsonb("permissions").default([]).notNull(),
+  
+  // Session management
+  purpose: text("purpose").notNull(),
+  maxInteractions: integer("max_interactions").default(20),
+  interactionCount: integer("interaction_count").default(0),
+  
+  // Lifecycle
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastActivity: timestamp("last_activity").defaultNow(),
+});
+
+// AI interaction logs
+export const aiInteractions = pgTable("ai_interactions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => aiSessions.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Interaction details
+  interactionType: text("interaction_type").notNull(),
+  userInput: text("user_input"),
+  aiResponse: text("ai_response"),
+  contextData: jsonb("context_data").default({}),
+  
+  // Performance tracking
+  processingTimeMs: integer("processing_time_ms"),
+  tokensUsed: integer("tokens_used"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =============================================================================
+// UNIVERSAL BOOKING/APPOINTMENT SYSTEM
+// =============================================================================
+
+// Universal bookable items (polymorphic)
+export const bookableItems = pgTable("bookable_items", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Polymorphic reference
+  itemType: text("item_type", {
+    enum: ["salon_service", "restaurant_table", "event_space", "consultation", "property_viewing"]
+  }).notNull(),
+  itemId: integer("item_id").notNull(),
+  
+  // Common booking attributes
+  name: text("name").notNull(),
   description: text("description"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-// Add new relations
-export const waitlistRelations = relations(waitlistEntries, ({ one }) => ({
-  business: one(businesses, {
-    fields: [waitlistEntries.businessId],
-    references: [businesses.id],
-  }),
-  customer: one(users, {
-    fields: [waitlistEntries.customerId],
-    references: [users.id],
-  }),
-  service: one(services, {
-    fields: [waitlistEntries.serviceId],
-    references: [services.id],
-  }),
-  preferredStaff: one(salonStaff, {
-    fields: [waitlistEntries.preferredStaffId],
-    references: [salonStaff.id],
-  }),
-}));
-
-export const notificationRelations = relations(bookingNotifications, ({ one }) => ({
-  business: one(businesses, {
-    fields: [bookingNotifications.businessId],
-    references: [businesses.id],
-  }),
-  booking: one(bookings, {
-    fields: [bookingNotifications.bookingId],
-    references: [bookings.id],
-  }),
-  recipient: one(users, {
-    fields: [bookingNotifications.recipientId],
-    references: [users.id],
-  }),
-}));
-
-export const conflictRelations = relations(serviceConflicts, ({ one }) => ({
-  business: one(businesses, {
-    fields: [serviceConflicts.businessId],
-    references: [businesses.id],
-  }),
-  service: one(services, {
-    fields: [serviceConflicts.serviceId],
-    references: [services.id],
-  }),
-  conflictingService: one(services, {
-    fields: [serviceConflicts.conflictingServiceId],
-    references: [services.id],
-  }),
-}));
-
-// Export types for new tables
-export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
-export type BookingNotification = typeof bookingNotifications.$inferSelect;
-export type ServiceConflict = typeof serviceConflicts.$inferSelect;
-
-// Advertising Revenue System Tables
-export const adCampaigns = pgTable("ad_campaigns", {
-  id: serial("id").primaryKey(),
-  businessId: integer("business_id").references(() => businesses.id, { onDelete: 'cascade' }).notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  imageUrl: text("image_url"),
-  clickUrl: text("click_url"),
-  adType: text("ad_type", { 
-    enum: ["banner_top", "sidebar_left", "sidebar_right"] 
-  }).notNull(),
-  size: text("size", { 
-    enum: ["small", "medium", "large", "full"] 
-  }).default("medium").notNull(),
-  animationType: text("animation_type", { 
-    enum: ["static", "slide", "fade", "flash", "bounce"] 
-  }).default("static").notNull(),
-  targetingRules: jsonb("targeting_rules").default({}).notNull(), // location, interests, search history
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
-  budget: decimal("budget", { precision: 10, scale: 2 }).notNull(),
-  spent: decimal("spent", { precision: 10, scale: 2 }).default("0").notNull(),
-  clicks: integer("clicks").default(0),
-  impressions: integer("impressions").default(0),
-  status: text("status", { 
-    enum: ["draft", "active", "paused", "completed", "rejected"] 
-  }).default("draft").notNull(),
-  priority: integer("priority").default(1), // Higher number = higher priority
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
-});
-
-export const adminAnnouncements = pgTable("admin_announcements", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  type: text("type", { 
-    enum: ["news", "promotion", "feature", "alert", "maintenance"] 
-  }).default("news").notNull(),
-  icon: text("icon"), // Lucide icon name
-  color: text("color").default("blue"), // Theme color
-  scrollSpeed: integer("scroll_speed").default(50), // pixels per second
-  displayDuration: integer("display_duration").default(10000), // milliseconds
+  durationMinutes: integer("duration_minutes"),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  
+  // Availability rules
+  advanceBookingDays: integer("advance_booking_days").default(30),
+  minBookingDuration: integer("min_booking_duration"),
+  maxBookingDuration: integer("max_booking_duration"),
+  
+  // Status
   isActive: boolean("is_active").default(true),
-  priority: integer("priority").default(1),
-  templateId: text("template_id").default("default"),
-  targetAudience: jsonb("target_audience").default({}).notNull(), // roles, locations
-  scheduledAt: timestamp("scheduled_at"),
-  expiresAt: timestamp("expires_at"),
+  
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at"),
 });
 
-export const userInterests = pgTable("user_interests", {
+// Universal bookings
+export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
-  sessionId: text("session_id"), // For non-logged users
-  searchHistory: jsonb("search_history").default([]).notNull(),
-  categoryViews: jsonb("category_views").default({}).notNull(), // category -> count
-  businessViews: jsonb("business_views").default([]).notNull(),
-  locationData: jsonb("location_data").default({}).notNull(),
-  deviceInfo: jsonb("device_info").default({}).notNull(),
-  lastUpdated: timestamp("last_updated").defaultNow(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+  bookableItemId: integer("bookable_item_id").references(() => bookableItems.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Customer info
+  customerId: integer("customer_id").references(() => platformUsers.id, { onDelete: 'set null' }),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone"),
+  customerEmail: text("customer_email"),
+  
+  // Booking details
+  bookingDate: date("booking_date").notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  partySize: integer("party_size").default(1),
+  
+  // Status and notes
+  status: text("status", {
+    enum: ["pending", "confirmed", "in_progress", "completed", "cancelled", "no_show"]
+  }).default("pending").notNull(),
+  specialRequests: text("special_requests"),
+  internalNotes: text("internal_notes"),
+  
+  // Financial
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }),
+  depositAmount: decimal("deposit_amount", { precision: 10, scale: 2 }).default("0"),
+  paymentStatus: text("payment_status", {
+    enum: ["pending", "partial", "paid", "refunded"]
+  }).default("pending").notNull(),
+  
+  // Metadata
+  confirmationCode: text("confirmation_code").unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const adAnalytics = pgTable("ad_analytics", {
+// =============================================================================
+// CROSS-BUSINESS FEATURES
+// =============================================================================
+
+// Business directory (public discovery)
+export const businessDirectory = pgTable("business_directory", {
+  businessId: integer("business_id").primaryKey().references(() => businessTenants.id, { onDelete: 'cascade' }),
+  
+  // SEO & Discovery
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
+  keywords: jsonb("keywords").default([]),
+  
+  // Ratings & Reviews
+  averageRating: decimal("average_rating", { precision: 3, scale: 2 }).default("0.00"),
+  totalReviews: integer("total_reviews").default(0),
+  totalBookings: integer("total_bookings").default(0),
+  
+  // Business highlights
+  highlights: jsonb("highlights").default([]), // ["Family Friendly", "24/7 Service", "Award Winner"]
+  certifications: jsonb("certifications").default([]),
+  
+  // Visibility
+  isFeatured: boolean("is_featured").default(false),
+  isPublished: boolean("is_published").default(false),
+  publishedAt: timestamp("published_at"),
+  
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Platform advertisements
+export const advertisements = pgTable("advertisements", {
   id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").references(() => adCampaigns.id, { onDelete: 'cascade' }).notNull(),
-  userId: integer("user_id").references(() => users.id),
-  sessionId: text("session_id"),
-  action: text("action", { enum: ["impression", "click", "conversion"] }).notNull(),
-  timestamp: timestamp("timestamp").defaultNow(),
-  userAgent: text("user_agent"),
-  ipAddress: text("ip_address"),
-  referrer: text("referrer"),
-  metadata: jsonb("metadata").default({}).notNull(),
+  advertiserId: integer("advertiser_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Ad content
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  imageUrl: text("image_url"),
+  ctaText: text("cta_text").default("Learn More"),
+  ctaUrl: text("cta_url"),
+  
+  // Targeting
+  adType: text("ad_type", {
+    enum: ["banner", "sidebar", "sponsored", "email"]
+  }).notNull(),
+  targetIndustries: jsonb("target_industries").default([]),
+  targetLocations: jsonb("target_locations").default([]),
+  targetKeywords: jsonb("target_keywords").default([]),
+  
+  // Budget & Performance
+  budgetTotal: decimal("budget_total", { precision: 10, scale: 2 }),
+  budgetDaily: decimal("budget_daily", { precision: 10, scale: 2 }),
+  costPerClick: decimal("cost_per_click", { precision: 10, scale: 2 }).default("0.50"),
+  spentAmount: decimal("spent_amount", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Metrics
+  impressions: integer("impressions").default(0),
+  clicks: integer("clicks").default(0),
+  conversions: integer("conversions").default(0),
+  
+  // Lifecycle
+  status: text("status", {
+    enum: ["draft", "pending", "active", "paused", "completed", "rejected"]
+  }).default("draft").notNull(),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Relations for advertising system
-export const adCampaignRelations = relations(adCampaigns, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [adCampaigns.businessId],
-    references: [businesses.id],
-  }),
-  analytics: many(adAnalytics),
+// Customer profiles (platform-wide)
+export const customerProfiles = pgTable("customer_profiles", {
+  userId: integer("user_id").primaryKey().references(() => platformUsers.id, { onDelete: 'cascade' }),
+  
+  // Preferences
+  preferredIndustries: jsonb("preferred_industries").default([]),
+  preferredLocations: jsonb("preferred_locations").default([]),
+  preferredPriceRange: jsonb("preferred_price_range").default({}), // {min: 0, max: 100}
+  
+  // Behavioral data
+  searchHistory: jsonb("search_history").default([]),
+  bookingHistorySummary: jsonb("booking_history_summary").default({}),
+  favoriteBusinesses: jsonb("favorite_businesses").default([]),
+  
+  // Communication preferences
+  emailNotifications: boolean("email_notifications").default(true),
+  smsNotifications: boolean("sms_notifications").default(false),
+  marketingConsent: boolean("marketing_consent").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Business settings (industry-specific configuration)
+export const businessSettings = pgTable("business_settings", {
+  businessId: integer("business_id").primaryKey().references(() => businessTenants.id, { onDelete: 'cascade' }),
+  
+  // Industry-specific configuration
+  salonSettings: jsonb("salon_settings").default({}),
+  restaurantSettings: jsonb("restaurant_settings").default({}),
+  eventSettings: jsonb("event_settings").default({}),
+  realestateSettings: jsonb("realestate_settings").default({}),
+  retailSettings: jsonb("retail_settings").default({}),
+  professionalSettings: jsonb("professional_settings").default({}),
+  
+  // Common settings
+  bookingSettings: jsonb("booking_settings").default({}),
+  paymentSettings: jsonb("payment_settings").default({}),
+  notificationSettings: jsonb("notification_settings").default({}),
+  
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// =============================================================================
+// RELATIONSHIPS
+// =============================================================================
+
+// Platform user relationships
+export const platformUserRelations = relations(platformUsers, ({ many }) => ({
+  businessAccess: many(businessAccess),
+  bookings: many(bookings),
+  aiSessions: many(aiSessions),
+  customerProfile: many(customerProfiles),
 }));
 
-export const adAnalyticsRelations = relations(adAnalytics, ({ one }) => ({
-  campaign: one(adCampaigns, {
-    fields: [adAnalytics.campaignId],
-    references: [adCampaigns.id],
+// Business tenant relationships
+export const businessTenantRelations = relations(businessTenants, ({ many, one }) => ({
+  businessAccess: many(businessAccess),
+  subscription: one(businessSubscriptions, {
+    fields: [businessTenants.id],
+    references: [businessSubscriptions.businessId],
   }),
-  user: one(users, {
-    fields: [adAnalytics.userId],
-    references: [users.id],
+  settings: one(businessSettings, {
+    fields: [businessTenants.id],
+    references: [businessSettings.businessId],
+  }),
+  directory: one(businessDirectory, {
+    fields: [businessTenants.id],
+    references: [businessDirectory.businessId],
+  }),
+  bookableItems: many(bookableItems),
+  bookings: many(bookings),
+  advertisements: many(advertisements),
+}));
+
+// Business access relationships
+export const businessAccessRelations = relations(businessAccess, ({ one }) => ({
+  business: one(businessTenants, {
+    fields: [businessAccess.businessId],
+    references: [businessTenants.id],
+  }),
+  user: one(platformUsers, {
+    fields: [businessAccess.userId],
+    references: [platformUsers.id],
+  }),
+  grantedByUser: one(platformUsers, {
+    fields: [businessAccess.grantedBy],
+    references: [platformUsers.id],
   }),
 }));
 
-export const userInterestsRelations = relations(userInterests, ({ one }) => ({
-  user: one(users, {
-    fields: [userInterests.userId],
-    references: [users.id],
+// Subscription relationships
+export const subscriptionPlanRelations = relations(subscriptionPlans, ({ many }) => ({
+  subscriptions: many(businessSubscriptions),
+}));
+
+export const businessSubscriptionRelations = relations(businessSubscriptions, ({ one }) => ({
+  business: one(businessTenants, {
+    fields: [businessSubscriptions.businessId],
+    references: [businessTenants.id],
+  }),
+  plan: one(subscriptionPlans, {
+    fields: [businessSubscriptions.planId],
+    references: [subscriptionPlans.id],
   }),
 }));
 
-// Export types for advertising system
-export type AdCampaign = typeof adCampaigns.$inferSelect;
-export type AdminAnnouncement = typeof adminAnnouncements.$inferSelect;
-export type UserInterest = typeof userInterests.$inferSelect;
-export type AdAnalytic = typeof adAnalytics.$inferSelect;
+// Booking relationships
+export const bookableItemRelations = relations(bookableItems, ({ one, many }) => ({
+  business: one(businessTenants, {
+    fields: [bookableItems.businessId],
+    references: [businessTenants.id],
+  }),
+  bookings: many(bookings),
+}));
 
-// Schemas for validation
-export const adCampaignSchema = createInsertSchema(adCampaigns);
-export const adminAnnouncementSchema = createInsertSchema(adminAnnouncements);
-export const userInterestSchema = createInsertSchema(userInterests);
+export const bookingRelations = relations(bookings, ({ one }) => ({
+  business: one(businessTenants, {
+    fields: [bookings.businessId],
+    references: [businessTenants.id],
+  }),
+  bookableItem: one(bookableItems, {
+    fields: [bookings.bookableItemId],
+    references: [bookableItems.id],
+  }),
+  customer: one(platformUsers, {
+    fields: [bookings.customerId],
+    references: [platformUsers.id],
+  }),
+}));
 
-// Export schemas for new tables
-export const waitlistEntrySchema = createInsertSchema(waitlistEntries);
-export const notificationSchema = createInsertSchema(bookingNotifications);
-export const conflictSchema = createInsertSchema(serviceConflicts);
+// =============================================================================
+// ZOD SCHEMAS
+// =============================================================================
 
-// Export schemas for business subscription system
-export const businessSubscriptionSchema = createInsertSchema(businessSubscriptions);
-export const businessLocationSchema = createInsertSchema(businessLocations);
-export const businessAdCampaignSchema = createInsertSchema(businessAdCampaigns);
+// Platform users
+export const insertPlatformUserSchema = createInsertSchema(platformUsers);
+export const selectPlatformUserSchema = createSelectSchema(platformUsers);
 
-// TypeScript types for new tables
+// Business tenants
+export const insertBusinessTenantSchema = createInsertSchema(businessTenants);
+export const selectBusinessTenantSchema = createSelectSchema(businessTenants);
+
+// Business access
+export const insertBusinessAccessSchema = createInsertSchema(businessAccess);
+export const selectBusinessAccessSchema = createSelectSchema(businessAccess);
+
+// Subscriptions
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans);
+export const selectSubscriptionPlanSchema = createSelectSchema(subscriptionPlans);
+export const insertBusinessSubscriptionSchema = createInsertSchema(businessSubscriptions);
+export const selectBusinessSubscriptionSchema = createSelectSchema(businessSubscriptions);
+
+// Bookings
+export const insertBookableItemSchema = createInsertSchema(bookableItems);
+export const selectBookableItemSchema = createSelectSchema(bookableItems);
+export const insertBookingSchema = createInsertSchema(bookings);
+export const selectBookingSchema = createSelectSchema(bookings);
+
+// Advertisements
+export const insertAdvertisementSchema = createInsertSchema(advertisements);
+export const selectAdvertisementSchema = createSelectSchema(advertisements);
+
+// Export types
+export type PlatformUser = typeof platformUsers.$inferSelect;
+export type BusinessTenant = typeof businessTenants.$inferSelect;
+export type BusinessAccess = typeof businessAccess.$inferSelect;
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type BusinessSubscription = typeof businessSubscriptions.$inferSelect;
-export type InsertBusinessSubscription = typeof businessSubscriptions.$inferInsert;
-export type BusinessLocation = typeof businessLocations.$inferSelect;
-export type InsertBusinessLocation = typeof businessLocations.$inferInsert;
-export type BusinessAdCampaign = typeof businessAdCampaigns.$inferSelect;
-export type InsertBusinessAdCampaign = typeof businessAdCampaigns.$inferInsert;
-
-// Add relations for the new tables
-export const salonServiceRelations = relations(salonServices, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [salonServices.businessId],
-    references: [businesses.id],
-  }),
-  staffSkills: many(staffSkills),
-}));
-
-export const staffSkillsRelations = relations(staffSkills, ({ one }) => ({
-  staff: one(salonStaff, {
-    fields: [staffSkills.staffId],
-    references: [salonStaff.id],
-  }),
-  service: one(salonServices, {
-    fields: [staffSkills.serviceId],
-    references: [salonServices.id],
-  }),
-}));
-
-export const shiftTemplateRelations = relations(shiftTemplates, ({ one, many }) => ({
-  business: one(businesses, {
-    fields: [shiftTemplates.businessId],
-    references: [businesses.id],
-  }),
-  schedules: many(staffSchedules),
-}));
-
-export const staffScheduleRelations = relations(staffSchedules, ({ one }) => ({
-  staff: one(salonStaff, {
-    fields: [staffSchedules.staffId],
-    references: [salonStaff.id],
-  }),
-  template: one(shiftTemplates, {
-    fields: [staffSchedules.templateId],
-    references: [shiftTemplates.id],
-  }),
-}));
-
-// Add validation schema for break times
-export const breakTimeSchema = z.object({
-  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  type: z.enum(["lunch", "coffee", "rest"]),
-  duration: z.number().min(1).max(120), // Duration in minutes
-});
-
-export const shiftTemplateSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format"),
-  breaks: z.array(breakTimeSchema).optional().default([]),
-  daysOfWeek: z.array(z.number().min(0).max(6)).min(1, "Select at least one day"),
-  color: z.string().optional(),
-  isActive: z.boolean().optional(),
-});
+export type BookableItem = typeof bookableItems.$inferSelect;
+export type Booking = typeof bookings.$inferSelect;
+export type Advertisement = typeof advertisements.$inferSelect;
+export type CustomerProfile = typeof customerProfiles.$inferSelect;
+export type BusinessSettings = typeof businessSettings.$inferSelect;

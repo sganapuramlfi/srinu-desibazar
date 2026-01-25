@@ -1,6 +1,6 @@
 import type { Express } from "express";
-import { db } from "../db";
-import { businesses, adCampaigns, services, users } from "../db/schema";
+import { db } from "../../db/index.js";
+import { businessTenants, advertisements, platformUsers } from "../../db/index.js";
 
 export function setupSampleData(app: Express) {
   // Seed sample salon data with ads

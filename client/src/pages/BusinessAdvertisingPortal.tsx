@@ -165,7 +165,7 @@ export default function BusinessAdvertisingPortal() {
     return (baseCost * animationMultiplier * 1000).toFixed(2); // Per 1000 impressions
   };
 
-  if (!user || user.role !== "business") {
+  if (!user || !user.primaryBusiness) {
     return (
       <div className="container mx-auto p-6">
         <Card>

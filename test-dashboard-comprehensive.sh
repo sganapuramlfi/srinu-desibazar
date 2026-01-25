@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "🔍 Starting Comprehensive Dashboard Testing for DesiBazaar"
-echo "Testing base URL: http://localhost:5000"
+echo "Testing base URL: http://localhost:9101"
 
 # Test Variables
 SALON_BUSINESS_ID=65  # spa2's business ID
@@ -32,12 +32,12 @@ make_request() {
             -H "$cookie_header" \
             -c cookie.txt -b cookie.txt \
             -d "$data" \
-            "http://localhost:5000$endpoint")
+            "http://localhost:9101$endpoint")
     else
         response=$(curl -s -X "$method" \
             -H "$cookie_header" \
             -c cookie.txt -b cookie.txt \
-            "http://localhost:5000$endpoint")
+            "http://localhost:9101$endpoint")
     fi
 
     # Update AUTH_COOKIE from cookie file if it exists
@@ -142,7 +142,7 @@ for route in \
     "/dashboard/$REALESTATE_BUSINESS_ID" \
     "/dashboard/$REALESTATE_BUSINESS_ID/properties" \
     "/dashboard/$REALESTATE_BUSINESS_ID/viewings"; do
-    response=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000$route")
+    response=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9101$route")
     if [ "$response" = "200" ] || [ "$response" = "401" ]; then
         echo -e "${GREEN}✅ Route $route loaded successfully${NC}"
     else

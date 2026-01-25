@@ -1,19 +1,47 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { db } from "./db";
+import { db } from "../db/index.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { businesses, businessProfileSchema, services, bookings, adCampaigns, adminAnnouncements, userInterests, adAnalytics } from "./db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { 
+  businessTenants, 
+  businessAccess, 
+  bookableItems, 
+  bookings, 
+  advertisements, 
+  platformUsers,
+  businessDirectory,
+  salonServices,
+  restaurantMenuCategories,
+  restaurantMenuItems,
+  businessSubscriptions
+} from "../db/index.js";
+import { eq, and, gte, lte, desc, sql, or, ilike } from "drizzle-orm";
 import { setupAuth } from "./auth";
 import salonRoutes from "./routes/salon";
-import aiSubscriptionRoutes from "./routes/ai-subscription";
+import restaurantRoutes from "./routes/restaurant";
+import reviewRoutes from "./routes/reviews";
+import storefrontPublishingRoutes from "./routes/storefront-publishing";
+import publicStorefrontRoutes from "./routes/public-storefront";
+import bookingOperationsRoutes from "./routes/booking-operations";
+import businessCommunicationsRoutes from "./routes/business-communications";
+import businessAlertsRoutes from "./routes/business-alerts";
+// import aiSubscriptionRoutes from "./routes/ai-subscription"; // TODO: Update for new schema
+import aiPublicDataRoutes from "./routes/ai-public-data";
+import aiAbrakadabraEnhancedRoutes from "./routes/ai-abrakadabra-enhanced";
+import vectorSearchTestRoutes from "./routes/vector-search-test";
+import debugAbrakadabraRoutes from "./routes/debug-abrakadabra";
+import testSurgicalFixRoutes from "./routes/test-surgical-fix";
+import aiAbrakadabraFixedRoutes from "./routes/ai-abrakadabra-fixed";
+import consumerRoutes from "./routes/consumer";
+import consumerOrdersRoutes from "./routes/consumer-orders";
+import chatRoutes from "./routes/chat";
 import { ModuleLoader } from "./ModuleLoader";
 import { adminAuthMiddleware, adminLoginHandler, adminLogoutHandler, adminStatusHandler } from "./middleware/adminAuth";
 import modularSystemRoutes from "./routes/modular-system";
-import { setupSampleData } from "./routes/sample-data";
+// import { setupSampleData } from "./routes/sample-data"; // TODO: Update for new schema
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -83,7 +111,7 @@ export function registerRoutes(app: Express): Server {
   app.use('/api/modular', modularSystemRoutes);
   
   // Setup sample data routes
-  setupSampleData(app);
+  // setupSampleData(app); // TODO: Update for new schema
 
   // Admin authentication endpoints
   app.post('/api/admin/login', adminLoginHandler);
@@ -120,9 +148,60 @@ export function registerRoutes(app: Express): Server {
 
   // Register legacy routes (will be migrated to modules)
   app.use('/api', salonRoutes);
+  app.use('/api', restaurantRoutes);
+  app.use('/api', reviewRoutes);
+  
+  // Register new publishing and public storefront routes
+  app.use('/api', storefrontPublishingRoutes);
+  app.use('/api', publicStorefrontRoutes);
+  
+  // Register booking operations routes (Universal Constraint Framework)
+  app.use('/api', bookingOperationsRoutes);
+  
+  // Register business communications routes (Customer-Business Messaging)
+  app.use('/api', businessCommunicationsRoutes);
+  
+  // Register business alerts routes (Business Owner Dashboard)
+  app.use('/api', businessAlertsRoutes);
   
   // Register AI subscription routes
-  app.use('/api/ai', aiSubscriptionRoutes);
+  // app.use('/api/ai', aiSubscriptionRoutes); // TODO: Update for new schema
+  app.use('/api/ai-genie', aiPublicDataRoutes);
+  app.use('/api/ai-public-data', aiPublicDataRoutes); // Alternative route for frontend compatibility
+  app.use('/api', aiAbrakadabraEnhancedRoutes); // Enhanced two-tier AI system
+  app.use('/api', aiAbrakadabraFixedRoutes); // Fixed two-tier AI system with surgical fixes
+  app.use('/api', vectorSearchTestRoutes); // Vector search testing
+  app.use('/api', debugAbrakadabraRoutes); // Debug Abrakadabra service
+  app.use('/api', testSurgicalFixRoutes); // Surgical fix test endpoint
+  
+  // Register consumer routes (customer booking, ordering, messaging)
+  app.use('/api', consumerRoutes);
+  app.use('/api', consumerOrdersRoutes);
+  
+  // Register chat routes (real-time messaging between consumers and businesses)
+  app.use('/api/chat', chatRoutes);
+
+  // Get business by slug
+  app.get("/api/businesses/slug/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      
+      const [business] = await db
+        .select()
+        .from(businessTenants)
+        .where(eq(businessTenants.slug, slug))
+        .limit(1);
+
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      res.json(business);
+    } catch (error) {
+      console.error("Error fetching business by slug:", error);
+      res.status(500).json({ error: "Failed to fetch business" });
+    }
+  });
 
   // Services Routes
   app.post("/api/businesses/:businessId/services", async (req, res) => {
@@ -134,8 +213,8 @@ export function registerRoutes(app: Express): Server {
       const businessId = parseInt(req.params.businessId);
       const [business] = await db
         .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
+        .from(businessTenants)
+        .where(eq(businessTenants.id, businessId))
         .limit(1);
 
       if (!business || business.userId !== req.user.id) {
@@ -237,8 +316,8 @@ export function registerRoutes(app: Express): Server {
       if (req.user.role === "business") {
         const [business] = await db
           .select()
-          .from(businesses)
-          .where(eq(businesses.id, businessId))
+          .from(businessTenants)
+          .where(eq(businessTenants.id, businessId))
           .limit(1);
 
         if (!business || business.userId !== req.user.id) {
@@ -282,12 +361,61 @@ export function registerRoutes(app: Express): Server {
     try {
       const result = await db
         .select()
-        .from(businesses)
-        .where(eq(businesses.status, "active"));
+        .from(businessTenants)
+        .where(eq(businessTenants.status, "active"));
       res.json(result);
     } catch (error) {
       console.error('Error fetching businesses:', error);
       res.status(500).json({ error: "Failed to fetch businesses" });
+    }
+  });
+
+  // Business Search endpoint
+  app.get("/api/businesses/search", async (req, res) => {
+    try {
+      const { q, industry, location, limit = 20 } = req.query;
+      console.log('Search params:', { q, industry, location, limit });
+      
+      // First, let's just return the same data as /api/businesses but with search format
+      const allBusinesses = await db
+        .select()
+        .from(businessTenants)
+        .where(eq(businessTenants.status, "active"));
+
+      let filteredBusinesses = allBusinesses;
+
+      // Filter by search term if provided
+      if (q && typeof q === 'string') {
+        const searchTerm = q.toLowerCase();
+        filteredBusinesses = allBusinesses.filter(business => 
+          business.name?.toLowerCase().includes(searchTerm) ||
+          business.description?.toLowerCase().includes(searchTerm) ||
+          business.industryType?.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      // Filter by industry if provided
+      if (industry && typeof industry === 'string') {
+        filteredBusinesses = filteredBusinesses.filter(business => 
+          business.industryType === industry
+        );
+      }
+
+      // Apply limit
+      const limitNum = parseInt(limit as string) || 20;
+      const results = filteredBusinesses.slice(0, Math.min(limitNum, 100));
+
+      console.log(`Found ${results.length} businesses from ${allBusinesses.length} total`);
+      
+      res.json({
+        businesses: results,
+        total: results.length,
+        query: { q, industry, location, limit: limitNum }
+      });
+    } catch (error) {
+      console.error('Error searching businesses:', error.message);
+      console.error('Stack trace:', error.stack);
+      res.status(500).json({ error: "Failed to search businesses" });
     }
   });
 
@@ -297,8 +425,8 @@ export function registerRoutes(app: Express): Server {
       // Get business counts by industry
       const allBusinesses = await db
         .select()
-        .from(businesses)
-        .where(eq(businesses.status, "active"));
+        .from(businessTenants)
+        .where(eq(businessTenants.status, "active"));
 
       const totalBusinesses = allBusinesses.length;
       const totalBookings = await db.select().from(bookings);
@@ -333,15 +461,32 @@ export function registerRoutes(app: Express): Server {
       const businessId = parseInt(req.params.businessId);
       const [business] = await db
         .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
+        .from(businessTenants)
+        .where(eq(businessTenants.id, businessId))
         .limit(1);
 
       if (!business) {
         return res.status(404).json({ error: "Business not found" });
       }
 
-      res.json(business);
+      // Format the business data for frontend compatibility
+      const formattedBusiness = {
+        ...business,
+        // Ensure gallery is an array of strings
+        galleryImages: Array.isArray(business.gallery) ? business.gallery : [],
+        // Ensure amenities is an array of strings
+        amenities: Array.isArray(business.amenities) ? business.amenities : [],
+        // Add location object for coordinates
+        location: business.latitude && business.longitude ? {
+          latitude: parseFloat(business.latitude),
+          longitude: parseFloat(business.longitude)
+        } : undefined,
+        // TODO: Add these fields to the database schema
+        partnerLinks: business.partnerLinks || {},
+        holidayPolicy: business.holidayPolicy || null
+      };
+
+      res.json(formattedBusiness);
     } catch (error) {
       console.error('Error fetching business profile:', error);
       res.status(500).json({ message: "Failed to fetch business profile" });
@@ -361,8 +506,8 @@ export function registerRoutes(app: Express): Server {
       const businessId = parseInt(req.params.businessId);
       const [business] = await db
         .select()
-        .from(businesses)
-        .where(eq(businesses.id, businessId))
+        .from(businessTenants)
+        .where(eq(businessTenants.id, businessId))
         .limit(1);
 
       if (!business || business.userId !== req.user.id) {
@@ -398,9 +543,9 @@ export function registerRoutes(app: Express): Server {
 
       // Update the business profile
       const [updated] = await db
-        .update(businesses)
+        .update(businessTenants)
         .set(updateData)
-        .where(eq(businesses.id, businessId))
+        .where(eq(businessTenants.id, businessId))
         .returning();
 
       res.json(updated);
@@ -429,6 +574,118 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching admin announcements:', error);
       res.status(500).json({ error: "Failed to fetch announcements" });
+    }
+  });
+
+  // ============================================================================
+  // BUSINESS SUBSCRIPTION ENDPOINTS
+  // ============================================================================
+
+  // Get business subscription info
+  app.get("/api/businesses/:businessId/subscription", async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Verify user has access to this business
+      const [access] = await db
+        .select()
+        .from(businessAccess)
+        .where(and(
+          eq(businessAccess.businessId, businessId),
+          eq(businessAccess.userId, req.user.id),
+          eq(businessAccess.isActive, true)
+        ))
+        .limit(1);
+
+      if (!access) {
+        return res.status(403).json({ error: "Access denied to this business" });
+      }
+
+      // Get subscription with plan details
+      const [subscription] = await db
+        .select({
+          id: businessSubscriptions.id,
+          businessId: businessSubscriptions.businessId,
+          planId: businessSubscriptions.planId,
+          status: businessSubscriptions.status,
+          trialStartDate: businessSubscriptions.trialStartDate,
+          trialEndDate: businessSubscriptions.trialEndDate,
+          paidStartDate: businessSubscriptions.paidStartDate,
+          enabledModules: businessSubscriptions.enabledModules,
+          adTargeting: businessSubscriptions.adTargeting,
+          adPriority: businessSubscriptions.adPriority,
+          maxAdsPerMonth: businessSubscriptions.maxAdsPerMonth,
+          features: businessSubscriptions.features,
+          tier: businessSubscriptions.tier
+        })
+        .from(businessSubscriptions)
+        .where(eq(businessSubscriptions.businessId, businessId))
+        .limit(1);
+
+      if (!subscription) {
+        return res.status(404).json({ error: "No subscription found for this business" });
+      }
+
+      // Parse JSON fields
+      const enabledModules = subscription.enabledModules ? JSON.parse(subscription.enabledModules) : [];
+      const features = subscription.features ? JSON.parse(subscription.features) : {};
+
+      res.json({
+        ...subscription,
+        enabledModules,
+        features,
+        daysRemaining: subscription.trialEndDate ? 
+          Math.ceil((new Date(subscription.trialEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 
+          null
+      });
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
+      res.status(500).json({ error: "Failed to fetch subscription" });
+    }
+  });
+
+  // Update business subscription modules
+  app.post("/api/businesses/:businessId/subscription/modules", async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.businessId);
+      const { enabledModules } = req.body;
+      
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Verify user has access to this business
+      const [access] = await db
+        .select()
+        .from(businessAccess)
+        .where(and(
+          eq(businessAccess.businessId, businessId),
+          eq(businessAccess.userId, req.user.id),
+          eq(businessAccess.isActive, true)
+        ))
+        .limit(1);
+
+      if (!access) {
+        return res.status(403).json({ error: "Access denied to this business" });
+      }
+
+      // Update enabled modules
+      await db
+        .update(businessSubscriptions)
+        .set({ 
+          enabledModules: JSON.stringify(enabledModules),
+          updatedAt: new Date()
+        })
+        .where(eq(businessSubscriptions.businessId, businessId));
+
+      res.json({ success: true, enabledModules });
+    } catch (error) {
+      console.error('Error updating subscription modules:', error);
+      res.status(500).json({ error: "Failed to update subscription modules" });
     }
   });
 
@@ -461,13 +718,13 @@ export function registerRoutes(app: Express): Server {
           priority: adCampaigns.priority,
           targetingRules: adCampaigns.targetingRules,
           business: {
-            name: businesses.name,
-            industryType: businesses.industryType,
-            contactInfo: businesses.contactInfo,
+            name: businessTenants.name,
+            industryType: businessTenants.industryType,
+            contactInfo: businessTenants.contactInfo,
           }
         })
         .from(adCampaigns)
-        .innerJoin(businesses, eq(businesses.id, adCampaigns.businessId))
+        .innerJoin(businessTenants, eq(businessTenants.id, adCampaigns.businessId))
         .where(and(
           eq(adCampaigns.status, "active"),
           eq(adCampaigns.adType, adType as string),
@@ -535,37 +792,37 @@ export function registerRoutes(app: Express): Server {
       const ipAddress = req.ip;
       const referrer = req.get('Referer');
 
-      // Insert analytics record
-      await db.insert(adAnalytics).values({
-        campaignId,
-        userId: req.user?.id || null,
-        sessionId: req.session?.id || null,
-        action,
-        userAgent,
-        ipAddress,
-        referrer,
-        metadata: metadata || {},
-        timestamp: new Date()
-      });
+      // TODO: Insert analytics record (table not yet created)
+      // await db.insert(adAnalytics).values({
+      //   campaignId,
+      //   userId: req.user?.id || null,
+      //   sessionId: req.session?.id || null,
+      //   action,
+      //   userAgent,
+      //   ipAddress,
+      //   referrer,
+      //   metadata: metadata || {},
+      //   timestamp: new Date()
+      // });
 
-      // Update campaign counters
-      if (action === 'click') {
-        await db
-          .update(adCampaigns)
-          .set({ 
-            clicks: sql`clicks + 1`,
-            spent: sql`spent + 0.50` // $0.50 per click
-          })
-          .where(eq(adCampaigns.id, campaignId));
-      } else if (action === 'impression') {
-        await db
-          .update(adCampaigns)
-          .set({ 
-            impressions: sql`impressions + 1`,
-            spent: sql`spent + 0.01` // $0.01 per impression
-          })
-          .where(eq(adCampaigns.id, campaignId));
-      }
+      // TODO: Update campaign counters (adCampaigns table not yet created)
+      // if (action === 'click') {
+      //   await db
+      //     .update(adCampaigns)
+      //     .set({ 
+      //       clicks: sql`clicks + 1`,
+      //       spent: sql`spent + 0.50` // $0.50 per click
+      //     })
+      //     .where(eq(adCampaigns.id, campaignId));
+      // } else if (action === 'impression') {
+      //   await db
+      //     .update(adCampaigns)
+      //     .set({ 
+      //       impressions: sql`impressions + 1`,
+      //       spent: sql`spent + 0.01` // $0.01 per impression
+      //     })
+      //     .where(eq(adCampaigns.id, campaignId));
+      // }
 
       res.json({ success: true });
     } catch (error) {
@@ -664,12 +921,12 @@ export function registerRoutes(app: Express): Server {
           startDate: adCampaigns.startDate,
           endDate: adCampaigns.endDate,
           business: {
-            name: businesses.name,
-            industryType: businesses.industryType,
+            name: businessTenants.name,
+            industryType: businessTenants.industryType,
           }
         })
         .from(adCampaigns)
-        .innerJoin(businesses, eq(businesses.id, adCampaigns.businessId))
+        .innerJoin(businessTenants, eq(businessTenants.id, adCampaigns.businessId))
         .orderBy(desc(adCampaigns.createdAt));
 
       res.json(campaigns);
@@ -680,76 +937,77 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Business endpoint to get their own campaigns
-  app.get("/api/business/campaigns", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+  // TODO: Fix route to use businessAccess table instead of userId
+  // app.get("/api/business/campaigns", async (req, res) => {
+  //   try {
+  //     if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
+  //       return res.status(401).json({ error: "Unauthorized" });
+  //     }
 
-      // Get business campaigns
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(and(
-          eq(businesses.userId, req.user.id),
-          eq(businesses.status, "active")
-        ))
-        .limit(1);
+  //     // Get business campaigns - NEEDS FIX: userId no longer exists
+  //     const [business] = await db
+  //       .select()
+  //       .from(businessTenants)
+  //       .where(and(
+  //         eq(businessTenants.userId, req.user.id),
+  //         eq(businessTenants.status, "active")
+  //       ))
+  //       .limit(1);
 
-      if (!business) {
-        return res.status(403).json({ error: "No active business found" });
-      }
+  //     if (!business) {
+  //       return res.status(403).json({ error: "No active business found" });
+  //     }
 
-      const campaigns = await db
-        .select()
-        .from(adCampaigns)
-        .where(eq(adCampaigns.businessId, business.id))
-        .orderBy(desc(adCampaigns.createdAt));
+  //     const campaigns = await db
+  //       .select()
+  //       .from(adCampaigns)
+  //       .where(eq(adCampaigns.businessId, business.id))
+  //       .orderBy(desc(adCampaigns.createdAt));
 
-      res.json(campaigns);
-    } catch (error) {
-      console.error('Error fetching business campaigns:', error);
-      res.status(500).json({ error: "Failed to fetch campaigns" });
-    }
-  });
+  //     res.json(campaigns);
+  //   } catch (error) {
+  //     console.error('Error fetching business campaigns:', error);
+  //     res.status(500).json({ error: "Failed to fetch campaigns" });
+  //   }
+  // });
 
-  // Business endpoint to create ad campaigns
-  app.post("/api/advertising/campaigns", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+  // TODO: Fix route to use businessAccess table instead of userId
+  // app.post("/api/advertising/campaigns", async (req, res) => {
+  //   try {
+  //     if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
+  //       return res.status(401).json({ error: "Unauthorized" });
+  //     }
 
-      // Verify business ownership
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(and(
-          eq(businesses.userId, req.user.id),
-          eq(businesses.status, "active")
-        ))
-        .limit(1);
+  //     // Verify business ownership - NEEDS FIX: userId no longer exists
+  //     const [business] = await db
+  //       .select()
+  //       .from(businessTenants)
+  //       .where(and(
+  //         eq(businessTenants.userId, req.user.id),
+  //         eq(businessTenants.status, "active")
+  //       ))
+  //       .limit(1);
 
-      if (!business) {
-        return res.status(403).json({ error: "No active business found" });
-      }
+  //     if (!business) {
+  //       return res.status(403).json({ error: "No active business found" });
+  //     }
 
-      const campaign = await db
-        .insert(adCampaigns)
-        .values({
-          ...req.body,
-          businessId: business.id,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        })
-        .returning();
+  //     const campaign = await db
+  //       .insert(adCampaigns)
+  //       .values({
+  //         ...req.body,
+  //         businessId: business.id,
+  //         createdAt: new Date(),
+  //         updatedAt: new Date()
+  //       })
+  //       .returning();
 
-      res.json(campaign[0]);
-    } catch (error) {
-      console.error('Error creating ad campaign:', error);
-      res.status(500).json({ error: "Failed to create campaign" });
-    }
-  });
+  //     res.json(campaign[0]);
+  //   } catch (error) {
+  //     console.error('Error creating ad campaign:', error);
+  //     res.status(500).json({ error: "Failed to create campaign" });
+  //   }
+  // });
 
   return httpServer;
 }

@@ -7,7 +7,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Base URL
-BASE_URL="http://localhost:5000/api"
+BASE_URL="http://localhost:9101/api"
 
 echo -e "${BLUE}Testing Authentication Endpoints${NC}\n"
 

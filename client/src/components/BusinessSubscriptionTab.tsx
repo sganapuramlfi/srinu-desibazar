@@ -88,7 +88,7 @@ const SUBSCRIPTION_TIERS = {
     name: "Premium",
     icon: Star,
     color: "bg-blue-500", 
-    price: "Coming Soon",
+    price: "$29/month (180 Days FREE)",
     features: [
       "Up to 3 modules",
       "Local + Global ad targeting",
@@ -106,7 +106,7 @@ const SUBSCRIPTION_TIERS = {
     name: "Enterprise",
     icon: Crown,
     color: "bg-purple-500",
-    price: "Coming Soon",
+    price: "Express Interest",
     features: [
       "ALL modules included",
       "Premium ad placement",
@@ -114,7 +114,8 @@ const SUBSCRIPTION_TIERS = {
       "AI-powered targeting",
       "Custom analytics dashboard",
       "Dedicated account manager",
-      "24/7 priority support"
+      "24/7 priority support",
+      "White-label solutions"
     ],
     adPriority: 12,
     maxAds: 999,
@@ -136,25 +137,41 @@ export function BusinessSubscriptionTab({ businessId }: BusinessSubscriptionTabP
   const queryClient = useQueryClient();
   const [selectedTier, setSelectedTier] = useState<"free" | "premium" | "enterprise">("free");
 
+  // Get business info to determine industry type
+  const { data: business } = useQuery({
+    queryKey: [`/api/businesses/${businessId}/profile`],
+    queryFn: async () => {
+      const response = await fetch(`/api/businesses/${businessId}/profile`);
+      return response.json();
+    },
+    enabled: !!businessId,
+  });
+
   // Get current subscription
   const { data: subscription, isLoading } = useQuery<BusinessSubscription>({
     queryKey: [`/api/businesses/${businessId}/subscription`],
     queryFn: async () => {
       const response = await fetch(`/api/businesses/${businessId}/subscription`);
       if (!response.ok) {
-        // Create default trial subscription if none exists
+        // Create default trial subscription if none exists  
+        const businessType = business?.industryType || "restaurant";
         const defaultSub = {
           businessId,
-          tier: "free",
-          status: "trial",
+          tier: "premium",
+          status: "trial", 
           trialStartDate: new Date().toISOString(),
           trialEndDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(), // 180 days
-          enabledModules: [],
-          adTargeting: "global",
-          adPriority: 1,
+          enabledModules: [businessType], // Enable their business industry module
+          adTargeting: "both",
+          adPriority: 3,
           locationCoordinates: {},
-          maxAdsPerMonth: 5,
-          features: {}
+          maxAdsPerMonth: 25,
+          features: {
+            multiModule: true,
+            localTargeting: true,
+            prioritySupport: true,
+            advancedAnalytics: true
+          }
         };
         return defaultSub;
       }

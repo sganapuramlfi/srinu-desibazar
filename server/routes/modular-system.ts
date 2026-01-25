@@ -1,9 +1,9 @@
 import express from 'express';
-import { BusinessRegistrationController } from '../modules/core/BusinessRegistrationController';
-import { ModuleAwareAuth, UserSession } from '../modules/core/ModuleAwareAuth';
-import { DynamicUIController } from '../modules/core/DynamicUIController';
-import { ModuleDatabaseManager } from '../modules/core/ModuleDatabaseManager';
-import { ModuleRegistry } from '../modules/core/ModuleRegistry';
+import { BusinessRegistrationController } from '../../modules/core/BusinessRegistrationController.js';
+import { ModuleAwareAuth, UserSession } from '../../modules/core/ModuleAwareAuth.js';
+import { DynamicUIController } from '../../modules/core/DynamicUIController.js';
+import { ModuleDatabaseManager } from '../../modules/core/ModuleDatabaseManager.js';
+import { ModuleRegistry } from '../../modules/core/ModuleRegistry.js';
 
 const router = express.Router();
 
@@ -95,50 +95,39 @@ router.post('/registration/business', async (req, res) => {
 
 // User login with module-aware session
 router.post('/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    const authResult = await authController.authenticateUser({ email, password });
-    if (!authResult.success) {
-      return res.status(401).json({
-        error: 'Authentication failed',
-        message: authResult.message
-      });
-    }
-
-    // Store session
-    req.session = authResult.session;
-
-    res.json({
-      success: true,
-      user: {
-        userId: authResult.session!.userId,
-        businessId: authResult.session!.businessId,
-        role: authResult.session!.role,
-        industry: authResult.session!.industry
-      },
-      enabledModules: authResult.session!.enabledModules,
-      permissions: authResult.session!.permissions,
-      availableModules: authResult.availableModules
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      error: 'Login failed',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
+  // Redirect to the simplified auth system
+  res.status(410).json({
+    error: 'This endpoint has been deprecated',
+    message: 'Please use /api/simple/login for authentication',
+    redirectTo: '/api/simple/login',
+    deprecated: true
+  });
 });
 
 // Get user status with module information
 router.get('/auth/status', async (req, res) => {
   try {
-    const session = req.session as UserSession;
-    if (!session) {
+    // Check if user is authenticated using the real auth system
+    if (!req.user || !req.isAuthenticated || !req.isAuthenticated()) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const userStatus = await authController.getUserStatus(session.userId);
-    res.json(userStatus);
+    // Get real user data from req.user
+    const user = req.user as any;
+    
+    // Return actual user status
+    res.json({
+      authenticated: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        businessAccess: user.businessAccess || [],
+        primaryBusiness: user.primaryBusiness || null
+      },
+      enabledModules: user.primaryBusiness ? [user.primaryBusiness.industryType] : [],
+      permissions: user.primaryBusiness ? ['read', 'write'] : ['read']
+    });
   } catch (error) {
     res.status(500).json({ 
       error: 'Failed to fetch user status',
@@ -149,8 +138,23 @@ router.get('/auth/status', async (req, res) => {
 
 // Logout
 router.post('/auth/logout', (req, res) => {
-  req.session = null;
-  res.json({ success: true, message: 'Logged out successfully' });
+  // Use the real logout mechanism
+  if (req.logout) {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Logout failed',
+          error: err.message 
+        });
+      }
+      res.json({ success: true, message: 'Logged out successfully' });
+    });
+  } else {
+    // Fallback if logout function doesn't exist
+    req.session = null;
+    res.json({ success: true, message: 'Logged out successfully' });
+  }
 });
 
 // ===============================
@@ -160,10 +164,29 @@ router.post('/auth/logout', (req, res) => {
 // Get navigation menu based on enabled modules
 router.get('/ui/navigation', async (req, res) => {
   try {
-    const session = req.session as UserSession;
-    if (!session) {
-      return res.status(401).json({ error: 'Authentication required' });
+    // Check real authentication status
+    if (!req.user || !req.isAuthenticated || !req.isAuthenticated()) {
+      // For unauthenticated users, return basic navigation
+      const basicNavigation = [
+        { id: "home", label: "Home", path: "/" },
+        { id: "businesses", label: "Businesses", path: "/businesses" },
+        { id: "login", label: "Login", path: "/auth" }
+      ];
+      return res.json({ navigation: basicNavigation });
     }
+
+    const user = req.user as any;
+    
+    // Build session object from real user data
+    const session: UserSession = {
+      userId: user.id,
+      businessId: user.primaryBusiness?.businessId || 0,
+      role: user.primaryBusiness?.role || 'customer',
+      industry: user.primaryBusiness?.industryType || '',
+      enabledModules: user.primaryBusiness ? [user.primaryBusiness.industryType] : [],
+      permissions: user.primaryBusiness ? ['read', 'write'] : ['read'],
+      moduleSubscriptions: []
+    };
 
     const navigation = await uiController.generateNavigation(session);
     res.json({ navigation });
@@ -178,10 +201,31 @@ router.get('/ui/navigation', async (req, res) => {
 // Get dashboard layout based on enabled modules
 router.get('/ui/dashboard', async (req, res) => {
   try {
-    const session = req.session as UserSession;
-    if (!session) {
-      return res.status(401).json({ error: 'Authentication required' });
+    // Check real authentication status
+    if (!req.user || !req.isAuthenticated || !req.isAuthenticated()) {
+      // For unauthenticated users, return welcome dashboard
+      const welcomeDashboard = {
+        layout: "welcome",
+        widgets: [
+          { id: "welcome", type: "welcome", title: "Welcome to DesiBazaar" },
+          { id: "features", type: "features", title: "Platform Features" }
+        ]
+      };
+      return res.json(welcomeDashboard);
     }
+
+    const user = req.user as any;
+    
+    // Build session object from real user data
+    const session: UserSession = {
+      userId: user.id,
+      businessId: user.primaryBusiness?.businessId || 0,
+      role: user.primaryBusiness?.role || 'customer',
+      industry: user.primaryBusiness?.industryType || '',
+      enabledModules: user.primaryBusiness ? [user.primaryBusiness.industryType] : [],
+      permissions: user.primaryBusiness ? ['read', 'write'] : ['read'],
+      moduleSubscriptions: []
+    };
 
     const dashboard = await uiController.generateDashboard(session);
     res.json(dashboard);
@@ -196,12 +240,25 @@ router.get('/ui/dashboard', async (req, res) => {
 // Get form fields for specific form type
 router.get('/ui/forms/:formType', async (req, res) => {
   try {
-    const session = req.session as UserSession;
-    if (!session) {
+    // Check real authentication status
+    if (!req.user || !req.isAuthenticated || !req.isAuthenticated()) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    const user = req.user as any;
     const { formType } = req.params;
+    
+    // Build session object from real user data
+    const session: UserSession = {
+      userId: user.id,
+      businessId: user.primaryBusiness?.businessId || 0,
+      role: user.primaryBusiness?.role || 'customer',
+      industry: user.primaryBusiness?.industryType || '',
+      enabledModules: user.primaryBusiness ? [user.primaryBusiness.industryType] : [],
+      permissions: user.primaryBusiness ? ['read', 'write'] : ['read'],
+      moduleSubscriptions: []
+    };
+    
     const fields = await uiController.getFormFields(formType, session);
     res.json({ fields });
   } catch (error) {

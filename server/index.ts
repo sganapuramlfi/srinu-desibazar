@@ -1,8 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import path from "path";
 import { fileURLToPath } from "url";
 import { setupAuth } from "./auth";
+import simplifiedAuthRoutes from "./routes/simplified-auth.js";
+import adminEmailRoutes from "./routes/admin-email.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,6 +79,12 @@ setupAuth(app);
 app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
 
 (async () => {
+  // Add simplified auth routes
+  app.use('/api/simple', simplifiedAuthRoutes);
+  
+  // Add admin email configuration routes
+  app.use('/api/admin/email', adminEmailRoutes);
+  
   // Initialize API routes first
   const server = registerRoutes(app);
 

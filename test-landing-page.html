@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Landing Page Test</title>
+</head>
+<body>
+    <h1>Landing Page Test</h1>
+    <p>Visit: <a href="http://localhost:5174" target="_blank">http://localhost:5174</a></p>
+    
+    <h2>API Test Results:</h2>
+    <div id="results"></div>
+    
+    <script>
+        async function testAPIs() {
+            const results = document.getElementById('results');
+            
+            try {
+                // Test statistics API
+                const statsResponse = await fetch('http://localhost:3000/api/statistics');
+                const statsData = await statsResponse.json();
+                results.innerHTML += `<p>✅ Statistics API: ${statsData.totalBusinesses} businesses</p>`;
+                
+                // Test businesses API  
+                const businessResponse = await fetch('http://localhost:3000/api/businesses?limit=3');
+                const businessData = await businessResponse.json();
+                results.innerHTML += `<p>✅ Businesses API: ${businessData.total} total businesses</p>`;
+                
+                // Test AI Health
+                const aiResponse = await fetch('http://localhost:3000/api/ai-public-data/genie/health');
+                const aiData = await aiResponse.json();
+                results.innerHTML += `<p>🤖 AI Status: ${aiData.ai_genie_status || 'Working'}</p>`;
+                
+            } catch (error) {
+                results.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        testAPIs();
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db } from "../db";
-import { staffSchedules, salonStaff, shiftTemplates } from "../db/schema";
+import { db } from "../../db/index.js";
+import { staffSchedules, salonStaff, shiftTemplates } from "../../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 

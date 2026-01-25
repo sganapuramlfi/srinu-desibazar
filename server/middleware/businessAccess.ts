@@ -1,139 +1,204 @@
-import type { Request, Response, NextFunction } from "express";
-import { db } from "./db";
-import { businesses, salonBookings } from "./db/schema";
+import { Request, Response, NextFunction } from "express";
+import { db, businessAccess, businessTenants, bookings } from "../../db/index.js";
 import { eq, and } from "drizzle-orm";
 
+// Extend Express Request to include business context
 declare global {
   namespace Express {
     interface Request {
-      isBusinessOwner?: boolean;
-      hasBookingAccess?: boolean;
+      businessContext?: {
+        businessId: number;
+        business: any;
+        userRole: string;
+        permissions: any;
+      };
     }
   }
 }
 
-export const hasBusinessAccess = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const businessId = parseInt(req.params.businessId);
-    const userId = req.user?.id;
+/**
+ * Middleware to verify user has access to a specific business
+ * and populate business context in request
+ */
+export function requireBusinessAccess(
+  requiredRole?: string[], 
+  requiredPermissions?: string[]
+) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
 
-    console.log('Business access check:', { businessId, userId, path: req.path });
+      const businessId = parseInt(req.params.businessId);
+      if (!businessId || isNaN(businessId)) {
+        return res.status(400).json({ error: "Valid business ID required" });
+      }
 
-    if (!businessId || isNaN(businessId)) {
-      console.log('Missing or invalid businessId');
-      return res.status(400).json({ error: "Invalid business ID" });
-    }
+      // Get user's access to this business
+      const [userAccess] = await db
+        .select({
+          businessId: businessAccess.businessId,
+          role: businessAccess.role,
+          permissions: businessAccess.permissions,
+          isActive: businessAccess.isActive,
+          businessName: businessTenants.name,
+          businessSlug: businessTenants.slug,
+          industryType: businessTenants.industryType,
+          businessStatus: businessTenants.status,
+        })
+        .from(businessAccess)
+        .innerJoin(businessTenants, eq(businessTenants.id, businessAccess.businessId))
+        .where(and(
+          eq(businessAccess.businessId, businessId),
+          eq(businessAccess.userId, req.user.id),
+          eq(businessAccess.isActive, true),
+          eq(businessTenants.status, "active")
+        ))
+        .limit(1);
 
-    // Get business
-    const [business] = await db
-      .select()
-      .from(businesses)
-      .where(eq(businesses.id, businessId));
+      if (!userAccess) {
+        return res.status(403).json({ 
+          error: "Access denied - You don't have permission to access this business" 
+        });
+      }
 
-    if (!business) {
-      console.log('Business not found:', businessId);
-      return res.status(404).json({ error: "Business not found" });
-    }
-
-    // Set business owner flag if user is authenticated
-    if (userId) {
-      req.isBusinessOwner = business.userId === userId;
-    }
-
-    // Public routes that don't require full business access
-    const publicEndpoints = [
-      'profile',
-      'services',
-      'staff'
-    ];
-
-    // Check if this is a public endpoint
-    const pathSegments = req.path.split('/').filter(Boolean);
-    const lastSegment = pathSegments[pathSegments.length - 1];
-    const secondToLastSegment = pathSegments[pathSegments.length - 2];
-
-    // Allow slot-related operations without business ownership
-    if (lastSegment === 'slots' || secondToLastSegment === 'slots') {
-      console.log('Access granted - Slot operation');
-      return next();
-    }
-
-    // Allow public endpoints
-    if (publicEndpoints.includes(lastSegment)) {
-      console.log('Access granted - Public endpoint:', lastSegment);
-      return next();
-    }
-
-    // For non-public endpoints, require authentication
-    if (!userId) {
-      console.log('Authentication required for protected endpoint');
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    // Business owners have full access
-    if (req.isBusinessOwner) {
-      console.log('Access granted - Business owner');
-      return next();
-    }
-
-    // Handle booking-specific operations
-    if (pathSegments.includes('bookings')) {
-      // Get booking ID if exists in path
-      const bookingIdIndex = pathSegments.indexOf('bookings') + 1;
-      const bookingId = bookingIdIndex < pathSegments.length ? parseInt(pathSegments[bookingIdIndex]) : null;
-
-      // If accessing a specific booking
-      if (bookingId && !isNaN(bookingId)) {
-        const [booking] = await db
-          .select()
-          .from(salonBookings)
-          .where(
-            and(
-              eq(salonBookings.id, bookingId),
-              eq(salonBookings.businessId, businessId),
-              eq(salonBookings.customerId, userId)
-            )
-          );
-
-        if (booking) {
-          console.log('Access granted - Booking owner:', { userId, bookingId });
-          req.hasBookingAccess = true;
-          return next();
+      // Check role requirements
+      if (requiredRole && requiredRole.length > 0) {
+        if (!requiredRole.includes(userAccess.role)) {
+          return res.status(403).json({ 
+            error: `Access denied - Role '${userAccess.role}' insufficient. Required: ${requiredRole.join(', ')}` 
+          });
         }
       }
 
-      // For general booking operations, check if user has any bookings with this business
-      const [existingBooking] = await db
+      // Check permission requirements
+      if (requiredPermissions && requiredPermissions.length > 0) {
+        const userPermissions = userAccess.permissions || {};
+        const hasRequiredPermissions = requiredPermissions.every(
+          permission => userPermissions[permission] === true
+        );
+        
+        if (!hasRequiredPermissions) {
+          return res.status(403).json({ 
+            error: `Access denied - Missing required permissions: ${requiredPermissions.join(', ')}` 
+          });
+        }
+      }
+
+      // Populate business context in request
+      req.businessContext = {
+        businessId: userAccess.businessId,
+        business: {
+          id: userAccess.businessId,
+          name: userAccess.businessName,
+          slug: userAccess.businessSlug,
+          industryType: userAccess.industryType,
+          status: userAccess.businessStatus,
+        },
+        userRole: userAccess.role,
+        permissions: userAccess.permissions,
+      };
+
+      console.log(`[BusinessAccess] Access granted for user ${req.user.id} to business ${businessId} as ${userAccess.role}`);
+      next();
+    } catch (error) {
+      console.error('[BusinessAccess] Error checking business access:', error);
+      res.status(500).json({ error: "Failed to verify business access" });
+    }
+  };
+}
+
+/**
+ * Middleware to get business by slug and verify access
+ */
+export function requireBusinessAccessBySlug(
+  requiredRole?: string[], 
+  requiredPermissions?: string[]
+) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const businessSlug = req.params.slug;
+      if (!businessSlug) {
+        return res.status(400).json({ error: "Business slug required" });
+      }
+
+      // Get business by slug
+      const [business] = await db
         .select()
-        .from(salonBookings)
-        .where(
-          and(
-            eq(salonBookings.businessId, businessId),
-            eq(salonBookings.customerId, userId)
-          )
-        )
+        .from(businessTenants)
+        .where(and(
+          eq(businessTenants.slug, businessSlug),
+          eq(businessTenants.status, "active")
+        ))
         .limit(1);
 
-      if (existingBooking) {
-        console.log('Access granted - Has existing bookings:', { userId });
-        req.hasBookingAccess = true;
-        return next();
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
       }
+
+      // Temporarily set businessId in params for the main middleware
+      req.params.businessId = business.id.toString();
+      
+      // Call the main business access middleware
+      const mainMiddleware = requireBusinessAccess(requiredRole, requiredPermissions);
+      return mainMiddleware(req, res, next);
+    } catch (error) {
+      console.error('[BusinessAccess] Error checking business access by slug:', error);
+      res.status(500).json({ error: "Failed to verify business access" });
+    }
+  };
+}
+
+/**
+ * Middleware for public access to business data (directory, public pages)
+ */
+export async function getBusinessBySlug(req: Request, res: Response, next: NextFunction) {
+  try {
+    const businessSlug = req.params.slug;
+    if (!businessSlug) {
+      return res.status(400).json({ error: "Business slug required" });
     }
 
-    console.log('Access denied - Not authorized');
-    return res.status(403).json({ error: "Not authorized to access this business" });
+    const [business] = await db
+      .select()
+      .from(businessTenants)
+      .where(and(
+        eq(businessTenants.slug, businessSlug),
+        eq(businessTenants.status, "active")
+      ))
+      .limit(1);
 
+    if (!business) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+
+    // Populate business context for public access
+    req.businessContext = {
+      businessId: business.id,
+      business: business,
+      userRole: "public",
+      permissions: {},
+    };
+
+    next();
   } catch (error) {
-    console.error('Error in business access middleware:', error);
-    res.status(500).json({ error: "Failed to verify business access" });
+    console.error('[BusinessAccess] Error getting business by slug:', error);
+    res.status(500).json({ error: "Failed to get business data" });
   }
-};
+}
 
+/**
+ * Simple authentication middleware
+ */
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.isAuthenticated()) {
-    console.log('Authentication required');
-    return res.status(401).json({ message: "Unauthorized" });
+  if (!req.isAuthenticated() || !req.user) {
+    console.log('[Auth] Authentication required');
+    return res.status(401).json({ error: "Authentication required" });
   }
   next();
 };

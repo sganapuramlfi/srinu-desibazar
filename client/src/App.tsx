@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useUser } from "./hooks/use-user";
 import { Layout } from "./components/layout/Layout";
@@ -6,11 +6,15 @@ import LandingPage from "./pages/LandingPage";
 import TestPage from "./pages/TestPage";
 import SimpleLanding from "./pages/SimpleLanding";
 import MinimalTest from "./pages/MinimalTest";
+import TestBasic from "./pages/TestBasic";
 import AuthPage from "./pages/AuthPage";
 import BusinessDashboard from "./pages/BusinessDashboard";
-import StorefrontPage from "./pages/StorefrontPage";
+// import StorefrontPage from "./pages/StorefrontPage"; // DEPRECATED - Using PublicBusinessPage instead
+import PublicBusinessPage from "./pages/PublicBusinessPage";
+import TestBusinessPage from "./pages/TestBusinessPage";
 import BookingsPage from "./pages/BookingsPage";
 import ConsumerDashboard from "./pages/ConsumerDashboard";
+import SearchResults from "./pages/SearchResults";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminAdvertisingDashboard from "./pages/AdminAdvertisingDashboard";
@@ -21,10 +25,10 @@ import { useAIGenieIntro } from "./hooks/useAIGenieIntro";
 import { AIGenieTestButton } from "./components/AIGenieTestButton";
 import { ModularAuthProvider } from "./components/ModularAuthProvider";
 import { ModuleProvider } from "./modules/ModuleProvider";
-import { ModuleStatusNotifications } from "./components/ModuleStatusNotifications";
 import { AdminRouteGuard } from "./components/AdminRouteGuard";
 import { AdTargetingProvider } from "./contexts/AdTargetingContext";
 import { LocationProvider } from "./hooks/use-location";
+import { CartProvider } from "./contexts/CartContext";
 
 function App() {
   const { user, isLoading } = useUser();
@@ -44,40 +48,58 @@ function App() {
     <LocationProvider>
       <ModularAuthProvider>
         <AdTargetingProvider>
-          <Layout>
+          <CartProvider>
+            <Layout>
         <Switch>
             {/* Public routes */}
             <Route path="/" component={LandingPage} />
+            <Route path="/landing" component={LandingPage} />
             <Route path="/simple" component={SimpleLanding} />
             <Route path="/test" component={TestPage} />
-            <Route path="/landing" component={LandingPage} />
+            <Route path="/testbasic" component={TestBasic} />
             <Route path="/auth" component={AuthPage} />
-            <Route path="/business/:businessId" component={StorefrontPage} />
+            
+            {/* Search Results Route */}
+            <Route path="/search">
+              {() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                return (
+                  <SearchResults 
+                    searchQuery={urlParams.get("q") || undefined}
+                    industry={urlParams.get("industry") || undefined}
+                    location={urlParams.get("location") || undefined}
+                  />
+                );
+              }}
+            </Route>
+            
+            {/* Unified storefront route - using slug for SEO */}
+            <Route path="/business/:businessId">
+              {(params) => <PublicBusinessPage businessId={parseInt(params.businessId)} />}
+            </Route>
+            <Route path="/storefront/:slug">
+              {(params) => <PublicBusinessPage slug={params.slug} />}
+            </Route>
 
             {/* Protected routes - require authentication and module system */}
-            <Route path="/dashboard/:businessId">
+            <Route path="/dashboard/:businessSlug">
               {(params) => {
                 if (!user) {
-                  setLocation("/auth");
-                  return null;
+                  return <Redirect to="/auth" />;
                 }
 
-                // Only allow if user is a business owner and owns this business
-                if (
-                  user.role !== "business" || 
-                  !user.business || 
-                  user.business.id !== parseInt(params.businessId)
-                ) {
-                  setLocation("/");
-                  return null;
+                // Find business by slug in user's business access
+                const businessAccess = user.businessAccess?.find(access => 
+                  access.businessSlug === params.businessSlug && access.isActive
+                );
+                
+                if (!businessAccess) {
+                  return <Redirect to="/" />;
                 }
 
                 return (
                   <ModuleProvider>
-                    <div className="fixed top-4 right-4 z-50 max-w-md">
-                      <ModuleStatusNotifications />
-                    </div>
-                    <BusinessDashboard businessId={parseInt(params.businessId)} />
+                    <BusinessDashboard businessSlug={params.businessSlug} businessId={businessAccess.businessId} />
                   </ModuleProvider>
                 );
               }}
@@ -86,8 +108,7 @@ function App() {
             <Route path="/my-dashboard">
               {() => {
                 if (!user) {
-                  setLocation("/auth");
-                  return null;
+                  return <Redirect to="/auth" />;
                 }
                 return <ConsumerDashboard />;
               }}
@@ -96,8 +117,7 @@ function App() {
             <Route path="/my-bookings">
               {() => {
                 if (!user) {
-                  setLocation("/auth");
-                  return null;
+                  return <Redirect to="/auth" />;
                 }
                 return <BookingsPage />;
               }}
@@ -106,12 +126,15 @@ function App() {
             <Route path="/advertising/portal">
               {() => {
                 if (!user) {
-                  setLocation("/auth");
-                  return null;
+                  return <Redirect to="/auth" />;
                 }
-                if (user.role !== "business") {
-                  setLocation("/");
-                  return null;
+                // Only allow if user has business access (owner/manager role)
+                const hasBusinessRole = user.businessAccess?.some(access => 
+                  ["owner", "manager"].includes(access.role) && access.isActive
+                );
+                
+                if (!hasBusinessRole) {
+                  return <Redirect to="/" />;
                 }
                 return <BusinessAdvertisingPortal />;
               }}
@@ -172,10 +195,11 @@ function App() {
           
           {/* Development test button */}
           <AIGenieTestButton />
-        </Layout>
-      </AdTargetingProvider>
-    </ModularAuthProvider>
-  </LocationProvider>
+            </Layout>
+          </CartProvider>
+        </AdTargetingProvider>
+      </ModularAuthProvider>
+    </LocationProvider>
   );
 }
 

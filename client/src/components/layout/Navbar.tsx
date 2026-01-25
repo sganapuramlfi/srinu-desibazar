@@ -48,9 +48,11 @@ export function Navbar() {
   };
 
   const handleDashboardClick = () => {
-    if (user?.role === "business" && user.business?.id) {
-      navigate(`/dashboard/${user.business.id}`);
-    } else if (user?.role === "customer") {
+    if (user?.primaryBusiness?.businessSlug) {
+      console.log(`[Navigation] Redirecting to business dashboard: /dashboard/${user.primaryBusiness.businessSlug}`);
+      navigate(`/dashboard/${user.primaryBusiness.businessSlug}`);
+    } else {
+      console.log(`[Navigation] No business found, redirecting to customer dashboard`);
       navigate("/my-dashboard");
     }
   };
@@ -134,16 +136,19 @@ export function Navbar() {
                     {session.enabledModules.length}
                   </Badge>
                 </Button>
-              ) : user?.role === "business" && user.business?.id ? (
+              ) : user?.primaryBusiness?.businessSlug ? (
                 <Button
                   variant="ghost"
                   onClick={handleDashboardClick}
                   className="hidden md:flex"
                 >
                   <Store className="mr-2 h-4 w-4" />
-                  Business Dashboard
+                  {user.primaryBusiness.businessName} Dashboard
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {user.primaryBusiness.industryType}
+                  </Badge>
                 </Button>
-              ) : (user?.role === "customer" || session?.role === "customer") ? (
+              ) : user && !user.businessAccess?.length ? (
                 <>
                   <Button
                     variant="ghost"
@@ -184,9 +189,9 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => navigate("/auth?mode=register")} className="hidden md:flex">
+              <Button variant="outline" onClick={() => navigate("/auth")} className="hidden md:flex">
                 <User className="mr-2 h-4 w-4" />
-                Register User
+                Customer Sign Up
               </Button>
               <Button variant="outline" onClick={() => navigate("/register")} className="hidden md:flex">
                 <Store className="mr-2 h-4 w-4" />
@@ -194,7 +199,7 @@ export function Navbar() {
               </Button>
               <Button variant="default" onClick={() => navigate("/auth")} className="hidden md:flex">
                 <LogIn className="mr-2 h-4 w-4" />
-                Login
+                Customer Login
               </Button>
             </>
           )}
@@ -234,7 +239,7 @@ export function Navbar() {
 
             {user ? (
               <>
-                {user.role === "business" && user.business?.id ? (
+                {user?.primaryBusiness?.businessSlug ? (
                   <Button
                     variant="ghost"
                     onClick={handleDashboardClick}
@@ -243,7 +248,7 @@ export function Navbar() {
                     <Store className="mr-2 h-4 w-4" />
                     Business Dashboard
                   </Button>
-                ) : user.role === "customer" ? (
+                ) : user && !user.primaryBusiness ? (
                   <>
                     <Button
                       variant="ghost"
@@ -276,11 +281,11 @@ export function Navbar() {
               <>
                 <Button
                   variant="outline"
-                  onClick={() => navigate("/auth?mode=register")}
+                  onClick={() => navigate("/auth")}
                   className="w-full justify-start"
                 >
                   <User className="mr-2 h-4 w-4" />
-                  Register User
+                  Customer Sign Up
                 </Button>
                 <Button
                   variant="outline"
@@ -296,7 +301,7 @@ export function Navbar() {
                   className="w-full justify-start"
                 >
                   <LogIn className="mr-2 h-4 w-4" />
-                  Login
+                  Customer Login
                 </Button>
               </>
             )}

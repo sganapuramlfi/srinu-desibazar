@@ -40,7 +40,7 @@ export function TopBanner() {
 
   const { data: announcements } = useQuery<Announcement[]>({
     queryKey: ["/api/admin/announcements/active"],
-    enabled: true,
+    enabled: false, // Disabled until server API is working
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -140,7 +140,7 @@ export function TopBanner() {
       </div>
 
       {/* CSS for sliding animation */}
-      <style jsx>{`
+      <style>{`
         @keyframes slide {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }

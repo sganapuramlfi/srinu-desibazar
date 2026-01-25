@@ -31,8 +31,11 @@ export function ModuleProvider({ children }: { children: React.ReactNode }) {
       registry.clear();
 
       // Fetch module configuration from server
-      const response = await fetch('/api/admin/modules/status');
+      const response = await fetch('/api/admin/modules/status', {
+        credentials: 'include'
+      });
       if (!response.ok) {
+        console.log('[ModuleProvider] Admin endpoint not accessible, using public endpoint');
         // If admin endpoint fails, try to get basic module info from public endpoint
         const publicResponse = await fetch('/api/modular/registration/industries');
         if (publicResponse.ok) {

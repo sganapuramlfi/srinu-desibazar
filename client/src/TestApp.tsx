@@ -1,4 +1,6 @@
 function TestApp() {
+  console.log("TestApp component is rendering NOW!");
+  alert("TestApp is working!");
   return (
     <div style={{ padding: '50px', fontSize: '24px', backgroundColor: '#f0f8ff' }}>
       <h1 style={{ color: 'green' }}>🎉 SUCCESS! Page is Working!</h1>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test AbrakadabraAI API</title>
+</head>
+<body>
+    <h1>Test AbrakadabraAI API</h1>
+    <button onclick="testPublicAPI()">Test Public API</button>
+    <button onclick="testOldAPI()">Test Old API</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testPublicAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Testing new fixed endpoint...';
+            
+            try {
+                const response = await fetch('/api/ai-abrakadabra-fixed/public/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: 'spice pavilion',
+                        location: 'Melbourne',
+                        context: 'search'
+                    })
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.recommendations) {
+                    console.log('✅ Found', data.recommendations.length, 'recommendations');
+                    console.log('First result:', data.recommendations[0]?.name);
+                }
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testOldAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Testing old endpoint...';
+            
+            try {
+                const response = await fetch('/api/ai-genie/genie/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: 'spice pavilion',
+                        userLocation: 'Melbourne',
+                        context: 'directory'
+                    })
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

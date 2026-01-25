@@ -1,6 +1,8 @@
 import { Router } from "express";
-import { db } from "../db";
-import { serviceSlots, salonServices, salonStaff, shiftTemplates, staffSchedules } from "../db/schema";
+// 🚨 CRITICAL: Route files are in /app/routes/, so db is at ../../db/
+// See DOCKER-PATHS.md for full path documentation
+import { db } from "../../db/index.js";
+import { serviceSlots, salonServices, salonStaff, shiftTemplates, staffSchedules } from "../../db/schema.js";
 import { eq, and, not, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { format, parse, addMinutes, isWithinInterval } from "date-fns";

@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { db } from "../db";
+import { db } from "../../db/index.js";
 import { eq, and, not } from "drizzle-orm";
 import { z } from "zod";
-import { salonBookings, serviceSlots, salonServices, salonStaff, users } from "../db/schema";
+import { salonBookings, serviceSlots, salonServices, salonStaff, users, businessCommunications, notificationQueue } from "../../db/schema.js";
 import { format } from 'date-fns';
 import { requireAuth, hasBusinessAccess } from "../middleware/businessAccess";
 
@@ -394,6 +394,62 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
       .from(users)
       .where(eq(users.id, customerId));
 
+    console.log('[Booking] Creating business communication alert...');
+    
+    // Create business communication alert for new booking
+    const bookingNumber = `BKG-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const [communication] = await db
+      .insert(businessCommunications)
+      .values({
+        businessId,
+        customerId,
+        subject: `New Booking #${bookingNumber} - ${slot.service.name}`,
+        communicationType: 'booking_placed',
+        priority: 4, // High priority for new bookings
+        status: 'open',
+        customerName: customer.username || customer.email.split('@')[0],
+        customerEmail: customer.email,
+        metadata: {
+          relatedEntityType: 'booking',
+          relatedEntityId: result.id,
+          bookingNumber,
+          serviceName: slot.service.name,
+          staffName: slot.staff.name,
+          scheduledAt: result.scheduledAt,
+          duration: slot.service.duration,
+          price: slot.service.price
+        }
+      })
+      .returning();
+
+    console.log('[Booking] Communication alert created:', communication.id);
+
+    // Create notification for business owner
+    console.log('[Booking] Creating notification for business owner...');
+    await db
+      .insert(notificationQueue)
+      .values({
+        businessId,
+        communicationId: communication.id,
+        notificationType: 'email',
+        subject: `New Booking #${bookingNumber} - ${slot.service.name}`,
+        messageText: `You have received a new booking from ${customer.username || customer.email}. Service: ${slot.service.name} with ${slot.staff.name} on ${format(new Date(result.scheduledAt), 'PPP')} at ${format(new Date(result.scheduledAt), 'p')}.`,
+        messageHtml: `<p>You have received a new booking from <strong>${customer.username || customer.email}</strong>.</p><p><strong>Service:</strong> ${slot.service.name}<br><strong>Staff:</strong> ${slot.staff.name}<br><strong>Date & Time:</strong> ${format(new Date(result.scheduledAt), 'PPP')} at ${format(new Date(result.scheduledAt), 'p')}<br><strong>Duration:</strong> ${slot.service.duration} minutes<br><strong>Price:</strong> $${slot.service.price}</p>`,
+        data: {
+          bookingId: result.id,
+          bookingNumber,
+          serviceName: slot.service.name,
+          customerName: customer.username || customer.email,
+          customerEmail: customer.email,
+          scheduledAt: result.scheduledAt
+        },
+        priority: 4, // High priority
+        status: 'pending'
+      });
+
+    console.log('[Booking] Notification created successfully');
+    console.log('[Booking] Enterprise booking flow completed successfully');
+
     res.json({
       message: "Booking created successfully",
       booking: {
@@ -401,6 +457,7 @@ router.post("/businesses/:businessId/bookings", async (req, res) => {
         service: slot.service,
         staff: slot.staff,
         customer,
+        bookingNumber
       },
     });
   } catch (error) {

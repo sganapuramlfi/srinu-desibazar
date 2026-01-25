@@ -1,0 +1,1 @@
+SELECT COUNT(*) as table_count FROM restaurant_tables;

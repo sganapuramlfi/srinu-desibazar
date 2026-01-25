@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Storefront</title>
+</head>
+<body>
+    <h1>Testing API calls</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function testAPIs() {
+            const results = document.getElementById('results');
+            
+            try {
+                // Test 1: Get all businesses
+                console.log('Testing /api/businesses...');
+                const businessesResponse = await fetch('http://localhost:3000/api/businesses');
+                const businesses = await businessesResponse.json();
+                results.innerHTML += `<p>✅ Businesses loaded: ${businesses.length}</p>`;
+                
+                // Test 2: Find spice palace
+                const spicePalace = businesses.find(b => b.slug === 'spice-palace-melbourne');
+                if (spicePalace) {
+                    results.innerHTML += `<p>✅ Found Spice Palace: ID ${spicePalace.id}</p>`;
+                    
+                    // Test 3: Get business profile
+                    const profileResponse = await fetch(`http://localhost:3000/api/businesses/${spicePalace.id}/profile`);
+                    const profile = await profileResponse.json();
+                    results.innerHTML += `<p>✅ Profile loaded: ${profile.name}</p>`;
+                    
+                    // Test 4: Get menu items
+                    const menuResponse = await fetch(`http://localhost:3000/api/restaurants/${spicePalace.id}/menu/items`);
+                    const menu = await menuResponse.json();
+                    results.innerHTML += `<p>✅ Menu loaded: ${menu.length} items</p>`;
+                    
+                } else {
+                    results.innerHTML += `<p>❌ Spice Palace not found in businesses list</p>`;
+                }
+                
+            } catch (error) {
+                results.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+                console.error('Test failed:', error);
+            }
+        }
+        
+        testAPIs();
+    </script>
+</body>
+</html>

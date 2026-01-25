@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { ModuleRegistry } from './modules/core/ModuleRegistry.js';
-import { BaseModule } from './modules/core/types.js';
+import { ModuleRegistry } from '../modules/core/ModuleRegistry.js';
+import { BaseModule } from '../modules/core/types.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -21,7 +21,7 @@ export class ModuleLoader {
   async loadModules(): Promise<void> {
     try {
       // Load module configuration
-      const configPath = path.join(__dirname, 'modules/config/modules.json');
+      const configPath = path.join(__dirname, '../modules/config/modules.json');
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
       console.log('🔧 Loading modules from configuration...');
@@ -49,14 +49,16 @@ export class ModuleLoader {
       console.log(`📦 Loading module: ${moduleId}`);
 
       // Import module dynamically
-      const modulePath = path.join(__dirname, 'modules', moduleId, 'index.ts');
+      const modulePath = path.join(__dirname, '../modules', moduleId, 'index.ts');
       
       if (!fs.existsSync(modulePath)) {
         console.warn(`⚠️  Module file not found: ${modulePath}`);
         return;
       }
 
-      const moduleImport = await import(modulePath);
+      // Convert Windows path to proper file:// URL for ESM import
+      const moduleUrl = path.isAbsolute(modulePath) ? `file:///${modulePath.replace(/\\/g, '/')}` : modulePath;
+      const moduleImport = await import(moduleUrl);
       const moduleDefinition: BaseModule = moduleImport.default;
 
       if (!moduleDefinition) {

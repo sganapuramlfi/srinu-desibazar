@@ -1,0 +1,155 @@
+
+> desibazaar-hub@1.0.0 dev:server
+> tsx watch server/index.ts
+
+[dotenv@17.2.1] injecting env (1) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+🔧 Loading modules from configuration...
+📦 Loading module: salon
+serving on port 3000
+📧 [EmailService] Using default email configuration
+📧 [EmailService] SMTP configuration failed: TypeError: nodemailer.createTransporter is not a function
+    at EmailService.initializeTransporter (/home/ubunutu/DesiBazaarHubAutoBasha/server/services/emailService.ts:50:37)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+📧 [EmailService] Falling back to mock email mode
+🎯 Salon module initialized
+Module salon enabled successfully
+Module salon registered successfully
+✅ Module salon loaded successfully
+📦 Loading module: restaurant
+🍽️ Restaurant module initialized
+Module restaurant enabled successfully
+Module restaurant registered successfully
+✅ Module restaurant loaded successfully
+📦 Loading module: realestate
+🏠 Real Estate module initialized
+Module realestate enabled successfully
+Module realestate registered successfully
+✅ Module realestate loaded successfully
+📦 Loading module: eventmanagement
+🎉 Event Management module initialized
+Module eventmanagement enabled successfully
+Module eventmanagement registered successfully
+✅ Module eventmanagement loaded successfully
+📦 Loading module: retail
+🛍️ Retail module initialized
+Module retail enabled successfully
+Module retail registered successfully
+✅ Module retail loaded successfully
+📦 Loading module: professionalservices
+⚖️ Professional Services module initialized
+Module professionalservices enabled successfully
+Module professionalservices registered successfully
+✅ Module professionalservices loaded successfully
+📦 Loading module: ai
+🤖 AI Genie module initialized
+✨ Smart business AI assistant ready
+Module ai enabled successfully
+Module ai registered successfully
+✅ Module ai loaded successfully
+🔗 Registering route: GET /api/salon/staff
+🔗 Registering route: POST /api/salon/staff
+🔗 Registering route: GET /api/salon/services
+🔗 Registering route: POST /api/salon/booking/availability
+🔗 Registering route: POST /api/salon/booking
+🔗 Registering route: GET /api/salon/roster/:staffId
+🔗 Registering route: GET /api/restaurant/tables
+🔗 Registering route: POST /api/restaurant/tables
+🔗 Registering route: GET /api/restaurant/menu
+🔗 Registering route: POST /api/restaurant/reservation/availability
+🔗 Registering route: POST /api/restaurant/reservation
+🔗 Registering route: POST /api/restaurant/waitlist
+🔗 Registering route: GET /api/restaurant/analytics/:date
+🔗 Registering route: GET /api/restaurant/staff
+🔗 Registering route: GET /api/realestate/properties
+🔗 Registering route: POST /api/realestate/properties
+🔗 Registering route: GET /api/realestate/properties/:propertyId
+🔗 Registering route: POST /api/realestate/viewing/availability
+🔗 Registering route: POST /api/realestate/viewing
+🔗 Registering route: GET /api/realestate/agents
+🔗 Registering route: POST /api/realestate/agents
+🔗 Registering route: POST /api/realestate/leads
+🔗 Registering route: GET /api/realestate/leads
+🔗 Registering route: POST /api/realestate/recommendations/:leadId
+🔗 Registering route: POST /api/realestate/market-analysis/:propertyId
+🔗 Registering route: GET /api/realestate/analytics/:date
+🔗 Registering route: POST /api/realestate/open-house
+🔗 Registering route: GET /api/realestate/open-houses
+🔗 Registering route: GET /api/eventmanagement/venues
+🔗 Registering route: POST /api/eventmanagement/venues
+🔗 Registering route: GET /api/eventmanagement/venues/:venueId
+🔗 Registering route: POST /api/eventmanagement/event/availability
+🔗 Registering route: POST /api/eventmanagement/event
+🔗 Registering route: GET /api/eventmanagement/coordinators
+🔗 Registering route: POST /api/eventmanagement/coordinators
+🔗 Registering route: GET /api/eventmanagement/equipment
+🔗 Registering route: POST /api/eventmanagement/equipment
+🔗 Registering route: POST /api/eventmanagement/equipment/availability
+🔗 Registering route: GET /api/eventmanagement/catering
+🔗 Registering route: POST /api/eventmanagement/catering
+🔗 Registering route: POST /api/eventmanagement/catering/quote
+🔗 Registering route: POST /api/eventmanagement/timeline/:eventId
+🔗 Registering route: GET /api/eventmanagement/events
+🔗 Registering route: GET /api/eventmanagement/events/:eventId
+🔗 Registering route: PUT /api/eventmanagement/events/:eventId/status
+🔗 Registering route: GET /api/eventmanagement/analytics/:date
+🔗 Registering route: POST /api/eventmanagement/vendors
+🔗 Registering route: GET /api/eventmanagement/vendors
+🔗 Registering route: POST /api/retail/appointment/availability
+🔗 Registering route: POST /api/retail/appointment
+🔗 Registering route: GET /api/retail/shoppers
+🔗 Registering route: POST /api/retail/shoppers
+🔗 Registering route: GET /api/retail/products
+🔗 Registering route: POST /api/retail/products
+🔗 Registering route: GET /api/retail/products/:productId
+🔗 Registering route: POST /api/retail/recommendations/:customerId
+🔗 Registering route: GET /api/retail/customers
+🔗 Registering route: POST /api/retail/customers
+🔗 Registering route: GET /api/retail/customers/:customerId
+🔗 Registering route: PUT /api/retail/customers/:customerId
+🔗 Registering route: POST /api/retail/customers/:customerId/style-analysis
+🔗 Registering route: GET /api/retail/fitting-rooms
+🔗 Registering route: POST /api/retail/fitting-rooms/availability
+🔗 Registering route: POST /api/retail/alterations
+🔗 Registering route: GET /api/retail/alterations
+🔗 Registering route: PUT /api/retail/alterations/:alterationId/status
+🔗 Registering route: GET /api/retail/appointments
+🔗 Registering route: GET /api/retail/appointments/:appointmentId
+🔗 Registering route: POST /api/retail/loyalty/calculate/:customerId
+🔗 Registering route: GET /api/retail/analytics/:date
+🔗 Registering route: POST /api/professionalservices/consultation/availability
+🔗 Registering route: POST /api/professionalservices/consultation
+🔗 Registering route: GET /api/professionalservices/consultants
+🔗 Registering route: POST /api/professionalservices/consultants
+🔗 Registering route: GET /api/professionalservices/consultants/:consultantId
+🔗 Registering route: POST /api/professionalservices/consultation/estimate
+🔗 Registering route: GET /api/professionalservices/clients
+🔗 Registering route: POST /api/professionalservices/clients
+🔗 Registering route: GET /api/professionalservices/clients/:clientId
+🔗 Registering route: POST /api/professionalservices/clients/:clientId/analysis
+🔗 Registering route: GET /api/professionalservices/consultation-rooms
+🔗 Registering route: POST /api/professionalservices/consultation-rooms/availability
+🔗 Registering route: GET /api/professionalservices/cases
+🔗 Registering route: POST /api/professionalservices/cases
+🔗 Registering route: GET /api/professionalservices/cases/:caseId
+🔗 Registering route: PUT /api/professionalservices/cases/:caseId/status
+🔗 Registering route: POST /api/professionalservices/timeline/:consultationId
+🔗 Registering route: GET /api/professionalservices/document-templates
+🔗 Registering route: POST /api/professionalservices/document-templates
+🔗 Registering route: POST /api/professionalservices/documents/generate
+🔗 Registering route: GET /api/professionalservices/invoices
+🔗 Registering route: POST /api/professionalservices/invoices
+🔗 Registering route: PUT /api/professionalservices/invoices/:invoiceId/status
+🔗 Registering route: GET /api/professionalservices/consultations
+🔗 Registering route: GET /api/professionalservices/consultations/:consultationId
+🔗 Registering route: GET /api/professionalservices/analytics/:date
+🔗 Registering route: GET /api/ai/config
+🔗 Registering route: POST /api/ai/config
+🔗 Registering route: POST /api/ai/request
+🔗 Registering route: POST /api/ai/smart-booking/:businessId
+🔗 Registering route: POST /api/ai/customer-insights/:customerId
+🔗 Registering route: POST /api/ai/staff-optimization/:businessId
+🔗 Registering route: GET /api/ai/analytics/:businessId/:date
+🔗 Registering route: GET /api/ai/features
+🔗 Registering route: POST /api/ai/features/:featureId/toggle
+🔗 Registering route: GET /api/ai/providers
+✅ Successfully loaded 7 modules

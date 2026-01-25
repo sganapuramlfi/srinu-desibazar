@@ -1,0 +1,235 @@
+# Docker Compose with GPU Support for AI Genie + Ollama Integration
+# 
+# FOUNDER VISION: Smart, scalable AI infrastructure
+# - NVIDIA GPU acceleration for local LLM inference
+# - Modular architecture ready for scaling
+# - Cost-effective local AI processing
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: desibazaar-db-gpu
+    environment:
+      POSTGRES_DB: desibazaar
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "9100:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - desibazaar-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Server with AI Genie
+  server:
+    build: 
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: desibazaar-server-gpu
+    ports:
+      - "9101:3000"
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/desibazaar
+      
+      # AI Genie Configuration  
+      OLLAMA_ENDPOINT: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:3b
+      AI_GENIE_AUTO_DETECT: true
+      AI_GENIE_PREFER_LOCAL: true
+      AI_GENIE_FALLBACK_ENABLED: true
+      
+      # Context Intelligence
+      AI_GENIE_CONTEXT_AWARENESS: true
+      AI_GENIE_BUSINESS_INTELLIGENCE: true
+      AI_GENIE_PROACTIVE_INSIGHTS: true
+      
+      # Application
+      NODE_ENV: development
+      PORT: 3000
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - desibazaar-network
+    # Use built-in container structure for production-like deployment
+
+  # Frontend Client
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: desibazaar-client-gpu
+    ports:
+      - "9102:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:9101
+      VITE_AI_GENIE_ENABLED: true
+    depends_on:
+      - server
+    networks:
+      - desibazaar-network
+    # Use built-in container structure for production-like deployment
+
+  # Ollama Local LLM Service with GPU Support
+  ollama:
+    image: ollama/ollama:latest
+    container_name: desibazaar-ollama-gpu
+    ports:
+      - "11435:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_ORIGINS: "*"
+      # GPU Configuration
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    networks:
+      - desibazaar-network
+    volumes:
+      - ollama_data:/root/.ollama
+    # CRITICAL: GPU Runtime for NVIDIA acceleration
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # AI Model Manager (Future: Separate models for different modules)
+  ai-manager:
+    image: ollama/ollama:latest
+    container_name: desibazaar-ai-manager
+    profiles:
+      - future-scaling
+    ports:
+      - "11436:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    networks:
+      - desibazaar-network
+    volumes:
+      - ai_manager_data:/root/.ollama
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+# Modular Services Architecture (Future Scaling Strategy)
+# Uncomment and scale individual modules as needed
+
+  # Restaurant Module Service
+  restaurant-service:
+    build:
+      context: .
+      dockerfile: modules/restaurant/Dockerfile
+    container_name: desibazaar-restaurant-module
+    profiles:
+      - modular-scaling
+    ports:
+      - "9201:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/desibazaar
+      MODULE_NAME: restaurant
+      AI_ENDPOINT: http://ollama:11434
+    networks:
+      - desibazaar-network
+    depends_on:
+      - db
+      - ollama
+
+  # Salon Module Service
+  salon-service:
+    build:
+      context: .
+      dockerfile: modules/salon/Dockerfile
+    container_name: desibazaar-salon-module
+    profiles:
+      - modular-scaling
+    ports:
+      - "9202:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/desibazaar
+      MODULE_NAME: salon
+      AI_ENDPOINT: http://ollama:11434
+    networks:
+      - desibazaar-network
+    depends_on:
+      - db
+      - ollama
+
+  # AI Analytics Service
+  ai-analytics:
+    build:
+      context: .
+      dockerfile: services/ai-analytics/Dockerfile
+    container_name: desibazaar-ai-analytics
+    profiles:
+      - analytics-scaling
+    ports:
+      - "9301:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/desibazaar
+      OLLAMA_ENDPOINT: http://ollama:11434
+      ANALYTICS_MODE: real_time
+    networks:
+      - desibazaar-network
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+networks:
+  desibazaar-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
+  ai_manager_data:
+    driver: local
+
+# Scaling Profiles Usage:
+# 
+# Current (Monolithic):
+# docker-compose -f docker-compose.gpu.yml up
+#
+# Future (Modular Restaurants Only):
+# docker-compose -f docker-compose.gpu.yml --profile modular-scaling up restaurant-service
+#
+# Future (Full Modular):
+# docker-compose -f docker-compose.gpu.yml --profile modular-scaling --profile analytics-scaling up
+#
+# GPU Management:
+# docker stats  # Monitor GPU usage
+# nvidia-smi    # Check GPU availability

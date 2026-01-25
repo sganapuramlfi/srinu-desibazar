@@ -1,0 +1,4 @@
+@echo off
+psql postgresql://postgres:postgres@localhost:9100/desibazaar -c "ALTER TABLE business_communications DROP CONSTRAINT IF EXISTS business_communications_communication_type_check;"
+psql postgresql://postgres:postgres@localhost:9100/desibazaar -c "ALTER TABLE business_communications ADD CONSTRAINT business_communications_communication_type_check CHECK (communication_type IN ('constraint_violation', 'special_request', 'complaint', 'inquiry', 'booking_issue', 'ai_escalation', 'large_party', 'off_hours_request', 'capacity_issue', 'general_inquiry', 'order_placed', 'order_update', 'order_cancelled', 'order_complaint', 'order_inquiry'));"
+echo Migration completed successfully

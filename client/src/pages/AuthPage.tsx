@@ -20,13 +20,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUser } from "../hooks/use-user";
@@ -34,7 +27,7 @@ import { useToast } from "../hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  email: z.string().email("Valid email is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -42,25 +35,12 @@ const registerSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   email: z.string().email("Invalid email address"),
-  role: z.enum(["business", "customer"]),
-  business: z.object({
-    name: z.string().min(2, "Business name must be at least 2 characters"),
-    industryType: z.enum(["salon", "restaurant", "event", "realestate", "retail", "professional"]),
-    description: z.string().optional(),
-  }).optional(),
+  fullName: z.string().optional(),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
 type RegisterFormData = z.infer<typeof registerSchema>;
 
-const INDUSTRY_TYPES = [
-  { value: "salon", label: "Salon & Spa" },
-  { value: "restaurant", label: "Restaurant & Cafés" },
-  { value: "event", label: "Event Management" },
-  { value: "realestate", label: "Real Estate" },
-  { value: "retail", label: "Retail Stores" },
-  { value: "professional", label: "Professional Services" },
-];
 
 export default function AuthPage() {
   const [, navigate] = useLocation();
@@ -68,12 +48,11 @@ export default function AuthPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showBusinessFields, setShowBusinessFields] = useState(false);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
@@ -84,15 +63,9 @@ export default function AuthPage() {
       username: "",
       password: "",
       email: "",
-      role: "customer",
+      fullName: "",
     },
   });
-
-  // Watch for role changes to show/hide business fields
-  const role = registerForm.watch("role");
-  useEffect(() => {
-    setShowBusinessFields(role === "business");
-  }, [role]);
 
   const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
@@ -116,10 +89,13 @@ export default function AuthPage() {
         description: "Welcome back!",
       });
 
-      if (result.user?.role === "business" && result.user.business?.id) {
-        navigate(`/dashboard/${result.user.business.id}`);
+      // Navigate based on user type
+      if (result.user?.businessAccess?.length > 0 && result.user.primaryBusiness?.businessSlug) {
+        // Business owner - go to business dashboard
+        navigate(`/dashboard/${result.user.primaryBusiness.businessSlug}`);
       } else {
-        navigate("/");
+        // Consumer - go to consumer dashboard
+        navigate("/my-dashboard");
       }
     } catch (error: any) {
       const errorMessage = error.message || "Login failed";
@@ -156,17 +132,8 @@ export default function AuthPage() {
         description: "Welcome to DesiBazaar!",
       });
 
-      if (result.user?.role === "business") {
-        if (result.user.business?.id) {
-          if (result.user.needsOnboarding) {
-            navigate(`/onboarding/${result.user.business.id}`);
-          } else {
-            navigate(`/dashboard/${result.user.business.id}`);
-          }
-        }
-      } else {
-        navigate("/");
-      }
+      // Navigate customers to home page
+      navigate("/");
     } catch (error: any) {
       const errorMessage = error.message || "Registration failed";
       setError(errorMessage);
@@ -186,8 +153,11 @@ export default function AuthPage() {
         <CardHeader className="text-center">
           <CardTitle className="text-2xl text-primary">Welcome to DesiBazaar</CardTitle>
           <CardDescription>
-            Login or create an account to continue
+            Customer Login & Registration
           </CardDescription>
+          <p className="text-sm text-muted-foreground mt-2">
+            Looking to register your business? <a href="/register" className="text-primary hover:underline">Click here</a>
+          </p>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login">
@@ -207,12 +177,12 @@ export default function AuthPage() {
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                   <FormField
                     control={loginForm.control}
-                    name="username"
+                    name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Username</FormLabel>
+                        <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input {...field} autoComplete="username" />
+                          <Input type="email" {...field} autoComplete="email" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -289,73 +259,17 @@ export default function AuthPage() {
                   />
                   <FormField
                     control={registerForm.control}
-                    name="role"
+                    name="fullName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Account Type</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select account type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="customer">Customer</SelectItem>
-                            <SelectItem value="business">Business Owner</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Full Name (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Your full name" />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  {showBusinessFields && (
-                    <>
-                      <FormField
-                        control={registerForm.control}
-                        name="business.name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Business Name</FormLabel>
-                            <FormControl>
-                              <Input {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={registerForm.control}
-                        name="business.industryType"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Business Type</FormLabel>
-                            <Select
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select your industry" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {INDUSTRY_TYPES.map((type) => (
-                                  <SelectItem key={type.value} value={type.value}>
-                                    {type.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
 
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? (

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "🔍 Starting Industry-specific Authentication Tests"
-echo "Testing base URL: http://localhost:5000"
+echo "Testing base URL: http://localhost:9101"
 
 # Function to make HTTP requests and log responses
 make_request() {
@@ -43,7 +43,7 @@ salon_data='{
         "description": "Test Salon Description"
     }
 }'
-make_request "http://localhost:5000/api/register" "POST" "$salon_data" "Salon Business Registration"
+make_request "http://localhost:9101/api/register" "POST" "$salon_data" "Salon Business Registration"
 
 # 2. Restaurant Business
 restaurant_data='{
@@ -57,7 +57,7 @@ restaurant_data='{
         "description": "Test Restaurant Description"
     }
 }'
-make_request "http://localhost:5000/api/register" "POST" "$restaurant_data" "Restaurant Business Registration"
+make_request "http://localhost:9101/api/register" "POST" "$restaurant_data" "Restaurant Business Registration"
 
 # 3. Event Management Business
 event_data='{
@@ -71,7 +71,7 @@ event_data='{
         "description": "Test Event Description"
     }
 }'
-make_request "http://localhost:5000/api/register" "POST" "$event_data" "Event Business Registration"
+make_request "http://localhost:9101/api/register" "POST" "$event_data" "Event Business Registration"
 
 # 4. Real Estate Business
 realestate_data='{
@@ -85,7 +85,7 @@ realestate_data='{
         "description": "Test Real Estate Description"
     }
 }'
-make_request "http://localhost:5000/api/register" "POST" "$realestate_data" "Real Estate Business Registration"
+make_request "http://localhost:9101/api/register" "POST" "$realestate_data" "Real Estate Business Registration"
 
 # 5. Retail Business
 retail_data='{
@@ -99,7 +99,7 @@ retail_data='{
         "description": "Test Retail Description"
     }
 }'
-make_request "http://localhost:5000/api/register" "POST" "$retail_data" "Retail Business Registration"
+make_request "http://localhost:9101/api/register" "POST" "$retail_data" "Retail Business Registration"
 
 # 6. Professional Services Business
 professional_data='{
@@ -113,7 +113,7 @@ professional_data='{
         "description": "Test Professional Description"
     }
 }'
-make_request "http://localhost:5000/api/register" "POST" "$professional_data" "Professional Services Business Registration"
+make_request "http://localhost:9101/api/register" "POST" "$professional_data" "Professional Services Business Registration"
 
 # Test Customer Registration
 customer_data='{
@@ -122,10 +122,10 @@ customer_data='{
     "email": "customer'$RANDOM'@test.com",
     "role": "customer"
 }'
-make_request "http://localhost:5000/api/register" "POST" "$customer_data" "Customer Registration"
+make_request "http://localhost:9101/api/register" "POST" "$customer_data" "Customer Registration"
 
 # Verify Authentication State
-make_request "http://localhost:5000/api/user" "GET" "" "Authentication State Check"
+make_request "http://localhost:9101/api/user" "GET" "" "Authentication State Check"
 
 echo -e "\n✨ Industry-specific Authentication Tests Completed"
 echo "Check the logs above for detailed results and any errors"

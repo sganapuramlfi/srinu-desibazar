@@ -1,45 +1,49 @@
+# DesiBazaar Docker Compose Configuration
+# SIMPLIFIED: Only running DB and Ollama in Docker
+# Server and Client run on host for faster development
+
 services:
   db:
     image: postgres:15-alpine
+    container_name: desibazaar-db
     restart: always
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=desibazaar
     ports:
-      - "9100:5432"
+      - "9100:5432"  # Database port accessible from host
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  server:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
+  ollama:
+    image: ollama/ollama:latest
+    container_name: desibazaar-ollama-gpu
     restart: always
-    depends_on:
-      - db
     ports:
-      - "9101:3000"
+      - "11435:11434"  # Ollama API accessible from host
+    volumes:
+      - ollama_data:/root/.ollama
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/desibazaar
-      - SESSION_SECRET=your_strong_session_secret
-      - NODE_ENV=development
-    volumes:
-      - ./server:/app/server
-      - ./db:/app/db
-      - /app/node_modules
-
-  client:
-    build:
-      context: .
-      dockerfile: client/Dockerfile
-    restart: always
-    ports:
-      - "9102:5173"
-    volumes:
-      - ./client:/app/client
-      - ./db:/app/db
-      - /app/node_modules
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:
+  ollama_data:

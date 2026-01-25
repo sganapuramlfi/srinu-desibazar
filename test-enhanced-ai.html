@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Enhanced AbrakadabraAI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 8px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .ai-enhancement { background: #e7f3ff; border-left: 4px solid #0066cc; }
+        .booking-insight { background: #fff7e6; border-left: 4px solid #ff9500; }
+        .availability { background: #f0fff4; border-left: 4px solid #00cc66; }
+        button { margin: 5px; padding: 10px 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🧞‍♂️ Enhanced AbrakadabraAI Testing</h1>
+    
+    <div class="test-section">
+        <h2>🎯 Smart Booking Intent Tests</h2>
+        <button onclick="testBookingIntent('I need to book spice pavilion for tonight dinner for 4 people')">
+            Tonight Booking (4 people)
+        </button>
+        <button onclick="testBookingIntent('spice pavilion lunch tomorrow for couple')">
+            Lunch Booking (Couple)
+        </button>
+        <button onclick="testBookingIntent('hair salon appointment next friday afternoon')">
+            Salon Booking
+        </button>
+        <button onclick="testBookingIntent('spa massage this weekend for relaxation')">
+            Spa Booking
+        </button>
+    </div>
+
+    <div class="test-section">
+        <h2>🧠 AI Context Awareness Tests</h2>
+        <button onclick="testContextAwareness('family dinner with kids at spice pavilion')">
+            Family Context
+        </button>
+        <button onclick="testContextAwareness('business meeting lunch venue')">
+            Business Context
+        </button>
+        <button onclick="testContextAwareness('romantic date night restaurant')">
+            Romantic Context
+        </button>
+        <button onclick="testContextAwareness('urgent table needed now')">
+            Urgency Context
+        </button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 AI Enhancement Features</h2>
+        <button onclick="testEnhancedFeatures('spice pavilion')">
+            Test AI Enhancements
+        </button>
+        <div id="enhancement-details" style="margin-top: 10px;"></div>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        async function testBookingIntent(query) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="result">🧪 Testing: ' + query + '</div>';
+            
+            try {
+                const response = await fetch('/api/ai-abrakadabra-fixed/public/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        location: 'Melbourne',
+                        context: 'search'
+                    })
+                });
+                
+                const data = await response.json();
+                displayEnhancedResults(data, query);
+                
+            } catch (error) {
+                resultsDiv.innerHTML += '<div class="result">❌ Error: ' + error.message + '</div>';
+            }
+        }
+
+        async function testContextAwareness(query) {
+            await testBookingIntent(query);
+        }
+
+        async function testEnhancedFeatures(query) {
+            const enhancementDiv = document.getElementById('enhancement-details');
+            await testBookingIntent(query);
+            
+            // Show what AI enhancements we're looking for
+            enhancementDiv.innerHTML = `
+                <h4>🔍 AI Enhancement Features to Look For:</h4>
+                <ul>
+                    <li><strong>🤖 AI Recommendations:</strong> Personalized reasons why each business is suggested</li>
+                    <li><strong>💡 Booking Insights:</strong> Smart availability and timing advice</li>
+                    <li><strong>🕒 Availability Predictions:</strong> Real-time availability intelligence</li>
+                    <li><strong>📅 Booking Tips:</strong> Industry-specific booking advice</li>
+                    <li><strong>🎯 Context Awareness:</strong> Understanding party size, timing, occasion</li>
+                </ul>
+            `;
+        }
+
+        function displayEnhancedResults(data, query) {
+            const resultsDiv = document.getElementById('results');
+            
+            let html = `<div class="result">
+                <h3>📊 Enhanced AI Results for: "${query}"</h3>
+                <p><strong>Understanding:</strong> ${data.understanding}</p>
+            `;
+
+            if (data.recommendations && data.recommendations.length > 0) {
+                html += '<h4>🏪 Smart Recommendations:</h4>';
+                
+                data.recommendations.forEach((business, idx) => {
+                    html += `<div style="margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+                        <strong>${idx + 1}. ${business.name}</strong> (${business.type})
+                        <br><small>${business.description}</small>
+                    `;
+                    
+                    // Display AI enhancements
+                    if (business.aiRecommendation) {
+                        html += `<div class="ai-enhancement">🤖 <strong>AI:</strong> ${business.aiRecommendation}</div>`;
+                    }
+                    
+                    if (business.bookingInsight) {
+                        html += `<div class="booking-insight">💡 <strong>Booking:</strong> ${business.bookingInsight}</div>`;
+                    }
+                    
+                    if (business.availability && business.availability !== 'moderate') {
+                        html += `<div class="availability">🕒 <strong>Availability:</strong> ${business.availability}</div>`;
+                    }
+                    
+                    html += `<div style="margin-top: 8px;">
+                        ⭐ ${business.rating} | ${business.price} | ${business.nextAvailable}
+                    </div></div>`;
+                });
+            }
+
+            if (data.insights && data.insights.length > 0) {
+                html += '<h4>💡 AI Insights:</h4><ul>';
+                data.insights.forEach(insight => {
+                    if (insight.trim()) {
+                        html += `<li>${insight}</li>`;
+                    }
+                });
+                html += '</ul>';
+            }
+
+            // Show metadata for debugging
+            if (data.metadata) {
+                html += `<div style="margin-top: 15px; padding: 10px; background: #f8f8f8; border-radius: 4px;">
+                    <h4>🔧 AI Metadata:</h4>
+                    <pre>${JSON.stringify(data.metadata, null, 2)}</pre>
+                </div>`;
+            }
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        // Auto-run a test on page load
+        window.onload = () => {
+            setTimeout(() => {
+                testBookingIntent('spice pavilion dinner for 2 tonight');
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

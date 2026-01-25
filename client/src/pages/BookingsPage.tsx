@@ -98,29 +98,40 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     enabled: !!user,
   });
 
-  // Update the availableSlots query
+  // Update the availableSlots query - handle both salon and restaurant bookings
   const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery<AvailableSlot[]>({
     queryKey: [
-      `/api/businesses/${selectedBooking?.service?.staff?.businessId}/slots/available`,
+      selectedBooking?.service?.staff?.businessId 
+        ? `/api/businesses/${selectedBooking.service.staff.businessId}/slots/available`
+        : selectedBooking?.businessId
+          ? `/api/restaurants/${selectedBooking.businessId}/tables/available`
+          : null,
       {
         date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
+        time: selectedDate ? '19:00' : undefined, // Default time for restaurant bookings
+        partySize: selectedBooking?.partySize || 2,
         serviceId: selectedBooking?.service?.id,
         staffId: selectedBooking?.staff?.id,
       }
     ],
-    enabled: !!selectedDate && !!selectedBooking?.service?.id && !!selectedBooking?.staff?.id,
+    enabled: !!selectedDate && !!selectedBooking && (
+      // Salon booking conditions
+      (!!selectedBooking?.service?.id && !!selectedBooking?.staff?.id) ||
+      // Restaurant booking conditions  
+      !!selectedBooking?.businessId
+    ),
   });
 
   // Cancel booking mutation
   const cancelBookingMutation = useMutation({
-    mutationFn: async ({ bookingId, notes }: { bookingId: number; notes: string }) => {
-      const response = await fetch(`/api/businesses/${businessId}/bookings/${bookingId}/cancel`, {
+    mutationFn: async ({ bookingId, reason, bookingBusinessId }: { bookingId: number; reason: string; bookingBusinessId: number }) => {
+      const response = await fetch(`/api/businesses/${bookingBusinessId}/bookings/${bookingId}/cancel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ reason }),
       });
 
       if (!response.ok) {
@@ -208,7 +219,8 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     try {
       await cancelBookingMutation.mutateAsync({
         bookingId,
-        notes: cancellationNote.trim(),
+        reason: cancellationNote.trim(),
+        bookingBusinessId: selectedBooking.businessId,
       });
       setSelectedBooking(null);
       setCancellationNote("");
@@ -314,9 +326,11 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                     <CardHeader className="pb-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle className="text-xl">{service.name}</CardTitle>
+                          <CardTitle className="text-xl">
+                            {service?.name || booking.specialRequests || `Booking #${booking.id}`}
+                          </CardTitle>
                           <p className="text-sm text-muted-foreground">
-                            with {staff.name}
+                            {staff?.name ? `with ${staff.name}` : 'Table Reservation'}
                           </p>
                           {businessId && booking.customer && (
                             <p className="text-sm text-muted-foreground mt-1">
@@ -334,16 +348,31 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                       <div className="grid gap-2">
                         <div className="flex items-center gap-2 text-sm">
                           <CalendarIcon className="h-4 w-4" />
-                          <span>{format(parseISO(slot.startTime), 'MMMM d, yyyy')}</span>
+                          <span>
+                            {slot?.startTime 
+                              ? format(parseISO(slot.startTime), 'MMMM d, yyyy')
+                              : booking.startTime 
+                                ? format(parseISO(booking.startTime), 'MMMM d, yyyy')
+                                : 'Date not available'
+                            }
+                          </span>
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Clock className="h-4 w-4" />
-                          <span>{slot.displayTime}</span>
+                          <span>
+                            {slot?.displayTime 
+                              || (booking.startTime 
+                                ? format(parseISO(booking.startTime), 'h:mm a')
+                                : 'Time not available')
+                            }
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="h-4 w-4" />
-                          <span>Duration: {service.duration} minutes</span>
-                        </div>
+                        {service?.duration && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="h-4 w-4" />
+                            <span>Duration: {service.duration} minutes</span>
+                          </div>
+                        )}
 
                         {booking.notes && (
                           <div className="mt-2 p-3 bg-muted rounded-md text-sm">

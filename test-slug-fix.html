@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Slug Fix</title></head>
+<body>
+    <h1>Test Slug Fix</h1>
+    <button onclick="testSlugFix()">Test Slug Fix</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testSlugFix() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Testing slug fix...';
+            
+            try {
+                const response = await fetch('/api/ai-abrakadabra-fixed/public/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: 'spice pavilion',
+                        location: 'Melbourne',
+                        context: 'search'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.recommendations && data.recommendations.length > 0) {
+                    const business = data.recommendations[0];
+                    console.log('Business ID:', business.id);
+                    console.log('Business Slug:', business.slug);
+                    
+                    // Test the slug endpoint
+                    const slugResponse = await fetch('/api/businesses/slug/' + business.slug);
+                    const slugResult = await slugResponse.json();
+                    
+                    resultDiv.textContent = 'SLUG TEST RESULTS:\n\n' +
+                        'Business found: ' + business.name + '\n' +
+                        'Generated slug: ' + business.slug + '\n' +
+                        'Slug endpoint status: ' + slugResponse.status + '\n' +
+                        'Slug endpoint result: ' + JSON.stringify(slugResult, null, 2);
+                } else {
+                    resultDiv.textContent = 'No recommendations found';
+                }
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

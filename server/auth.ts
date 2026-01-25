@@ -5,9 +5,10 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, businesses } from "./db/schema";
-import { db } from "./db";
-import { eq } from "drizzle-orm";
+// Import new business-centric schema
+import { platformUsers, businessTenants, businessAccess } from "../db/index.js";
+import { db } from "../db/index.js";
+import { eq, and } from "drizzle-orm";
 import express from "express";
 
 const scryptAsync = promisify(scrypt);
@@ -31,22 +32,26 @@ const crypto = {
   },
 };
 
-interface BusinessData {
-  id: number;
-  name: string;
+interface BusinessAccessData {
+  businessId: number;
+  businessName: string;
+  businessSlug: string;
   industryType: string;
-  status: string;
-  onboardingCompleted: boolean;
-  description: string | null;
+  role: string;
+  permissions: any;
+  isActive: boolean;
 }
 
 interface SanitizedUser {
   id: number;
-  username: string;
   email: string;
-  role: string;
+  fullName: string | null;
+  phone: string | null;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
   createdAt: Date | null;
-  business?: BusinessData;
+  businessAccess?: BusinessAccessData[];
+  primaryBusiness?: BusinessAccessData;
 }
 
 declare global {
@@ -55,20 +60,22 @@ declare global {
   }
 }
 
-async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null> {
+async function getUserWithBusinessAccess(userId: number): Promise<SanitizedUser | null> {
   try {
     console.log(`[Auth] Fetching user data for ID: ${userId}`);
 
     const [user] = await db
       .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        role: users.role,
-        createdAt: users.createdAt,
+        id: platformUsers.id,
+        email: platformUsers.email,
+        fullName: platformUsers.fullName,
+        phone: platformUsers.phone,
+        isEmailVerified: platformUsers.isEmailVerified,
+        isPhoneVerified: platformUsers.isPhoneVerified,
+        createdAt: platformUsers.createdAt,
       })
-      .from(users)
-      .where(eq(users.id, userId))
+      .from(platformUsers)
+      .where(eq(platformUsers.id, userId))
       .limit(1);
 
     if (!user) {
@@ -78,36 +85,61 @@ async function getUserWithBusiness(userId: number): Promise<SanitizedUser | null
 
     const sanitizedUser: SanitizedUser = {
       id: user.id,
-      username: user.username,
       email: user.email,
-      role: user.role,
+      fullName: user.fullName,
+      phone: user.phone,
+      isEmailVerified: user.isEmailVerified || false,
+      isPhoneVerified: user.isPhoneVerified || false,
       createdAt: user.createdAt
     };
 
-    if (user.role === "business") {
-      console.log(`[Auth] Fetching business data for user ID: ${userId}`);
-      const [business] = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.userId, userId))
-        .limit(1);
+    // Fetch all business access for this user
+    console.log(`[Auth] Fetching business access data for user ID: ${userId}`);
+    const userBusinessAccess = await db
+      .select({
+        businessId: businessAccess.businessId,
+        role: businessAccess.role,
+        permissions: businessAccess.permissions,
+        isActive: businessAccess.isActive,
+        businessName: businessTenants.name,
+        businessSlug: businessTenants.slug,
+        industryType: businessTenants.industryType,
+      })
+      .from(businessAccess)
+      .innerJoin(businessTenants, eq(businessTenants.id, businessAccess.businessId))
+      .where(and(
+        eq(businessAccess.userId, userId),
+        eq(businessAccess.isActive, true)
+      ));
 
-      if (business) {
-        sanitizedUser.business = {
-          id: business.id,
-          name: business.name,
-          industryType: business.industryType,
-          status: business.status,
-          onboardingCompleted: business.onboardingCompleted || false,
-          description: business.description
-        };
-      }
+    if (userBusinessAccess.length > 0) {
+      sanitizedUser.businessAccess = userBusinessAccess.map(access => ({
+        businessId: access.businessId,
+        businessName: access.businessName,
+        businessSlug: access.businessSlug,
+        industryType: access.industryType,
+        role: access.role,
+        permissions: access.permissions,
+        isActive: access.isActive,
+      }));
+
+      // Set primary business (first active owner role, or first active business)
+      const ownerBusiness = userBusinessAccess.find(access => access.role === "owner");
+      sanitizedUser.primaryBusiness = ownerBusiness ? {
+        businessId: ownerBusiness.businessId,
+        businessName: ownerBusiness.businessName,
+        businessSlug: ownerBusiness.businessSlug,
+        industryType: ownerBusiness.industryType,
+        role: ownerBusiness.role,
+        permissions: ownerBusiness.permissions,
+        isActive: ownerBusiness.isActive,
+      } : sanitizedUser.businessAccess[0];
     }
 
     console.log(`[Auth] Successfully retrieved user data for ID: ${userId}`);
     return sanitizedUser;
   } catch (error) {
-    console.error('[Auth] Error in getUserWithBusiness:', error);
+    console.error('[Auth] Error in getUserWithBusinessAccess:', error);
     throw error;
   }
 }
@@ -143,36 +175,36 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Passport local strategy configuration
+  // Passport local strategy configuration - using email as username
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
+    new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
       try {
-        console.log(`[Auth] Login attempt for username: ${username}`);
+        console.log(`[Auth] Login attempt for email: ${email}`);
 
         const [userWithPassword] = await db
           .select()
-          .from(users)
-          .where(eq(users.username, username))
+          .from(platformUsers)
+          .where(eq(platformUsers.email, email))
           .limit(1);
 
         if (!userWithPassword) {
-          console.log(`[Auth] Login failed: User not found - ${username}`);
-          return done(null, false, { message: "Incorrect username." });
+          console.log(`[Auth] Login failed: User not found - ${email}`);
+          return done(null, false, { message: "Incorrect email." });
         }
 
-        const isMatch = await crypto.compare(password, userWithPassword.password);
+        const isMatch = await crypto.compare(password, userWithPassword.passwordHash);
         if (!isMatch) {
-          console.log(`[Auth] Login failed: Invalid password - ${username}`);
+          console.log(`[Auth] Login failed: Invalid password - ${email}`);
           return done(null, false, { message: "Incorrect password." });
         }
 
-        const sanitizedUser = await getUserWithBusiness(userWithPassword.id);
+        const sanitizedUser = await getUserWithBusinessAccess(userWithPassword.id);
         if (!sanitizedUser) {
-          console.log(`[Auth] Login failed: Could not load user data - ${username}`);
+          console.log(`[Auth] Login failed: Could not load user data - ${email}`);
           return done(null, false, { message: "Failed to load user data." });
         }
 
-        console.log(`[Auth] Login successful: ${username}`);
+        console.log(`[Auth] Login successful: ${email}`);
         return done(null, sanitizedUser);
       } catch (err) {
         console.error('[Auth] Login error:', err);
@@ -189,7 +221,7 @@ export function setupAuth(app: Express) {
   passport.deserializeUser(async (id: number, done) => {
     try {
       console.log(`[Auth] Deserializing user: ${id}`);
-      const user = await getUserWithBusiness(id);
+      const user = await getUserWithBusinessAccess(id);
       if (!user) {
         console.log(`[Auth] Deserialization failed: User not found - ${id}`);
         return done(null, false);
@@ -211,192 +243,57 @@ export function setupAuth(app: Express) {
     next();
   });
 
-  authRouter.post("/login", (req, res, next) => {
-    console.log('[Auth] Processing login request');
-    passport.authenticate("local", async (err: any, user: SanitizedUser | false, info: IVerifyOptions) => {
-      if (err) {
-        console.error('[Auth] Login error:', err);
-        return res.status(500).json({
-          ok: false,
-          message: "Internal server error during login"
-        });
-      }
-
-      if (!user) {
-        console.log('[Auth] Login failed:', info.message);
-        return res.status(400).json({
-          ok: false,
-          message: info.message ?? "Login failed"
-        });
-      }
-
-      req.logIn(user, (err) => {
-        if (err) {
-          console.error('[Auth] Login error during session creation:', err);
-          return res.status(500).json({
-            ok: false,
-            message: "Failed to create session"
-          });
-        }
-
-        console.log(`[Auth] Login successful for user: ${user.username}`);
-        return res.json({
-          ok: true,
-          message: "Login successful",
-          user
-        });
-      });
-    })(req, res, next);
+  authRouter.post("/login", (req, res) => {
+    console.log('[Auth] Legacy login endpoint accessed - redirecting to simplified auth');
+    res.status(410).json({
+      ok: false,
+      message: "This endpoint has been deprecated. Please use /api/simple/login instead.",
+      redirectTo: "/api/simple/login",
+      deprecated: true
+    });
   });
 
-  authRouter.post("/register", async (req, res) => {
-    try {
-      console.log('[Auth] Processing registration request');
-      const { username, password, email, role, business } = req.body;
-
-      // Validate input
-      if (!username || !password || !email || !role) {
-        return res.status(400).json({
-          ok: false,
-          message: "Missing required fields"
-        });
-      }
-
-      // Check if username already exists
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
-
-      if (existingUser) {
-        console.log(`[Auth] Registration failed: Username exists - ${username}`);
-        return res.status(400).json({
-          ok: false,
-          message: "Username already exists"
-        });
-      }
-
-      // Hash password
-      const hashedPassword = await crypto.hash(password);
-
-      // Create user with transaction
-      const [user] = await db
-        .insert(users)
-        .values({
-          username,
-          password: hashedPassword,
-          email,
-          role,
-          createdAt: new Date()
-        })
-        .returning();
-
-      console.log(`[Auth] User created: ${user.id}`);
-
-      // Create business record if needed
-      let businessData = null;
-      if (role === "business" && business) {
-        console.log(`[Auth] Creating business record for user: ${user.id}`);
-        const [createdBusiness] = await db
-          .insert(businesses)
-          .values({
-            userId: user.id,
-            name: business.name,
-            industryType: business.industryType,
-            description: business.description || null,
-            status: "active",
-            onboardingCompleted: false,
-            createdAt: new Date()
-          })
-          .returning();
-        businessData = createdBusiness;
-      }
-
-      // Create sanitized user data
-      const userData: SanitizedUser = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.createdAt,
-        business: businessData ? {
-          id: businessData.id,
-          name: businessData.name,
-          industryType: businessData.industryType,
-          status: businessData.status,
-          onboardingCompleted: businessData.onboardingCompleted || false,
-          description: businessData.description
-        } : undefined
-      };
-
-      // Auto-login after registration
-      req.login(userData, (err) => {
-        if (err) {
-          console.error('[Auth] Auto-login failed:', err);
-          return res.status(500).json({
-            ok: false,
-            message: "Registration successful but auto-login failed"
-          });
-        }
-
-        console.log(`[Auth] Registration and auto-login successful: ${user.username}`);
-        res.json({
-          ok: true,
-          message: "Registration successful",
-          user: userData
-        });
-      });
-    } catch (error) {
-      console.error('[Auth] Registration error:', error);
-      res.status(500).json({
+  authRouter.post("/register", (req, res) => {
+    console.log('[Auth] Legacy register endpoint accessed - redirecting to simplified auth');
+    const { business } = req.body;
+    
+    if (business && business.name) {
+      // Business registration
+      res.status(410).json({
         ok: false,
-        message: "Failed to create account"
+        message: "Business registration has moved. Please use /api/simple/register/business instead.",
+        redirectTo: "/api/simple/register/business",
+        deprecated: true
+      });
+    } else {
+      // Customer registration
+      res.status(410).json({
+        ok: false,
+        message: "Customer registration has moved. Please use /api/simple/register/customer instead.",
+        redirectTo: "/api/simple/register/customer", 
+        deprecated: true
       });
     }
   });
 
   authRouter.post("/logout", (req, res) => {
-    const username = req.user?.username;
-    console.log(`[Auth] Processing logout request for user: ${username}`);
-
-    if (!req.isAuthenticated()) {
-      return res.json({
-        ok: true,
-        message: "Already logged out"
-      });
-    }
-
-    req.logout((err) => {
-      if (err) {
-        console.error('[Auth] Logout error:', err);
-        return res.status(500).json({
-          ok: false,
-          message: "Logout failed"
-        });
-      }
-
-      console.log(`[Auth] Logout successful: ${username}`);
-      res.json({
-        ok: true,
-        message: "Logout successful"
-      });
+    console.log('[Auth] Legacy logout endpoint accessed - redirecting to simplified auth');
+    res.status(410).json({
+      ok: false,
+      message: "This endpoint has been deprecated. Please use /api/simple/logout instead.",
+      redirectTo: "/api/simple/logout",
+      deprecated: true
     });
   });
 
   authRouter.get("/user", (req, res) => {
-    console.log('[Auth] User info requested');
-
-    if (!req.isAuthenticated()) {
-      console.log('[Auth] Unauthorized access to user info');
-      return res.status(401).json({
-        ok: false,
-        message: "Not logged in"
-      });
-    }
-
-    console.log(`[Auth] User info request successful for: ${req.user.username}`);
-    res.json(req.user);
+    console.log('[Auth] Legacy user endpoint accessed - redirecting to simplified auth');
+    res.status(410).json({
+      ok: false,
+      message: "This endpoint has been deprecated. Please use /api/simple/user instead.",
+      redirectTo: "/api/simple/user",
+      deprecated: true
+    });
   });
 
   // Mount auth routes under /api prefix

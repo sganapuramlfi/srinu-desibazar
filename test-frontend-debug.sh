@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Starting frontend debug test for rescheduling flow..."
-BASE_URL="http://localhost:5000"
+BASE_URL="http://localhost:9101"
 COOKIES_FILE="cookies.txt"
 
 # Login as ctest user

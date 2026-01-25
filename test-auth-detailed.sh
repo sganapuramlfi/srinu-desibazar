@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "🔍 Starting Detailed Authentication Flow Test"
-echo "Testing base URL: http://localhost:5000"
+echo "Testing base URL: http://localhost:9101"
 
 # Function to make HTTP requests and store cookies
 make_request() {
@@ -51,17 +51,17 @@ register_data='{
     }
 }'
 
-register_response=$(make_request "http://localhost:5000/api/register" "POST" "$register_data" "Registration")
+register_response=$(make_request "http://localhost:9101/api/register" "POST" "$register_data" "Registration")
 username=$(echo $register_response | jq -r '.user.username')
 echo "Created user: $username"
 
 # Test 2: Immediate session check after registration
 echo -e "\n📋 Test 2: Session Check After Registration"
-make_request "http://localhost:5000/api/user" "GET" "" "Session check after registration"
+make_request "http://localhost:9101/api/user" "GET" "" "Session check after registration"
 
 # Test 3: Logout
 echo -e "\n📋 Test 3: Logout"
-make_request "http://localhost:5000/api/logout" "POST" "" "Logout"
+make_request "http://localhost:9101/api/logout" "POST" "" "Logout"
 
 # Test 4: Login with created user
 echo -e "\n📋 Test 4: Login"
@@ -69,11 +69,11 @@ login_data="{
     \"username\": \"$username\",
     \"password\": \"testpass123\"
 }"
-make_request "http://localhost:5000/api/login" "POST" "$login_data" "Login"
+make_request "http://localhost:9101/api/login" "POST" "$login_data" "Login"
 
 # Test 5: Session check after login
 echo -e "\n📋 Test 5: Session Check After Login"
-make_request "http://localhost:5000/api/user" "GET" "" "Session check after login"
+make_request "http://localhost:9101/api/user" "GET" "" "Session check after login"
 
 # Cleanup
 rm -f cookies.txt

@@ -9,24 +9,50 @@ import {
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
 import { Button } from "@/components/ui/button";
-import { Store, LogIn, LogOut, Menu, User, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Store, LogIn, LogOut, Menu, User, Calendar, Settings } from "lucide-react";
+import { useModularAuth } from "../ModularAuthProvider";
+import { ModularNavigation } from "../ModularNavigation";
 
 export function Navbar() {
   const [, navigate] = useLocation();
   const { user, logout } = useUser();
+  
+  // Try to get modular auth, but handle gracefully if not available
+  let session, availableModules, modularLogout;
+  try {
+    const modularAuth = useModularAuth();
+    session = modularAuth.session;
+    availableModules = modularAuth.availableModules;
+    modularLogout = modularAuth.logout;
+  } catch {
+    // ModularAuth not available (on public pages)
+    session = null;
+    availableModules = [];
+    modularLogout = null;
+  }
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    const result = await logout();
-    if (result.ok) {
-      navigate("/");
+    // Use modular logout if available, fallback to user logout
+    if (session && modularLogout) {
+      await modularLogout();
+    } else {
+      const result = await logout();
+      if (result.ok) {
+        navigate("/");
+      }
     }
+    navigate("/");
   };
 
   const handleDashboardClick = () => {
-    if (user?.role === "business" && user.business?.id) {
-      navigate(`/dashboard/${user.business.id}`);
-    } else if (user?.role === "customer") {
+    if (user?.primaryBusiness?.businessSlug) {
+      console.log(`[Navigation] Redirecting to business dashboard: /dashboard/${user.primaryBusiness.businessSlug}`);
+      navigate(`/dashboard/${user.primaryBusiness.businessSlug}`);
+    } else {
+      console.log(`[Navigation] No business found, redirecting to customer dashboard`);
       navigate("/my-dashboard");
     }
   };
@@ -46,7 +72,9 @@ export function Navbar() {
             <NavigationMenu>
               <NavigationMenuList>
                 <NavigationMenuItem>
-                  <NavigationMenuTrigger className="text-center">Categories</NavigationMenuTrigger>
+                  <NavigationMenuTrigger className="text-center">
+                    Categories
+                  </NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
                       {[
@@ -69,6 +97,23 @@ export function Navbar() {
                     </ul>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
+
+                {/* Module-specific Navigation ONLY for business users */}
+                {session && (session.role === 'owner' || session.role === 'admin' || session.role === 'manager') && (
+                  <NavigationMenuItem>
+                    <NavigationMenuTrigger>
+                      My Business
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        {session.enabledModules.length}
+                      </Badge>
+                    </NavigationMenuTrigger>
+                    <NavigationMenuContent>
+                      <div className="p-4 w-[300px]">
+                        <ModularNavigation orientation="vertical" />
+                      </div>
+                    </NavigationMenuContent>
+                  </NavigationMenuItem>
+                )}
               </NavigationMenuList>
             </NavigationMenu>
           </div>
@@ -76,22 +121,38 @@ export function Navbar() {
 
         {/* User Actions */}
         <div className="flex items-center space-x-4">
-          {user ? (
+          {(user || session) ? (
             <>
-              {user.role === "business" && user.business?.id ? (
+              {/* Module-aware business dashboard */}
+              {session && (session.role === "owner" || session.role === "admin") ? (
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate(`/dashboard/${session.businessId}`)}
+                  className="hidden md:flex"
+                >
+                  <Store className="mr-2 h-4 w-4" />
+                  Dashboard
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {session.enabledModules.length}
+                  </Badge>
+                </Button>
+              ) : user?.primaryBusiness?.businessSlug ? (
                 <Button
                   variant="ghost"
                   onClick={handleDashboardClick}
                   className="hidden md:flex"
                 >
                   <Store className="mr-2 h-4 w-4" />
-                  Business Dashboard
+                  {user.primaryBusiness.businessName} Dashboard
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {user.primaryBusiness.industryType}
+                  </Badge>
                 </Button>
-              ) : user.role === "customer" ? (
+              ) : user && !user.businessAccess?.length ? (
                 <>
                   <Button
                     variant="ghost"
-                    onClick={handleDashboardClick}
+                    onClick={() => navigate("/my-dashboard")}
                     className="hidden md:flex"
                   >
                     <User className="mr-2 h-4 w-4" />
@@ -107,16 +168,40 @@ export function Navbar() {
                   </Button>
                 </>
               ) : null}
+              
+              {/* Settings for business owners */}
+              {/* Settings ONLY for business owners and managers */}
+              {session && (session.role === "owner" || session.role === "admin" || session.role === "manager") && (
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate("/settings")}
+                  className="hidden md:flex"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Button>
+              )}
+              
               <Button variant="ghost" onClick={handleLogout} className="hidden md:flex">
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout
               </Button>
             </>
           ) : (
-            <Button variant="default" onClick={() => navigate("/auth")} className="hidden md:flex">
-              <LogIn className="mr-2 h-4 w-4" />
-              Login / Register
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => navigate("/auth")} className="hidden md:flex">
+                <User className="mr-2 h-4 w-4" />
+                Customer Sign Up
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/register")} className="hidden md:flex">
+                <Store className="mr-2 h-4 w-4" />
+                List Business
+              </Button>
+              <Button variant="default" onClick={() => navigate("/auth")} className="hidden md:flex">
+                <LogIn className="mr-2 h-4 w-4" />
+                Customer Login
+              </Button>
+            </>
           )}
 
           {/* Mobile Menu Button */}
@@ -154,7 +239,7 @@ export function Navbar() {
 
             {user ? (
               <>
-                {user.role === "business" && user.business?.id ? (
+                {user?.primaryBusiness?.businessSlug ? (
                   <Button
                     variant="ghost"
                     onClick={handleDashboardClick}
@@ -163,7 +248,7 @@ export function Navbar() {
                     <Store className="mr-2 h-4 w-4" />
                     Business Dashboard
                   </Button>
-                ) : user.role === "customer" ? (
+                ) : user && !user.primaryBusiness ? (
                   <>
                     <Button
                       variant="ghost"
@@ -193,14 +278,32 @@ export function Navbar() {
                 </Button>
               </>
             ) : (
-              <Button
-                variant="default"
-                onClick={() => navigate("/auth")}
-                className="w-full justify-start"
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                Login / Register
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/auth")}
+                  className="w-full justify-start"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Customer Sign Up
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/register")}
+                  className="w-full justify-start"
+                >
+                  <Store className="mr-2 h-4 w-4" />
+                  List Business
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => navigate("/auth")}
+                  className="w-full justify-start"
+                >
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Customer Login
+                </Button>
+              </>
             )}
           </nav>
         </div>

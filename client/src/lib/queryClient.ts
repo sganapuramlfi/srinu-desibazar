@@ -24,7 +24,7 @@ export const queryClient = new QueryClient({
       },
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 5 * 60 * 1000, // 5 minutes instead of Infinity
       retry: 1,
     },
     mutations: {

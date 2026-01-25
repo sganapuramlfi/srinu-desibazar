@@ -1,0 +1,1322 @@
+openapi: 3.0.0
+info:
+  title: DesiBazaar API Documentation
+  version: 1.0.0
+  description: |
+    Complete API documentation for DesiBazaar - A location-aware marketplace platform.
+    
+    **IMPORTANT NOTES:**
+    - Authentication endpoints are at `/api/modules/auth/*` NOT `/api/auth/*`
+    - Many critical endpoints are missing implementation despite database tables existing
+    - This document includes both working endpoints and required-but-missing endpoints
+    
+    **Authentication:**
+    All protected endpoints require session-based authentication via cookies.
+    
+  contact:
+    name: DesiBazaar Support
+    email: support@desibazaar.com
+
+servers:
+  - url: http://localhost:9101
+    description: Development server
+  - url: https://api.desibazaar.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and registration (NOTE - Uses /api/modules/auth path)
+  - name: Users
+    description: User management
+  - name: Businesses
+    description: Business profile and management
+  - name: Subscriptions
+    description: Business subscription management (MISSING IMPLEMENTATION)
+  - name: Locations
+    description: Business location management (MISSING IMPLEMENTATION)
+  - name: Services
+    description: Service management
+  - name: Bookings
+    description: Booking management
+  - name: Staff
+    description: Staff management (Module-specific only)
+  - name: Advertising
+    description: Ad campaigns and targeting
+  - name: Admin
+    description: Admin-only endpoints
+  - name: Modules
+    description: Module system management
+
+paths:
+  # ===== AUTHENTICATION ENDPOINTS =====
+  /api/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: |
+        **STATUS: ✅ WORKING ENDPOINT**
+        Creates a new user account with optional business creation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+                - role
+              properties:
+                username:
+                  type: string
+                  example: "johndoe"
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "SecurePass123!"
+                role:
+                  type: string
+                  enum: [customer, business]
+                  description: User role type
+                moduleId:
+                  type: string
+                  enum: [salon, restaurant, event, realestate, retail, professional]
+                  description: Required if role is 'business'. Automatically creates business.
+                business:
+                  type: object
+                  description: Business details if role is 'business'
+                  properties:
+                    name:
+                      type: string
+                    industryType:
+                      type: string
+                    description:
+                      type: string
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input or username exists
+        '500':
+          description: Server error
+
+  /api/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticates user and creates session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: desibazaar.sid=s%3A...
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /api/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Destroys current session
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Logout successful
+
+  /api/user:
+    get:
+      tags:
+        - Users
+      summary: Get current user
+      description: Returns authenticated user information
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+
+  # ===== BUSINESS ENDPOINTS =====
+  /api/businesses:
+    get:
+      tags:
+        - Businesses
+      summary: List all active businesses
+      description: Returns all businesses with status 'active'
+      responses:
+        '200':
+          description: List of businesses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Business'
+
+    post:
+      tags:
+        - Businesses
+      summary: Create new business
+      description: Creates a new business for authenticated user
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - industryType
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                industryType:
+                  type: string
+                  enum: [salon, restaurant, event, realestate, retail, professional]
+                contactInfo:
+                  type: object
+      responses:
+        '200':
+          description: Business created
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not a business user
+
+  /api/businesses/{businessId}:
+    get:
+      tags:
+        - Businesses
+      summary: Get business by ID
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Business details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Business'
+        '404':
+          description: Business not found
+
+  /api/businesses/{businessId}/profile:
+    get:
+      tags:
+        - Businesses
+      summary: Get business profile
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Business profile
+
+    put:
+      tags:
+        - Businesses
+      summary: Update business profile
+      description: Updates business profile with file uploads support
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: string
+                  description: JSON stringified business data
+                logo:
+                  type: string
+                  format: binary
+                gallery:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Profile updated
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not business owner
+
+  # ===== BUSINESS SUBSCRIPTION ENDPOINTS (IMPLEMENTED) =====
+  /api/businesses/{businessId}/subscription:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get business subscription
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Returns current subscription details including:
+        - Tier (free/premium/enterprise) with 180-day trial
+        - Status (trial/active/cancelled/expired)
+        - Enabled modules and ad targeting settings
+        - Automatically creates default subscription if none exists
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessSubscription'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+
+    put:
+      tags:
+        - Subscriptions
+      summary: Update business subscription
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Updates subscription tier and settings.
+        All tiers get 180-day free trial on first subscription.
+        Automatically sets tier-based limits and priorities.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tier:
+                  type: string
+                  enum: [free, premium, enterprise]
+                  description: |
+                    - Free: 5 ads/month, priority 1
+                    - Premium: 25 ads/month, priority 8
+                    - Enterprise: 999 ads/month, priority 12
+                enabledModules:
+                  type: array
+                  items:
+                    type: string
+                    enum: [salon, restaurant, event, realestate, retail, professional]
+                adTargeting:
+                  type: string
+                  enum: [local, global, both]
+      responses:
+        '200':
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessSubscription'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+
+  # ===== BUSINESS LOCATION ENDPOINTS (IMPLEMENTED) =====
+  /api/businesses/{businessId}/location:
+    post:
+      tags:
+        - Locations
+      summary: Set business location
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Creates business location for location-aware features and smart ads.
+        Prevents duplicate locations - returns 409 if location already exists.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Location'
+      responses:
+        '200':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLocation'
+        '400':
+          description: Missing required fields
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '409':
+          description: Location already exists
+
+    put:
+      tags:
+        - Locations
+      summary: Update business location
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Updates existing business location with new coordinates and address.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Location'
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLocation'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+        '404':
+          description: Location not found
+
+    get:
+      tags:
+        - Locations
+      summary: Get business location
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Returns business location coordinates and address (public endpoint).
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Business location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLocation'
+        '404':
+          description: Location not found
+
+  # ===== SERVICE ENDPOINTS =====
+  /api/businesses/{businessId}/services:
+    get:
+      tags:
+        - Services
+      summary: List business services
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+
+    post:
+      tags:
+        - Services
+      summary: Create service
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - duration
+                - price
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                duration:
+                  type: integer
+                  description: Duration in minutes
+                price:
+                  type: number
+                maxParticipants:
+                  type: integer
+      responses:
+        '200':
+          description: Service created
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not business owner
+
+  # ===== MODULE-SPECIFIC ENDPOINTS (Salon example) =====
+  /api/salon/services:
+    get:
+      tags:
+        - Services
+      summary: List salon services (Module-specific)
+      description: Legacy endpoint - should migrate to generic services
+      responses:
+        '200':
+          description: List of salon services
+
+    post:
+      tags:
+        - Services
+      summary: Create salon service (Module-specific)
+      description: Legacy endpoint - should migrate to generic services
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Service created
+
+  /api/salon/staff:
+    get:
+      tags:
+        - Staff
+      summary: List salon staff
+      responses:
+        '200':
+          description: List of staff
+
+    post:
+      tags:
+        - Staff
+      summary: Add salon staff
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Staff added
+
+  # ===== BOOKING ENDPOINTS =====
+  /api/bookings:
+    get:
+      tags:
+        - Bookings
+      summary: List user bookings
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: List of bookings
+
+  /api/services/{serviceId}/bookings:
+    post:
+      tags:
+        - Bookings
+      summary: Create booking
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: serviceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - startTime
+                - endTime
+              properties:
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Booking created
+        '401':
+          description: Not authenticated
+        '404':
+          description: Service not found
+
+  # ===== AD CAMPAIGN MANAGEMENT ENDPOINTS (IMPLEMENTED) =====
+  /api/businesses/{businessId}/ad-campaigns:
+    get:
+      tags:
+        - Advertising
+      summary: List business ad campaigns
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Returns all ad campaigns for the business, sorted by creation date.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of ad campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessAdCampaign'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+
+    post:
+      tags:
+        - Advertising
+      summary: Create self-service ad campaign
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Creates self-service ad campaigns with:
+        - Subscription-based campaign limits (Free: 5, Premium: 25, Enterprise: 999)
+        - Location targeting (local/global/both)
+        - Animation types and priority based on subscription tier
+        - 30-day campaign duration
+        - Budget tracking
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdCampaignCreate'
+      responses:
+        '200':
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessAdCampaign'
+        '400':
+          description: Invalid input or campaign limit reached
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+
+  /api/ad-campaigns/{campaignId}:
+    put:
+      tags:
+        - Advertising
+      summary: Update ad campaign
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Updates existing ad campaign with ownership verification.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdCampaignUpdate'
+      responses:
+        '200':
+          description: Campaign updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessAdCampaign'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+
+    delete:
+      tags:
+        - Advertising
+      summary: Delete ad campaign
+      description: |
+        **STATUS: ✅ IMPLEMENTED**
+        
+        Deletes ad campaign with ownership verification.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Campaign deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: Not authenticated
+        '403':
+          description: Access denied
+
+  # ===== WORKING AD ENDPOINTS =====
+  /api/advertising/targeted-ads:
+    get:
+      tags:
+        - Advertising
+      summary: Get smart targeted ads
+      description: Returns ads based on location, interests, and context
+      parameters:
+        - name: adType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [sidebar_left, sidebar_right, banner]
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: module
+          in: query
+          schema:
+            type: string
+        - name: interests
+          in: query
+          schema:
+            type: string
+            description: Comma-separated interests
+        - name: priorityBoost
+          in: query
+          schema:
+            type: number
+            default: 1
+      responses:
+        '200':
+          description: Targeted ads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdCampaign'
+
+  /api/advertising/track:
+    post:
+      tags:
+        - Advertising
+      summary: Track ad analytics
+      description: Records impressions and clicks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - campaignId
+                - action
+              properties:
+                campaignId:
+                  type: integer
+                action:
+                  type: string
+                  enum: [impression, click]
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: Analytics tracked
+
+  # ===== ADMIN ENDPOINTS =====
+  /api/admin/login:
+    post:
+      tags:
+        - Admin
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Admin authenticated
+        '401':
+          description: Invalid credentials
+
+  /api/admin/announcements/active:
+    get:
+      tags:
+        - Admin
+      summary: Get active announcements
+      description: Returns active admin announcements for display
+      responses:
+        '200':
+          description: Active announcements
+
+  /api/admin/modules/status:
+    get:
+      tags:
+        - Modules
+      summary: Get module status
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Module status
+
+  /api/admin/modules/{moduleId}/toggle:
+    post:
+      tags:
+        - Modules
+      summary: Toggle module
+      security:
+        - adminAuth: []
+      parameters:
+        - name: moduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Module toggled
+
+  # ===== STATISTICS =====
+  /api/statistics:
+    get:
+      tags:
+        - Businesses
+      summary: Get platform statistics
+      description: Returns statistics for landing page display
+      responses:
+        '200':
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalBusinesses:
+                    type: integer
+                  totalBookings:
+                    type: integer
+                  totalCustomers:
+                    type: integer
+                  averageRating:
+                    type: number
+                  industryStats:
+                    type: object
+                  recentActivity:
+                    type: string
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: desibazaar.sid
+    adminAuth:
+      type: apiKey
+      in: cookie
+      name: admin.sid
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [customer, business]
+        createdAt:
+          type: string
+          format: date-time
+        business:
+          $ref: '#/components/schemas/BusinessData'
+
+    BusinessData:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        industryType:
+          type: string
+        status:
+          type: string
+        onboardingCompleted:
+          type: boolean
+        description:
+          type: string
+
+    Business:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        industryType:
+          type: string
+        status:
+          type: string
+        contactInfo:
+          type: object
+        logo:
+          type: string
+        gallery:
+          type: array
+          items:
+            type: string
+        onboardingCompleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Location:
+      type: object
+      required:
+        - latitude
+        - longitude
+        - address
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        address:
+          type: string
+        city:
+          type: string
+        suburb:
+          type: string
+        state:
+          type: string
+        postcode:
+          type: string
+        country:
+          type: string
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        duration:
+          type: integer
+        price:
+          type: number
+        maxParticipants:
+          type: integer
+        isActive:
+          type: boolean
+
+    AdCampaign:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        imageUrl:
+          type: string
+        clickUrl:
+          type: string
+        adType:
+          type: string
+        size:
+          type: string
+        animationType:
+          type: string
+        priority:
+          type: integer
+        targetingRules:
+          type: object
+        business:
+          type: object
+          properties:
+            name:
+              type: string
+            industryType:
+              type: string
+            contactInfo:
+              type: object
+
+    BusinessSubscription:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        tier:
+          type: string
+          enum: [free, premium, enterprise]
+        status:
+          type: string
+          enum: [trial, active, cancelled, expired]
+        trialStartDate:
+          type: string
+          format: date-time
+        trialEndDate:
+          type: string
+          format: date-time
+        paidStartDate:
+          type: string
+          format: date-time
+        enabledModules:
+          type: array
+          items:
+            type: string
+        adTargeting:
+          type: string
+          enum: [global, local, both]
+        adPriority:
+          type: integer
+        maxAdsPerMonth:
+          type: integer
+        features:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    BusinessLocation:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        latitude:
+          type: string
+        longitude:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        suburb:
+          type: string
+        state:
+          type: string
+        postcode:
+          type: string
+        country:
+          type: string
+        isVerified:
+          type: boolean
+        verificationMethod:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    BusinessAdCampaign:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        imageUrl:
+          type: string
+        clickUrl:
+          type: string
+        adType:
+          type: string
+          enum: [sidebar_left, sidebar_right, banner, featured]
+        size:
+          type: string
+          enum: [small, medium, large]
+        animationType:
+          type: string
+          enum: [none, fade, slide, bounce, flash]
+        targeting:
+          type: string
+          enum: [local, global, both]
+        targetRadius:
+          type: integer
+        status:
+          type: string
+          enum: [active, paused, completed]
+        budget:
+          type: number
+        priority:
+          type: integer
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AdCampaignCreate:
+      type: object
+      required:
+        - title
+        - content
+        - adType
+      properties:
+        title:
+          type: string
+          example: "50% OFF First Visit - Restaurant Special"
+        content:
+          type: string
+          example: "Experience authentic cuisine. Book now for exclusive discount!"
+        adType:
+          type: string
+          enum: [sidebar_left, sidebar_right, banner, featured]
+          example: "sidebar_left"
+        size:
+          type: string
+          enum: [small, medium, large]
+          example: "medium"
+        animationType:
+          type: string
+          enum: [none, fade, slide, bounce, flash]
+          example: "flash"
+        targeting:
+          type: string
+          enum: [local, global, both]
+          example: "local"
+        targetRadius:
+          type: integer
+          description: Radius in km for local targeting
+          example: 10
+        budget:
+          type: number
+          example: 100.00
+        status:
+          type: string
+          enum: [active, paused, completed]
+          example: "active"
+
+    AdCampaignUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        imageUrl:
+          type: string
+        clickUrl:
+          type: string
+        adType:
+          type: string
+          enum: [sidebar_left, sidebar_right, banner, featured]
+        size:
+          type: string
+          enum: [small, medium, large]
+        animationType:
+          type: string
+          enum: [none, fade, slide, bounce, flash]
+        targeting:
+          type: string
+          enum: [local, global, both]
+        targetRadius:
+          type: integer
+        status:
+          type: string
+          enum: [active, paused, completed]
+        budget:
+          type: number

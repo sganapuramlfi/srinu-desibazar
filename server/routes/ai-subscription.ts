@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../../db/index.js';
-import { aiSubscriptions } from '../../db/schema.js';
+import { aiSubscriptions } from '../../db/index.js';
 import { eq } from 'drizzle-orm';
 
 const router = Router();

@@ -12,8 +12,8 @@ import {
   unique
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { businessTenants, platformUsers, bookings } from "./schema.js";
-import { bookingOperations } from "./booking-lifecycle-schema.js";
+import { businessTenants, platformUsers, bookings } from "./schema";
+import { bookingOperations } from "./booking-lifecycle-schema";
 
 // =============================================================================
 // BUSINESS COMMUNICATIONS

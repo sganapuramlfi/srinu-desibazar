@@ -47,8 +47,21 @@ export const {
   advertisements,
   customerProfiles,
   businessSettings,
+  customerFavorites,
+  adminUsers,
+  adminAuditLogs,
+  aiSubscriptions,
   aiSessions,
   aiInteractions,
+  paymentTransactions,
+  paymentMethods,
+  subscriptionInvoices,
+  // Multi-tenancy enhancement tables
+  tenantApiKeys,
+  tenantDomains,
+  tenantLifecycleEvents,
+  tenantDataExports,
+  platformAnalytics,
 } = coreSchema;
 
 export const {
@@ -76,6 +89,7 @@ export const {
   restaurantStaff,
   restaurantReservations,
   restaurantOrders,
+  restaurantPromotions,
   // Restaurant Zod schemas
   insertRestaurantMenuCategorySchema,
   selectRestaurantMenuCategorySchema,
@@ -89,6 +103,8 @@ export const {
   selectRestaurantReservationSchema,
   insertRestaurantOrderSchema,
   selectRestaurantOrderSchema,
+  insertRestaurantPromotionSchema,
+  selectRestaurantPromotionSchema,
 } = restaurantSchema;
 
 export const {

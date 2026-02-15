@@ -219,6 +219,46 @@ export const restaurantOrders = pgTable("restaurant_orders", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Restaurant promotions
+export const restaurantPromotions = pgTable("restaurant_promotions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  // Promotion details
+  title: text("title").notNull(),
+  description: text("description"),
+  code: text("code"), // Optional promo code
+
+  // Discount configuration
+  discountType: text("discount_type", {
+    enum: ["percentage", "fixed_amount", "buy_one_get_one", "free_item"]
+  }).notNull(),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }), // Percentage or amount
+
+  // Applicable items
+  applicableCategories: jsonb("applicable_categories").default([]), // Category IDs
+  applicableItems: jsonb("applicable_items").default([]), // Menu item IDs
+
+  // Constraints
+  minOrderAmount: decimal("min_order_amount", { precision: 10, scale: 2 }),
+  maxDiscountAmount: decimal("max_discount_amount", { precision: 10, scale: 2 }),
+  maxUsesPerCustomer: integer("max_uses_per_customer"),
+  maxTotalUses: integer("max_total_uses"),
+  currentUses: integer("current_uses").default(0),
+
+  // Schedule
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  applicableDays: jsonb("applicable_days").default([]), // ["monday", "friday"]
+  applicableTimes: jsonb("applicable_times"), // {start: "17:00", end: "20:00"}
+
+  // Status
+  isActive: boolean("is_active").default(true),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // =============================================================================
 // RELATIONSHIPS
 // =============================================================================
@@ -315,6 +355,9 @@ export const selectRestaurantStaffSchema = createSelectSchema(restaurantStaff);
 export const insertRestaurantOrderSchema = createInsertSchema(restaurantOrders);
 export const selectRestaurantOrderSchema = createSelectSchema(restaurantOrders);
 
+export const insertRestaurantPromotionSchema = createInsertSchema(restaurantPromotions);
+export const selectRestaurantPromotionSchema = createSelectSchema(restaurantPromotions);
+
 // Export types
 export type RestaurantMenuCategory = typeof restaurantMenuCategories.$inferSelect;
 export type RestaurantMenuItem = typeof restaurantMenuItems.$inferSelect;
@@ -322,3 +365,4 @@ export type RestaurantTable = typeof restaurantTables.$inferSelect;
 export type RestaurantStaff = typeof restaurantStaff.$inferSelect;
 export type RestaurantReservation = typeof restaurantReservations.$inferSelect;
 export type RestaurantOrder = typeof restaurantOrders.$inferSelect;
+export type RestaurantPromotion = typeof restaurantPromotions.$inferSelect;

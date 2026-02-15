@@ -1,6 +1,6 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, uuid, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { businessTenants, platformUsers } from "./schema.js";
+import { businessTenants, platformUsers } from "./schema";
 
 // =============================================================================
 // REAL-TIME MESSAGING SCHEMA

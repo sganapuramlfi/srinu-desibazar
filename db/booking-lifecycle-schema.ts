@@ -1,7 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, inet } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
-import { businessTenants, platformUsers, bookings, bookableItems } from "./schema.js";
+import { businessTenants, platformUsers, bookings, bookableItems } from "./schema";
 
 // =============================================================================
 // BOOKING LIFECYCLE OPERATIONS TABLES

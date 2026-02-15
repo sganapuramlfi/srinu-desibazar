@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb, uuid, date, time } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, decimal, jsonb, uuid, date, time, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -35,13 +35,30 @@ export const businessTenants = pgTable("business_tenants", {
   industryType: text("industry_type", {
     enum: ["salon", "restaurant", "event", "realestate", "retail", "professional"]
   }).notNull(),
-  
+
   // Tenant isolation
   tenantKey: uuid("tenant_key").defaultRandom().unique().notNull(),
   status: text("status", {
     enum: ["pending", "active", "suspended", "closed"]
   }).default("pending").notNull(),
-  
+
+  // Multi-tenancy enhancements
+  tenantTier: text("tenant_tier", {
+    enum: ["free", "standard", "professional", "enterprise"]
+  }).default("standard"),
+  dataResidency: text("data_residency", {
+    enum: ["au-sydney", "us-east", "eu-west", "ap-southeast"]
+  }).default("au-sydney"),
+  customDomainEnabled: boolean("custom_domain_enabled").default(false),
+  apiAccessEnabled: boolean("api_access_enabled").default(false),
+  whiteLabelEnabled: boolean("white_label_enabled").default(false),
+  maxUsers: integer("max_users").default(10),
+  storageQuotaGb: integer("storage_quota_gb").default(5),
+  storageUsedGb: decimal("storage_used_gb", { precision: 10, scale: 2 }).default("0"),
+  suspendedAt: timestamp("suspended_at"),
+  suspensionReason: text("suspension_reason"),
+  deletedAt: timestamp("deleted_at"),
+
   // Business metadata
   description: text("description"),
   logoUrl: text("logo_url"),
@@ -51,7 +68,7 @@ export const businessTenants = pgTable("business_tenants", {
   socialMedia: jsonb("social_media").default({}), // {facebook, instagram, twitter, linkedin}
   operatingHours: jsonb("operating_hours").default({}), // {monday: {open: "09:00", close: "18:00"}}
   amenities: jsonb("amenities").default([]), // ["parking", "wifi", "wheelchair_access"]
-  
+
   // Location
   addressLine1: text("address_line1"),
   addressLine2: text("address_line2"),
@@ -61,7 +78,7 @@ export const businessTenants = pgTable("business_tenants", {
   country: text("country").default("Australia"),
   latitude: decimal("latitude", { precision: 10, scale: 8 }),
   longitude: decimal("longitude", { precision: 11, scale: 8 }),
-  
+
   // Storefront Publishing Control
   publishedSections: jsonb("published_sections").default([]).notNull(), // ["menu", "services", "gallery", "reviews", "bookings", "staff", "tables"]
   storefrontSettings: jsonb("storefront_settings").default({
@@ -72,7 +89,7 @@ export const businessTenants = pgTable("business_tenants", {
     showOperatingHours: true,
     theme: "default"
   }).notNull(),
-  
+
   // Platform tracking
   onboardingCompleted: boolean("onboarding_completed").default(false),
   isVerified: boolean("is_verified").default(false),
@@ -85,20 +102,182 @@ export const businessAccess = pgTable("business_access", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
   userId: integer("user_id").references(() => platformUsers.id, { onDelete: 'cascade' }).notNull(),
-  
+
   // Role within THIS business
   role: text("role", {
     enum: ["owner", "manager", "staff", "customer"]
   }).notNull(),
-  
+
   // Granular permissions
   permissions: jsonb("permissions").default({}).notNull(),
-  
+
   // Access control
   isActive: boolean("is_active").default(true),
   grantedBy: integer("granted_by").references(() => platformUsers.id),
   grantedAt: timestamp("granted_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
+
+  // Session tracking for security
+  lastAccessAt: timestamp("last_access_at"),
+  accessCount: integer("access_count").default(0),
+  lastIpAddress: text("last_ip_address"),
+  sessionTokenHash: text("session_token_hash"),
+});
+
+// =============================================================================
+// MULTI-TENANCY ENHANCEMENTS
+// =============================================================================
+
+// Tenant API keys for programmatic access
+export const tenantApiKeys = pgTable("tenant_api_keys", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  // API Key Management
+  keyId: text("key_id").unique().notNull(),              // Public identifier (e.g., "key_live_abc123")
+  keyHash: text("key_hash").notNull(),                   // SHA-256 hash of actual key
+  keyPrefix: text("key_prefix").notNull(),               // First 8 chars for identification
+
+  // Key Metadata
+  name: text("name").notNull(),                          // "Production API", "Mobile App"
+  description: text("description"),
+
+  // Scopes & Permissions
+  scopes: jsonb("scopes").default([]),                   // ["read:bookings", "write:services"]
+  rateLimit: integer("rate_limit").default(1000),        // Requests per hour
+
+  // Key Lifecycle
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  createdBy: integer("created_by").references(() => platformUsers.id),
+
+  // Audit
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Tenant domains (subdomains and custom domains)
+export const tenantDomains = pgTable("tenant_domains", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  // Domain Configuration
+  domainType: text("domain_type", {
+    enum: ["subdomain", "custom"]
+  }).notNull(),
+  domainValue: text("domain_value").unique().notNull(),  // "salon-name.desibazaar.com" or "mysalon.com"
+
+  // SSL/DNS Status
+  isVerified: boolean("is_verified").default(false),
+  verificationToken: text("verification_token"),          // For domain ownership verification
+  sslStatus: text("ssl_status").default("pending"),       // pending, active, failed
+  dnsRecords: jsonb("dns_records"),                       // Required DNS configuration
+
+  // Domain Lifecycle
+  isPrimary: boolean("is_primary").default(false),        // Primary domain for this tenant
+  isActive: boolean("is_active").default(true),
+  activatedAt: timestamp("activated_at"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Tenant lifecycle events tracking
+export const tenantLifecycleEvents = pgTable("tenant_lifecycle_events", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }),
+
+  // Event Details
+  eventType: text("event_type").notNull(),               // created, activated, suspended, resumed, deleted
+  eventStatus: text("event_status").notNull(),           // pending, in_progress, completed, failed
+  triggeredBy: integer("triggered_by").references(() => platformUsers.id),
+
+  // Event Context
+  previousState: text("previous_state"),
+  newState: text("new_state"),
+  reason: text("reason"),
+  metadata: jsonb("metadata").default({}),
+
+  // Execution Details
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Tenant data exports for GDPR compliance
+export const tenantDataExports = pgTable("tenant_data_exports", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  // Export Configuration
+  exportType: text("export_type", {
+    enum: ["full", "gdpr", "backup"]
+  }).notNull(),
+  exportFormat: text("export_format").default("json"),   // json, csv, sql
+  requestedBy: integer("requested_by").references(() => platformUsers.id).notNull(),
+
+  // Export Status
+  status: text("status", {
+    enum: ["pending", "processing", "completed", "failed"]
+  }).notNull(),
+  progressPercent: integer("progress_percent").default(0),
+
+  // Export Files
+  filePath: text("file_path"),                           // S3 or local path
+  fileSizeBytes: integer("file_size_bytes"),
+  downloadUrl: text("download_url"),                     // Pre-signed URL
+  downloadExpiresAt: timestamp("download_expires_at"),
+
+  // Metadata
+  tablesIncluded: jsonb("tables_included"),              // List of exported tables
+  recordsExported: integer("records_exported"),
+
+  // Lifecycle
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Platform analytics (cross-tenant aggregated metrics)
+export const platformAnalytics = pgTable("platform_analytics", {
+  id: serial("id").primaryKey(),
+
+  // Time Dimensions
+  date: date("date").notNull(),
+  hour: integer("hour"),                                 // 0-23 for hourly aggregation
+
+  // Aggregation Level
+  aggregationLevel: text("aggregation_level").notNull(), // platform, industry, region, tier
+  dimensionValue: text("dimension_value"),               // "salon", "au-sydney", "enterprise"
+
+  // Business Metrics (Aggregated, Anonymized)
+  totalBusinesses: integer("total_businesses").default(0),
+  activeBusinesses: integer("active_businesses").default(0),
+  newSignups: integer("new_signups").default(0),
+  churnedBusinesses: integer("churned_businesses").default(0),
+
+  // Booking Metrics
+  totalBookings: integer("total_bookings").default(0),
+  totalBookingValue: decimal("total_booking_value", { precision: 12, scale: 2 }).default("0"),
+  avgBookingValue: decimal("avg_booking_value", { precision: 10, scale: 2 }),
+
+  // User Metrics
+  totalUsers: integer("total_users").default(0),
+  activeUsers: integer("active_users").default(0),
+
+  // Revenue Metrics
+  mrr: decimal("mrr", { precision: 12, scale: 2 }).default("0"),  // Monthly Recurring Revenue
+  arr: decimal("arr", { precision: 12, scale: 2 }).default("0"),  // Annual Recurring Revenue
+
+  // Storage Metrics
+  totalStorageGb: decimal("total_storage_gb", { precision: 10, scale: 2 }).default("0"),
+
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // =============================================================================
@@ -161,6 +340,129 @@ export const businessSubscriptions = pgTable("business_subscriptions", {
   currentPeriodEnd: timestamp("current_period_end"),
   cancelledAt: timestamp("cancelled_at"),
   
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment transactions (Stripe payment records)
+export const paymentTransactions = pgTable("payment_transactions", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }),
+  subscriptionId: integer("subscription_id").references(() => businessSubscriptions.id, { onDelete: 'set null' }),
+
+  // Stripe references
+  stripePaymentIntentId: text("stripe_payment_intent_id").unique(),
+  stripeChargeId: text("stripe_charge_id"),
+  stripeInvoiceId: text("stripe_invoice_id"),
+
+  // Payment details
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").default("AUD").notNull(),
+  status: text("status", {
+    enum: ["pending", "processing", "succeeded", "failed", "refunded", "partially_refunded"]
+  }).notNull(),
+
+  // Payment method
+  paymentMethod: text("payment_method"), // card, bank_account
+  paymentMethodId: integer("payment_method_id"),
+
+  // Metadata
+  description: text("description"),
+  metadata: jsonb("metadata").default({}),
+  failureReason: text("failure_reason"),
+
+  // Refund tracking
+  amountRefunded: decimal("amount_refunded", { precision: 10, scale: 2 }).default("0"),
+  refundedAt: timestamp("refunded_at"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment methods (saved customer payment methods)
+export const paymentMethods = pgTable("payment_methods", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  // Stripe reference
+  stripePaymentMethodId: text("stripe_payment_method_id").unique().notNull(),
+
+  // Payment method details
+  type: text("type", {
+    enum: ["card", "bank_account", "other"]
+  }).notNull(),
+
+  // Card details (if type = card)
+  cardBrand: text("card_brand"), // visa, mastercard, amex
+  cardLast4: text("card_last4"),
+  cardExpMonth: integer("card_exp_month"),
+  cardExpYear: integer("card_exp_year"),
+  cardFingerprint: text("card_fingerprint"),
+
+  // Bank account details (if type = bank_account)
+  bankName: text("bank_name"),
+  bankLast4: text("bank_last4"),
+
+  // Settings
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+
+  // Billing details
+  billingEmail: text("billing_email"),
+  billingName: text("billing_name"),
+  billingAddress: jsonb("billing_address").default({}),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Subscription invoices (Stripe invoice records)
+export const subscriptionInvoices = pgTable("subscription_invoices", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => businessSubscriptions.id, { onDelete: 'cascade' }).notNull(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  // Stripe reference
+  stripeInvoiceId: text("stripe_invoice_id").unique().notNull(),
+  stripeCustomerId: text("stripe_customer_id"),
+
+  // Invoice details
+  invoiceNumber: text("invoice_number").unique().notNull(),
+  invoiceDate: timestamp("invoice_date").defaultNow().notNull(),
+  dueDate: timestamp("due_date"),
+
+  // Amounts
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  tax: decimal("tax", { precision: 10, scale: 2 }).default("0").notNull(),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+  amountDue: decimal("amount_due", { precision: 10, scale: 2 }).notNull(),
+  amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }).default("0").notNull(),
+  amountRemaining: decimal("amount_remaining", { precision: 10, scale: 2 }).notNull(),
+
+  // Status
+  status: text("status", {
+    enum: ["draft", "open", "paid", "void", "uncollectible"]
+  }).notNull(),
+
+  // Line items
+  lineItems: jsonb("line_items").default([]).notNull(), // [{description, amount, quantity}]
+
+  // Files
+  invoicePdfUrl: text("invoice_pdf_url"),
+  hostedInvoiceUrl: text("hosted_invoice_url"), // Stripe hosted URL
+
+  // Payment
+  paymentIntentId: text("payment_intent_id"),
+  paidAt: timestamp("paid_at"),
+
+  // Period
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+
+  // Metadata
+  metadata: jsonb("metadata").default({}),
+  notes: text("notes"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -399,6 +701,83 @@ export const businessSettings = pgTable("business_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Customer favorites (businesses users have saved)
+export const customerFavorites = pgTable("customer_favorites", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => platformUsers.id, { onDelete: 'cascade' }).notNull(),
+  businessId: integer("business_id").references(() => businessTenants.id, { onDelete: 'cascade' }).notNull(),
+
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // Ensure a user can only favorite a business once
+  uniqueUserBusiness: uniqueIndex("unique_user_business_favorite").on(table.userId, table.businessId),
+}));
+
+// =============================================================================
+// ADMIN MANAGEMENT
+// =============================================================================
+
+// Admin users (platform administrators)
+export const adminUsers = pgTable("admin_users", {
+  id: serial("id").primaryKey(),
+  username: text("username").unique().notNull(),
+  email: text("email").unique().notNull(),
+  passwordHash: text("password_hash").notNull(),
+
+  // Admin role and permissions
+  role: text("role", {
+    enum: ["admin", "super_admin"]
+  }).default("admin").notNull(),
+
+  // Account status
+  isActive: boolean("is_active").default(true),
+  isSuperAdmin: boolean("is_super_admin").default(false),
+
+  // Activity tracking
+  lastLogin: timestamp("last_login"),
+  loginCount: integer("login_count").default(0),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Admin audit logs (track all admin actions)
+export const adminAuditLogs = pgTable("admin_audit_logs", {
+  id: serial("id").primaryKey(),
+  adminId: integer("admin_id").references(() => adminUsers.id, { onDelete: 'set null' }),
+  adminUsername: text("admin_username"), // Preserve username even if admin deleted
+
+  // Action details
+  action: text("action").notNull(), // "login", "create_business", "delete_user", etc.
+  resourceType: text("resource_type"), // "business", "user", "subscription", etc.
+  resourceId: integer("resource_id"),
+  details: jsonb("details").default({}),
+
+  // Request metadata
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+
+  // Result
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// AI feature subscriptions (marketing/notification list)
+export const aiSubscriptions = pgTable("ai_subscriptions", {
+  id: serial("id").primaryKey(),
+  email: text("email").unique().notNull(),
+
+  // Subscription preferences
+  features: text("features").default("[]"), // JSON string of interested features
+  notifyOnLaunch: boolean("notify_on_launch").default(true),
+  subscribed: boolean("subscribed").default(true),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // =============================================================================
 // RELATIONSHIPS
 // =============================================================================
@@ -509,6 +888,18 @@ export const selectSubscriptionPlanSchema = createSelectSchema(subscriptionPlans
 export const insertBusinessSubscriptionSchema = createInsertSchema(businessSubscriptions);
 export const selectBusinessSubscriptionSchema = createSelectSchema(businessSubscriptions);
 
+// Payment transactions
+export const insertPaymentTransactionSchema = createInsertSchema(paymentTransactions);
+export const selectPaymentTransactionSchema = createSelectSchema(paymentTransactions);
+
+// Payment methods
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods);
+export const selectPaymentMethodSchema = createSelectSchema(paymentMethods);
+
+// Subscription invoices
+export const insertSubscriptionInvoiceSchema = createInsertSchema(subscriptionInvoices);
+export const selectSubscriptionInvoiceSchema = createSelectSchema(subscriptionInvoices);
+
 // Bookings
 export const insertBookableItemSchema = createInsertSchema(bookableItems);
 export const selectBookableItemSchema = createSelectSchema(bookableItems);
@@ -518,6 +909,32 @@ export const selectBookingSchema = createSelectSchema(bookings);
 // Advertisements
 export const insertAdvertisementSchema = createInsertSchema(advertisements);
 export const selectAdvertisementSchema = createSelectSchema(advertisements);
+
+// Zod schemas for customerFavorites
+export const insertCustomerFavoriteSchema = createInsertSchema(customerFavorites);
+export const selectCustomerFavoriteSchema = createSelectSchema(customerFavorites);
+
+// Zod schemas for admin tables
+export const insertAdminUserSchema = createInsertSchema(adminUsers);
+export const selectAdminUserSchema = createSelectSchema(adminUsers);
+export const insertAdminAuditLogSchema = createInsertSchema(adminAuditLogs);
+export const selectAdminAuditLogSchema = createSelectSchema(adminAuditLogs);
+
+// Zod schemas for AI subscriptions
+export const insertAiSubscriptionSchema = createInsertSchema(aiSubscriptions);
+export const selectAiSubscriptionSchema = createSelectSchema(aiSubscriptions);
+
+// Zod schemas for multi-tenancy tables
+export const insertTenantApiKeySchema = createInsertSchema(tenantApiKeys);
+export const selectTenantApiKeySchema = createSelectSchema(tenantApiKeys);
+export const insertTenantDomainSchema = createInsertSchema(tenantDomains);
+export const selectTenantDomainSchema = createSelectSchema(tenantDomains);
+export const insertTenantLifecycleEventSchema = createInsertSchema(tenantLifecycleEvents);
+export const selectTenantLifecycleEventSchema = createSelectSchema(tenantLifecycleEvents);
+export const insertTenantDataExportSchema = createInsertSchema(tenantDataExports);
+export const selectTenantDataExportSchema = createSelectSchema(tenantDataExports);
+export const insertPlatformAnalyticsSchema = createInsertSchema(platformAnalytics);
+export const selectPlatformAnalyticsSchema = createSelectSchema(platformAnalytics);
 
 // Export types
 export type PlatformUser = typeof platformUsers.$inferSelect;
@@ -530,3 +947,12 @@ export type Booking = typeof bookings.$inferSelect;
 export type Advertisement = typeof advertisements.$inferSelect;
 export type CustomerProfile = typeof customerProfiles.$inferSelect;
 export type BusinessSettings = typeof businessSettings.$inferSelect;
+export type CustomerFavorite = typeof customerFavorites.$inferSelect;
+export type AdminUser = typeof adminUsers.$inferSelect;
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type AiSubscription = typeof aiSubscriptions.$inferSelect;
+export type TenantApiKey = typeof tenantApiKeys.$inferSelect;
+export type TenantDomain = typeof tenantDomains.$inferSelect;
+export type TenantLifecycleEvent = typeof tenantLifecycleEvents.$inferSelect;
+export type TenantDataExport = typeof tenantDataExports.$inferSelect;
+export type PlatformAnalytics = typeof platformAnalytics.$inferSelect;

@@ -8,15 +8,107 @@ import { fileURLToPath } from "url";
 import { setupAuth } from "./auth";
 import simplifiedAuthRoutes from "./routes/simplified-auth.js";
 import adminEmailRoutes from "./routes/admin-email.js";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// Stripe webhook needs raw body - must be BEFORE express.json()
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// ==================================================================================
+// RATE LIMITING CONFIGURATION
+// ==================================================================================
+// Protects against brute force attacks and API abuse
+
+// Login rate limiter - Strict limits for authentication endpoints
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per window
+  message: {
+    error: 'Too many login attempts from this IP, please try again after 15 minutes'
+  },
+  standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
+  legacyHeaders: false, // Disable `X-RateLimit-*` headers
+  skipSuccessfulRequests: false, // Count successful requests
+});
+
+// Admin rate limiter - Very strict for admin endpoints
+const adminLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 attempts per hour
+  message: {
+    error: 'Too many admin login attempts from this IP, please try again after 1 hour'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// General API rate limiter - Reasonable limits for regular API usage
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: {
+    error: 'Too many requests from this IP, please try again later'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Don't count OPTIONS requests (CORS preflight)
+    return req.method === 'OPTIONS';
+  },
+});
+
+// Apply rate limiters
+app.use('/api/simple/login', loginLimiter);
+app.use('/api/simple/register', loginLimiter);
+app.use('/api/admin/login', adminLimiter);
+app.use('/api', apiLimiter); // Apply to all API routes
+
+console.log('✅ Rate limiting enabled:');
+console.log('   - Login/Register: 5 attempts per 15 minutes');
+console.log('   - Admin login: 3 attempts per hour');
+console.log('   - API requests: 100 per 15 minutes');
+
+// ==================================================================================
+// SECURITY HEADERS (Helmet)
+// ==================================================================================
+// Protects against common web vulnerabilities (XSS, clickjacking, etc.)
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for Tailwind
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for React
+      imgSrc: ["'self'", "data:", "https:", "blob:"], // Allow external images
+      connectSrc: ["'self'", "ws:", "wss:"], // Allow WebSocket connections
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Disable for development
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+console.log('✅ Security headers enabled (Helmet):');
+console.log('   - Content Security Policy (CSP)');
+console.log('   - X-Frame-Options (clickjacking protection)');
+console.log('   - X-Content-Type-Options (MIME sniffing protection)');
+console.log('   - Strict-Transport-Security (HSTS)');
 
 // API-specific middleware
 app.use('/api', (req, res, next) => {

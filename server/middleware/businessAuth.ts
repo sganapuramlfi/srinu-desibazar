@@ -1,17 +1,23 @@
 import { Request, Response, NextFunction } from "express";
-import { db } from "./db";
-import { businesses } from "./db/schema";
-import { eq } from "drizzle-orm";
+import { db } from "../../db/index.js";
+import { businessTenants, businessAccess } from "../../db/index.js";
+import { eq, and } from "drizzle-orm";
 
 // Extend Express Request type to include business
 declare global {
   namespace Express {
     interface Request {
-      business?: typeof businesses.$inferSelect;
+      business?: typeof businessTenants.$inferSelect;
+      businessAccess?: typeof businessAccess.$inferSelect;
     }
   }
 }
 
+/**
+ * UPDATED: Validates business access using businessAccess table (multi-tenant model)
+ * Replaces legacy userId-based ownership check
+ * Migration completed: 2026-02-15
+ */
 export async function validateBusinessOwnership(
   req: Request,
   res: Response,
@@ -19,61 +25,65 @@ export async function validateBusinessOwnership(
 ) {
   try {
     // Check if user is authenticated
-    if (!req.isAuthenticated()) {
-      console.log('User not authenticated');
+    if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({
         ok: false,
         message: "Authentication required"
       });
     }
 
-    // Check if user is a business user
-    if (req.user?.role !== "business") {
-      console.log('User is not a business user:', req.user?.role);
-      return res.status(403).json({
-        ok: false,
-        message: "Access denied. Business account required."
-      });
-    }
-
     // Get businessId from URL parameter
     const businessId = parseInt(req.params.businessId);
     if (isNaN(businessId)) {
-      console.log('Invalid business ID:', req.params.businessId);
       return res.status(400).json({
         ok: false,
         message: "Invalid business ID"
       });
     }
 
-    // Verify business ownership
+    // Check if business exists
     const [business] = await db
       .select()
-      .from(businesses)
-      .where(eq(businesses.id, businessId))
+      .from(businessTenants)
+      .where(eq(businessTenants.id, businessId))
       .limit(1);
 
     if (!business) {
-      console.log('Business not found:', businessId);
       return res.status(404).json({
         ok: false,
         message: "Business not found"
       });
     }
 
-    if (business.userId !== req.user.id) {
-      console.log('Business ownership mismatch:', {
-        businessUserId: business.userId,
-        requestUserId: req.user.id
-      });
+    // Check user's access to this business via businessAccess table
+    const [access] = await db
+      .select()
+      .from(businessAccess)
+      .where(and(
+        eq(businessAccess.businessId, businessId),
+        eq(businessAccess.userId, req.user.id),
+        eq(businessAccess.isActive, true)
+      ))
+      .limit(1);
+
+    if (!access) {
       return res.status(403).json({
         ok: false,
-        message: "Access denied. You don't own this business."
+        message: "Access denied. You don't have access to this business."
       });
     }
 
-    // Store business in request for route handlers
+    // Check if user has owner or manager role
+    if (!['owner', 'manager'].includes(access.role)) {
+      return res.status(403).json({
+        ok: false,
+        message: "Access denied. Owner or manager role required."
+      });
+    }
+
+    // Store business and access info in request for route handlers
     req.business = business;
+    req.businessAccess = access;
     next();
   } catch (error) {
     console.error('Error in business ownership validation:', error);

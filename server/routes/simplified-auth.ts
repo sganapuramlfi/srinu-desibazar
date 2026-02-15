@@ -142,21 +142,18 @@ router.post('/register/business', async (req, res) => {
       .insert(businessSubscriptions)
       .values({
         businessId: newBusiness.id,
-        planId: null, // No specific plan during trial
-        tier: 'premium',
+        planId: 2, // Premium plan (ID 2) - 180 day trial
         status: 'trial',
-        trialStartDate: new Date(),
-        trialEndDate: trialEndDate,
-        enabledModules: JSON.stringify([industryType]), // Enable their industry module
-        adTargeting: 'both',
-        adPriority: 3,
-        maxAdsPerMonth: 25,
-        features: JSON.stringify({
-          multiModule: true,
-          localTargeting: true,
-          prioritySupport: true,
-          advancedAnalytics: true
-        })
+        billingEmail: email,
+        billingCycle: 'monthly',
+        currentUsage: JSON.stringify({
+          enabledModules: [industryType],
+          adCount: 0,
+          maxAdsPerMonth: 25
+        }),
+        trialEndsAt: trialEndDate,
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: trialEndDate
       });
     
     // Check if we're in development mode and should auto-verify

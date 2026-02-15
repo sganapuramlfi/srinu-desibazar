@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Trial Has Expired</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #f8f9fa; padding: 30px; border-radius: 10px;">
+    <h1 style="color: #dc3545; margin-bottom: 20px;">Your Trial Has Expired</h1>
+
+    <p>Hi {{businessName}},</p>
+
+    <p>Your <strong>{{planName}}</strong> trial has expired. Your account has been temporarily suspended.</p>
+
+    <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
+      <strong>⚠️ Account Suspended</strong>
+      <p style="margin: 10px 0 0 0;">To reactivate your account and restore access to all features, please upgrade to a paid plan.</p>
+    </div>
+
+    <h2 style="color: #2c3e50; margin-top: 30px;">What You Can Do:</h2>
+    <ul>
+      <li><strong>Upgrade Now:</strong> Choose a paid plan to reactivate immediately</li>
+      <li><strong>Export Data:</strong> Download your business data (available for 30 days)</li>
+      <li><strong>Contact Support:</strong> We're here to help with any questions</li>
+    </ul>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{upgradeUrl}}" style="display: inline-block; background-color: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reactivate My Account</a>
+    </div>
+
+    <p style="background-color: #d1ecf1; border-left: 4px solid: #0c5460; padding: 15px; margin: 20px 0;">
+      <strong>💡 Did you know?</strong><br>
+      Most businesses see a 40% increase in bookings within the first month of using DesiBazaar!
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+
+    <p style="color: #6c757d; font-size: 12px;">
+      DesiBazaar | Business Management Platform<br>
+      This email was sent to {{billingEmail}}
+    </p>
+  </div>
+</body>
+</html>

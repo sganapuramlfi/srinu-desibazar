@@ -28,7 +28,8 @@ import publicStorefrontRoutes from "./routes/public-storefront";
 import bookingOperationsRoutes from "./routes/booking-operations";
 import businessCommunicationsRoutes from "./routes/business-communications";
 import businessAlertsRoutes from "./routes/business-alerts";
-// import aiSubscriptionRoutes from "./routes/ai-subscription"; // TODO: Update for new schema
+import aiSubscriptionRoutes from "./routes/ai-subscription";
+import billingRoutes from "./routes/billing";
 import aiPublicDataRoutes from "./routes/ai-public-data";
 import aiAbrakadabraEnhancedRoutes from "./routes/ai-abrakadabra-enhanced";
 import vectorSearchTestRoutes from "./routes/vector-search-test";
@@ -41,7 +42,9 @@ import chatRoutes from "./routes/chat";
 import { ModuleLoader } from "./ModuleLoader";
 import { adminAuthMiddleware, adminLoginHandler, adminLogoutHandler, adminStatusHandler } from "./middleware/adminAuth";
 import modularSystemRoutes from "./routes/modular-system";
-// import { setupSampleData } from "./routes/sample-data"; // TODO: Update for new schema
+// import { setupSampleData } from "./routes/sample-data";
+// NOTE: sample-data.ts requires schema updates (businessTenants, platformUsers, businessAccess)
+// Not critical - use db/populate-* scripts instead
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -110,8 +113,8 @@ export function registerRoutes(app: Express): Server {
   // Register modular system routes (full stakeholder cascade)
   app.use('/api/modular', modularSystemRoutes);
   
-  // Setup sample data routes
-  // setupSampleData(app); // TODO: Update for new schema
+  // NOTE: setupSampleData() disabled - use db/populate-* scripts for sample data
+  // The sample-data.ts file needs updating to work with new schema (businessTenants, businessAccess)
 
   // Admin authentication endpoints
   app.post('/api/admin/login', adminLoginHandler);
@@ -165,7 +168,11 @@ export function registerRoutes(app: Express): Server {
   app.use('/api', businessAlertsRoutes);
   
   // Register AI subscription routes
-  // app.use('/api/ai', aiSubscriptionRoutes); // TODO: Update for new schema
+  app.use('/api/ai-subscription', aiSubscriptionRoutes);
+
+  // Register billing routes (Stripe subscription and payment management)
+  app.use('/api/billing', billingRoutes);
+
   app.use('/api/ai-genie', aiPublicDataRoutes);
   app.use('/api/ai-public-data', aiPublicDataRoutes); // Alternative route for frontend compatibility
   app.use('/api', aiAbrakadabraEnhancedRoutes); // Enhanced two-tier AI system
@@ -203,158 +210,49 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Services Routes
+  // ==================================================================================
+  // DEPRECATED: Legacy Services Routes - COMMENTED OUT
+  // ==================================================================================
+  // These routes reference a non-existent "services" table and cause 500 errors.
+  // The platform uses industry-specific tables instead:
+  //   - Salon businesses: use /api/salon/:businessId/services (salonServices table)
+  //   - Restaurant businesses: use /api/restaurant/:businessId/menu-items (restaurantMenuItems table)
+  //
+  // Migration completed: 2026-02-15
+  // These routes can be safely removed in next major version.
+  // ==================================================================================
+
+  /*
   app.post("/api/businesses/:businessId/services", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const businessId = parseInt(req.params.businessId);
-      const [business] = await db
-        .select()
-        .from(businessTenants)
-        .where(eq(businessTenants.id, businessId))
-        .limit(1);
-
-      if (!business || business.userId !== req.user.id) {
-        return res.status(403).json({ error: "Forbidden" });
-      }
-
-      const { name, description, duration, price, maxParticipants } = req.body;
-      const [service] = await db
-        .insert(services)
-        .values({
-          businessId,
-          name,
-          description,
-          duration,
-          price,
-          maxParticipants,
-          createdAt: new Date()
-        })
-        .returning();
-
-      res.json(service);
-    } catch (error) {
-      console.error('Error creating service:', error);
-      res.status(500).json({ error: "Failed to create service" });
-    }
+    // REMOVED - Use industry-specific endpoints instead
   });
 
   app.get("/api/businesses/:businessId/services", async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const result = await db
-        .select()
-        .from(services)
-        .where(and(
-          eq(services.businessId, businessId),
-          eq(services.isActive, true)
-        ));
-
-      res.json(result);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      res.status(500).json({ error: "Failed to fetch services" });
-    }
+    // REMOVED - Use industry-specific endpoints instead
   });
+  */
 
-  // Bookings Routes
+  // ==================================================================================
+  // DEPRECATED: Legacy Booking Routes - COMMENTED OUT
+  // ==================================================================================
+  // These routes reference the non-existent "services" table and will fail.
+  // The platform now uses:
+  //   - Universal bookings: /api/bookings/* (server/routes/bookings.ts)
+  //   - Business bookings: Use /api/bookings with businessId filter
+  //   - Industry-specific bookings handled by salon/restaurant modules
+  //
+  // Migration completed: 2026-02-15
+  // ==================================================================================
+
+  /*
   app.post("/api/services/:serviceId/bookings", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const serviceId = parseInt(req.params.serviceId);
-      const { startTime, endTime, notes } = req.body;
-
-      // Verify service exists and is active
-      const [service] = await db
-        .select()
-        .from(services)
-        .where(and(
-          eq(services.id, serviceId),
-          eq(services.isActive, true)
-        ))
-        .limit(1);
-
-      if (!service) {
-        return res.status(404).json({ error: "Service not found or inactive" });
-      }
-
-      // Create booking
-      const [booking] = await db
-        .insert(bookings)
-        .values({
-          serviceId,
-          customerId: req.user.id,
-          startTime: new Date(startTime),
-          endTime: new Date(endTime),
-          notes,
-          createdAt: new Date()
-        })
-        .returning();
-
-      res.json(booking);
-    } catch (error) {
-      console.error('Error creating booking:', error);
-      res.status(500).json({ error: "Failed to create booking" });
-    }
+    // REMOVED - Use /api/bookings endpoints in server/routes/bookings.ts
   });
 
   app.get("/api/businesses/:businessId/bookings", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const businessId = parseInt(req.params.businessId);
-
-      // For business owners - show all bookings for their business
-      if (req.user.role === "business") {
-        const [business] = await db
-          .select()
-          .from(businessTenants)
-          .where(eq(businessTenants.id, businessId))
-          .limit(1);
-
-        if (!business || business.userId !== req.user.id) {
-          return res.status(403).json({ error: "Forbidden" });
-        }
-
-        const businessBookings = await db
-          .select({
-            booking: bookings,
-            service: services
-          })
-          .from(bookings)
-          .innerJoin(services, eq(services.id, bookings.serviceId))
-          .where(eq(services.businessId, businessId));
-
-        return res.json(businessBookings);
-      }
-
-      // For customers - only show their own bookings
-      const customerBookings = await db
-        .select({
-          booking: bookings,
-          service: services
-        })
-        .from(bookings)
-        .innerJoin(services, eq(services.id, bookings.serviceId))
-        .where(and(
-          eq(services.businessId, businessId),
-          eq(bookings.customerId, req.user.id)
-        ));
-
-      res.json(customerBookings);
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
-      res.status(500).json({ error: "Failed to fetch bookings" });
-    }
+    // REMOVED - Use /api/bookings endpoints in server/routes/bookings.ts
   });
+  */
 
   // Business Routes
   app.get("/api/businesses", async (req, res) => {

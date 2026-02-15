@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Failed</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background-color: #f8f9fa; padding: 30px; border-radius: 10px;">
+    <h1 style="color: #dc3545; margin-bottom: 20px;">Payment Failed</h1>
+
+    <p>Hi {{businessName}},</p>
+
+    <p>We were unable to process your subscription payment of <strong>{{amount}}</strong>.</p>
+
+    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+      <strong>⚠️ Action Required</strong>
+      <p style="margin: 10px 0 0 0;">Please update your payment method to avoid service interruption.</p>
+    </div>
+
+    <h2 style="color: #2c3e50; margin-top: 30px;">What Happened?</h2>
+    <p>Reason: {{failureReason}}</p>
+
+    <h2 style="color: #2c3e50; margin-top: 30px;">What's Next?</h2>
+    <ul>
+      <li><strong>Update Payment Method:</strong> We'll automatically retry your payment</li>
+      <li><strong>Grace Period:</strong> You have 3 days to update your payment information</li>
+      <li><strong>Service Continues:</strong> Your account remains active during the grace period</li>
+    </ul>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{billingUrl}}" style="display: inline-block; background-color: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Update Payment Method</a>
+    </div>
+
+    <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
+      Need help? <a href="mailto:support@desibazaar.com.au">Contact our support team</a>
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+
+    <p style="color: #6c757d; font-size: 12px;">
+      DesiBazaar | Business Management Platform<br>
+      This email was sent to {{billingEmail}}
+    </p>
+  </div>
+</body>
+</html>

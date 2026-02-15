@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { db } from "../../db/index.js";
-import { 
+import {
   businessTenants,
-  restaurantMenuCategories, 
-  restaurantMenuItems, 
-  restaurantTables, 
-  restaurantReservations, 
+  restaurantMenuCategories,
+  restaurantMenuItems,
+  restaurantTables,
+  restaurantReservations,
   restaurantOrders,
+  restaurantStaff,
   bookableItems,
   bookings
 } from "../../db/index.js";
@@ -629,25 +630,142 @@ router.put("/restaurants/:businessId/reservations/:reservationId/status", verify
 
 // ===== STAFF MANAGEMENT =====
 
-// Get restaurant staff - TODO: Implement restaurantStaff table
+// Get restaurant staff
 router.get("/restaurants/:businessId/staff", verifyRestaurantOwnership, async (req, res) => {
   try {
-    // Temporarily return empty array until restaurantStaff table is implemented
-    res.json([]);
+    const businessId = parseInt(req.params.businessId);
+
+    const staff = await db
+      .select()
+      .from(restaurantStaff)
+      .where(eq(restaurantStaff.businessId, businessId));
+
+    res.json(staff);
   } catch (error) {
     console.error('Error fetching restaurant staff:', error);
     res.status(500).json({ error: "Failed to fetch staff" });
   }
 });
 
-// Create staff member - TODO: Implement restaurantStaff table
+// Create staff member
 router.post("/restaurants/:businessId/staff", verifyRestaurantOwnership, async (req, res) => {
   try {
-    // Temporarily return error until restaurantStaff table is implemented
-    res.status(501).json({ error: "Staff management not yet implemented" });
+    const businessId = parseInt(req.params.businessId);
+    const {
+      firstName,
+      lastName,
+      displayName,
+      email,
+      phone,
+      title,
+      department,
+      position,
+      employmentType,
+      certifications,
+      cuisineSpecialties,
+      skills,
+      languages
+    } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName) {
+      return res.status(400).json({ error: "First name and last name are required" });
+    }
+
+    const [newStaff] = await db
+      .insert(restaurantStaff)
+      .values({
+        businessId,
+        firstName,
+        lastName,
+        displayName: displayName || `${firstName} ${lastName}`,
+        email,
+        phone,
+        title,
+        department: department || "front_of_house",
+        position,
+        employmentType: employmentType || "full_time",
+        certifications: certifications || [],
+        cuisineSpecialties: cuisineSpecialties || [],
+        skills: skills || [],
+        languages: languages || ["english"],
+        isActive: true,
+      })
+      .returning();
+
+    res.status(201).json(newStaff);
   } catch (error) {
     console.error('Error creating staff member:', error);
     res.status(500).json({ error: "Failed to create staff member" });
+  }
+});
+
+// Update staff member
+router.put("/restaurants/:businessId/staff/:staffId", verifyRestaurantOwnership, async (req, res) => {
+  try {
+    const businessId = parseInt(req.params.businessId);
+    const staffId = parseInt(req.params.staffId);
+
+    // Verify staff belongs to this business
+    const [existingStaff] = await db
+      .select()
+      .from(restaurantStaff)
+      .where(and(
+        eq(restaurantStaff.id, staffId),
+        eq(restaurantStaff.businessId, businessId)
+      ))
+      .limit(1);
+
+    if (!existingStaff) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+
+    const [updated] = await db
+      .update(restaurantStaff)
+      .set({
+        ...req.body,
+        updatedAt: new Date()
+      })
+      .where(eq(restaurantStaff.id, staffId))
+      .returning();
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating staff member:', error);
+    res.status(500).json({ error: "Failed to update staff member" });
+  }
+});
+
+// Delete staff member
+router.delete("/restaurants/:businessId/staff/:staffId", verifyRestaurantOwnership, async (req, res) => {
+  try {
+    const businessId = parseInt(req.params.businessId);
+    const staffId = parseInt(req.params.staffId);
+
+    // Verify staff belongs to this business
+    const [existingStaff] = await db
+      .select()
+      .from(restaurantStaff)
+      .where(and(
+        eq(restaurantStaff.id, staffId),
+        eq(restaurantStaff.businessId, businessId)
+      ))
+      .limit(1);
+
+    if (!existingStaff) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+
+    // Soft delete by setting isActive to false
+    await db
+      .update(restaurantStaff)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(restaurantStaff.id, staffId));
+
+    res.json({ success: true, message: "Staff member deleted" });
+  } catch (error) {
+    console.error('Error deleting staff member:', error);
+    res.status(500).json({ error: "Failed to delete staff member" });
   }
 });
 

@@ -14,6 +14,7 @@ import PublicBusinessPage from "./pages/PublicBusinessPage";
 import TestBusinessPage from "./pages/TestBusinessPage";
 import BookingsPage from "./pages/BookingsPage";
 import ConsumerDashboard from "./pages/ConsumerDashboard";
+import BillingPortal from "./pages/BillingPortal";
 import SearchResults from "./pages/SearchResults";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -120,6 +121,15 @@ function App() {
                   return <Redirect to="/auth" />;
                 }
                 return <BookingsPage />;
+              }}
+            </Route>
+
+            <Route path="/billing">
+              {() => {
+                if (!user) {
+                  return <Redirect to="/auth" />;
+                }
+                return <BillingPortal />;
               }}
             </Route>
 

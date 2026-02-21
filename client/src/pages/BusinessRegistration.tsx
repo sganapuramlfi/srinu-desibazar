@@ -114,7 +114,7 @@ export default function BusinessRegistration() {
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { location, isLoading: locationLoading, requestLocation } = useGeoLocation();
+  const { location, isLoading: locationLoading, error: locationError, requestLocation, clearError } = useGeoLocation();
 
   const form = useForm<BusinessRegistrationData>({
     resolver: zodResolver(businessRegistrationSchema),
@@ -140,10 +140,32 @@ export default function BusinessRegistration() {
     if (location && !form.getValues("address")) {
       const address = `${location.suburb || location.city}, ${location.state}`;
       form.setValue("address", address);
-    }
-  }, [location, form]);
 
-  const handleNext = () => {
+      // Show success toast
+      toast({
+        title: "📍 Location Detected",
+        description: `${location.suburb || location.city}, ${location.state}`,
+      });
+    }
+  }, [location, form, toast]);
+
+  // Show error toast when location detection fails
+  useEffect(() => {
+    if (locationError) {
+      toast({
+        variant: "destructive",
+        title: "Location Detection Failed",
+        description: locationError,
+      });
+    }
+  }, [locationError, toast]);
+
+  const handleNext = async () => {
+    // Validate step 2 fields before advancing so errors are visible in context
+    if (currentStep === 2) {
+      const isValid = await form.trigger(["name", "industryType", "address", "phone", "email", "password"]);
+      if (!isValid) return;
+    }
     if (currentStep < STEPS.length) {
       setCurrentStep(currentStep + 1);
     }
@@ -190,13 +212,9 @@ export default function BusinessRegistration() {
         credentials: "include"
       });
 
-      if (!response.ok) {
-        throw new Error("Registration failed");
-      }
-
       const result = await response.json();
-      
-      if (!result.success) {
+
+      if (!response.ok || !result.success) {
         throw new Error(result.message || "Registration failed");
       }
       
@@ -227,11 +245,11 @@ export default function BusinessRegistration() {
         // Small delay to ensure user data is refreshed
         setTimeout(() => navigate(result.data.redirectTo || `/dashboard/${result.data.businessId}`), 100);
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Registration Failed",
-        description: "Please try again or contact support.",
+        description: error?.message || "Please try again or contact support.",
       });
     } finally {
       setIsSubmitting(false);
@@ -255,6 +273,34 @@ export default function BusinessRegistration() {
               <Card className="p-6 text-center">
                 <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
                 <p>Detecting your location...</p>
+              </Card>
+            ) : locationError ? (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="p-6 text-center">
+                  <MapPin className="h-8 w-8 text-red-600 mx-auto mb-4" />
+                  <h3 className="font-semibold text-red-800 mb-2">Location Detection Failed</h3>
+                  <p className="text-red-700 mb-4 text-sm">
+                    {locationError}
+                  </p>
+                  <div className="bg-white p-4 rounded-lg mb-4 text-left">
+                    <h4 className="font-medium mb-2 text-red-800">📝 How to fix this:</h4>
+                    <ul className="text-sm space-y-1 text-red-700">
+                      <li>1. Click your browser's location icon (usually in the address bar)</li>
+                      <li>2. Select "Allow" for location access</li>
+                      <li>3. Click the button below to try again</li>
+                      <li className="mt-2 pt-2 border-t border-red-200">
+                        <strong>Or</strong> enter your address manually in the next step
+                      </li>
+                    </ul>
+                  </div>
+                  <Button onClick={() => { clearError(); requestLocation(); }} className="mb-2">
+                    <Navigation className="h-4 w-4 mr-2" />
+                    Try Again
+                  </Button>
+                  <p className="text-xs text-red-600 mt-2">
+                    Don't worry - you can skip this and enter your address manually
+                  </p>
+                </CardContent>
               </Card>
             ) : location ? (
               <Card className="border-green-200 bg-green-50">
@@ -286,11 +332,19 @@ export default function BusinessRegistration() {
                   <p className="text-orange-700 mb-4 text-sm">
                     Location helps customers find local businesses like yours
                   </p>
+                  <div className="bg-white p-4 rounded-lg mb-4 text-left">
+                    <h4 className="font-medium mb-2">🌟 Benefits of location detection:</h4>
+                    <ul className="text-sm space-y-1">
+                      <li>• Auto-fill your business address</li>
+                      <li>• Better local search rankings</li>
+                      <li>• Show distance to customers</li>
+                    </ul>
+                  </div>
                   <Button onClick={requestLocation} className="mb-2">
                     <Navigation className="h-4 w-4 mr-2" />
                     Enable Location
                   </Button>
-                  <p className="text-xs text-orange-600">
+                  <p className="text-xs text-orange-600 mt-2">
                     You can also enter your address manually in the next step
                   </p>
                 </CardContent>
@@ -579,8 +633,26 @@ export default function BusinessRegistration() {
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
-              <Button 
-                onClick={form.handleSubmit(onSubmit)}
+              <Button
+                onClick={form.handleSubmit(onSubmit, (errors) => {
+                  // If Step 2 fields have errors, jump back so user can see them
+                  const step2Fields = ["name", "industryType", "address", "phone", "email", "password"] as const;
+                  const hasStep2Error = step2Fields.some(f => f in errors);
+                  if (hasStep2Error) {
+                    setCurrentStep(2);
+                    toast({
+                      variant: "destructive",
+                      title: "Missing required information",
+                      description: "Please fill in all required fields before continuing.",
+                    });
+                  } else if ("selectedModules" in errors) {
+                    toast({
+                      variant: "destructive",
+                      title: "Select a module",
+                      description: "Please select at least one business module to continue.",
+                    });
+                  }
+                })}
                 className="flex-1"
                 disabled={watchedModules.length === 0 || isSubmitting}
               >

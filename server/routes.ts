@@ -397,56 +397,74 @@ export function registerRoutes(app: Express): Server {
     { name: 'gallery', maxCount: 10 }
   ]), async (req, res) => {
     try {
-      if (!req.isAuthenticated() || !req.user || req.user.role !== "business") {
+      // New auth system: platformUsers have no .role field — just check authenticated
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
       const businessId = parseInt(req.params.businessId);
-      const [business] = await db
+      const userId = (req.user as any).id;
+
+      // Verify ownership via businessAccess table (businessTenants has no userId column)
+      const [access] = await db
         .select()
-        .from(businessTenants)
-        .where(eq(businessTenants.id, businessId))
+        .from(businessAccess)
+        .where(
+          and(
+            eq(businessAccess.businessId, businessId),
+            eq(businessAccess.userId, userId),
+            eq(businessAccess.isActive, true)
+          )
+        )
         .limit(1);
 
-      if (!business || business.userId !== req.user.id) {
+      if (!access || !['owner', 'manager'].includes(access.role)) {
         return res.status(403).json({ error: "Forbidden" });
       }
 
       // Parse the form data
-      const formData = JSON.parse(req.body.data);
-
-      // Validate the input
-      const result = businessProfileSchema.safeParse(formData);
-      if (!result.success) {
-        return res.status(400).json({ 
-          error: "Invalid input",
-          details: result.error.issues 
-        });
+      let formData: any;
+      try {
+        formData = JSON.parse(req.body.data);
+      } catch {
+        return res.status(400).json({ error: "Invalid form data" });
       }
 
-      // Handle file uploads
+      // Map only columns that exist in businessTenants
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      const updateData: any = {
-        ...result.data,
-        updatedAt: new Date()
-      };
+      const updateData: any = { updatedAt: new Date() };
 
+      if (formData.name)          updateData.name          = formData.name;
+      if (formData.description)   updateData.description   = formData.description;
+      if (formData.contactInfo)   updateData.contactInfo   = formData.contactInfo;
+      if (formData.operatingHours) updateData.operatingHours = formData.operatingHours;
+      if (formData.amenities)     updateData.amenities     = formData.amenities;
+      if (formData.socialMedia)   updateData.socialMedia   = formData.socialMedia;
+
+      // Location coordinates
+      if (formData.location?.latitude != null)
+        updateData.latitude  = String(formData.location.latitude);
+      if (formData.location?.longitude != null)
+        updateData.longitude = String(formData.location.longitude);
+
+      // File uploads — use correct DB column names
       if (files.logo?.[0]) {
-        updateData.logo = `/uploads/logos/${files.logo[0].filename}`;
+        updateData.logoUrl = `/uploads/logos/${files.logo[0].filename}`;
       }
-
       if (files.gallery?.length) {
-        updateData.gallery = files.gallery.map(file => `/uploads/gallery/${file.filename}`);
+        updateData.gallery = files.gallery.map(f => `/uploads/gallery/${f.filename}`);
       }
 
-      // Update the business profile
+      // Mark onboarding complete when profile is saved
+      updateData.onboardingCompleted = true;
+
       const [updated] = await db
         .update(businessTenants)
         .set(updateData)
         .where(eq(businessTenants.id, businessId))
         .returning();
 
-      res.json(updated);
+      res.json({ success: true, data: updated });
     } catch (error) {
       console.error('Error updating business profile:', error);
       res.status(500).json({ error: "Failed to update business profile" });

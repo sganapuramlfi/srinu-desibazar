@@ -86,21 +86,20 @@
 }
 
 .ad-sparkles::before {
-  top: -5px;
-  right: -5px;
+  top: 2px;
+  right: 2px;
   animation-delay: 0.5s;
 }
 
 .ad-sparkles::after {
-  bottom: -5px;
-  left: -5px;
+  bottom: 2px;
+  left: 2px;
   animation-delay: 1s;
 }
 
 /* Glowing border effect */
 .ad-glow {
   position: relative;
-  overflow: visible;
 }
 
 .ad-glow::before {

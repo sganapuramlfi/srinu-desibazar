@@ -266,18 +266,19 @@ export function SmartBusinessProfileTab({ businessId }: SmartBusinessProfileTabP
         body: formData,
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to update profile');
-      return response.json();
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to update profile');
+      return result;
     },
     onSuccess: () => {
       toast({ title: "Profile updated successfully!" });
       queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/profile`] });
     },
-    onError: () => {
-      toast({ 
-        variant: "destructive", 
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
         title: "Failed to update profile",
-        description: "Please try again or contact support."
+        description: error?.message || "Please try again or contact support."
       });
     },
   });

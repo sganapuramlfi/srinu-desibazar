@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 interface LocationData {
   latitude: number;
@@ -16,6 +16,7 @@ interface LocationContextType {
   error: string | null;
   requestLocation: () => void;
   reverseGeocode: (lat: number, lng: number) => Promise<LocationData>;
+  clearError: () => void;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -47,9 +48,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const requestLocation = () => {
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by this browser');
+      return;
+    }
+
+    // Check if running in secure context (HTTPS or localhost)
+    if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost')) {
+      setError('Geolocation requires HTTPS. Please use a secure connection.');
       return;
     }
 
@@ -59,48 +70,48 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        
+
         try {
           const locationData = await reverseGeocode(latitude, longitude);
           locationData.accuracy = accuracy;
-          
+
           setLocation(locationData);
-          
+
           // Store in localStorage for persistence
           localStorage.setItem('userLocation', JSON.stringify(locationData));
         } catch (error) {
           console.error('Error processing location:', error);
           setLocation({ latitude, longitude, accuracy });
         }
-        
+
         setIsLoading(false);
       },
       (error) => {
         console.error('Geolocation error:', error);
         let errorMessage = 'Failed to get location';
-        
+
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Location access denied. Please enable location services.';
+            errorMessage = 'Location access denied. Please enable location permissions in your browser settings.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information unavailable.';
+            errorMessage = 'Location information unavailable. Please check your device location settings.';
             break;
           case error.TIMEOUT:
-            errorMessage = 'Location request timed out.';
+            errorMessage = 'Location request timed out. Please try again.';
             break;
         }
-        
+
         setError(errorMessage);
         setIsLoading(false);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 15000, // Increased to 15 seconds
         maximumAge: 300000, // 5 minutes
       }
     );
-  };
+  }, []);
 
   // Try to load location from localStorage on mount
   useEffect(() => {
@@ -118,11 +129,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         console.error('Error parsing saved location:', error);
       }
     }
-    
-    // Auto-request location on page load (with user permission)
-    setTimeout(() => {
-      requestLocation();
-    }, 1000); // Small delay to let page load first
+
+    // Don't auto-request - let user click the button for better UX
+    // Auto-requesting can be intrusive and might fail silently
   }, []);
 
   return (
@@ -133,6 +142,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         error,
         requestLocation,
         reverseGeocode,
+        clearError,
       }}
     >
       {children}

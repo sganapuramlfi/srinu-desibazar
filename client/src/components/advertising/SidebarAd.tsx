@@ -196,15 +196,14 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
     setVisibleAds(prev => new Set([...prev, adId]));
   };
 
-  if (activeAds.length === 0) {
-    return null;
-  }
-
-  const currentAds = activeAds.slice(currentAdIndex, currentAdIndex + maxAds);
+  // Clamp index so closing an ad never leaves currentAdIndex out of bounds
+  const safeIndex = activeAds.length > 0 ? currentAdIndex % activeAds.length : 0;
+  const currentAds = activeAds.slice(safeIndex, safeIndex + maxAds);
 
   const positionClass = position === "sidebar_left" ? "left-4" : "right-4";
-  
-  // Track impressions for ads only once when they first become visible
+
+  // Track impressions for ads only once when they first become visible.
+  // MUST be above the early return so hooks are always called in the same order.
   useEffect(() => {
     currentAds.forEach(ad => {
       if (!trackedImpressions.current.has(ad.id)) {
@@ -213,6 +212,10 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
       }
     });
   }, [currentAds.map(ad => ad.id).join(',')]);
+
+  if (activeAds.length === 0) {
+    return null;
+  }
 
   return (
     <div className={`fixed ${positionClass} top-24 w-64 space-y-4 z-30 hidden lg:block`}>
@@ -225,9 +228,9 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
         const specialEffectClass = isFlash ? 'ad-glow ad-sparkles' : isBounce ? 'ad-premium-pulse' : '';
 
         return (
-          <Card 
+          <Card
             key={ad.id}
-            className={`${sizeClass} ${animationClass} ${specialEffectClass} cursor-pointer hover:shadow-2xl hover:shadow-primary/30 transition-all duration-500 overflow-visible group relative backdrop-blur-sm bg-gradient-to-br from-background/90 to-background/70 border-2 hover:border-primary/50`}
+            className={`${sizeClass} ${animationClass} ${specialEffectClass} cursor-pointer hover:shadow-2xl hover:shadow-primary/30 transition-all duration-500 group relative backdrop-blur-sm bg-gradient-to-br from-background/90 to-background/70 border-2 hover:border-primary/50`}
             onClick={() => handleAdClick(ad)}
             style={{
               animationDelay: `${index * 200}ms`
@@ -246,7 +249,7 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
               <X className="h-3 w-3 text-white" />
             </Button>
 
-            <CardContent className="p-0 h-full relative">
+            <CardContent className="p-0 h-full relative overflow-hidden rounded-[inherit]">
               {/* Background Image */}
               {ad.imageUrl && (
                 <div 

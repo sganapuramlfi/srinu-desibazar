@@ -16,6 +16,7 @@ import { z } from "zod";
 import { requireBusinessAccess } from "../middleware/businessAccess.js";
 import { constraintValidator } from "../services/ConstraintValidator.js";
 import { businessCommunications, aiSuggestions, notificationQueue } from "../../db/index.js";
+import { checkStaffLimitMiddleware } from "../middleware/subscriptionEnforcement.js";
 
 const router = Router();
 
@@ -362,11 +363,11 @@ router.post("/restaurants/:businessId/tables", verifyRestaurantOwnership, async 
   try {
     const businessId = parseInt(req.params.businessId);
     const result = tableSchema.safeParse(req.body);
-    
+
     if (!result.success) {
-      return res.status(400).json({ 
-        error: "Invalid input", 
-        details: result.error.issues 
+      return res.status(400).json({
+        error: "Invalid input",
+        details: result.error.issues
       });
     }
 
@@ -378,6 +379,18 @@ router.post("/restaurants/:businessId/tables", verifyRestaurantOwnership, async 
         createdAt: new Date()
       })
       .returning();
+
+    // Auto-create bookableItems entry for this table so universal booking works
+    await db.insert(bookableItems).values({
+      businessId,
+      itemType: "restaurant_table",
+      itemId: table.id,
+      name: `Table ${table.tableNumber}`,
+      description: `${table.seatingCapacity}-seat table (${table.location || 'general'})`,
+      durationMinutes: 120, // Default 2-hour reservation
+      advanceBookingDays: 30,
+      isActive: true,
+    }).onConflictDoNothing();
 
     res.json(table);
   } catch (error) {
@@ -526,12 +539,29 @@ router.post("/restaurants/:businessId/reservations", async (req, res) => {
           eq(bookableItems.isActive, true)
         ))
         .limit(1);
-      
+
       if (availableTables.length > 0) {
         bookableItemId = availableTables[0].id;
-        // Update result.data.tableId for the restaurant reservation
         result.data.tableId = availableTables[0].itemId;
       }
+    }
+
+    // If still no bookableItemId, create a generic restaurant booking item
+    if (!bookableItemId) {
+      const [genericItem] = await db
+        .insert(bookableItems)
+        .values({
+          businessId,
+          itemType: "restaurant_table",
+          itemId: 0, // Placeholder when no specific table
+          name: "Restaurant Reservation",
+          description: "General restaurant reservation",
+          durationMinutes: 120,
+          advanceBookingDays: 30,
+          isActive: true,
+        })
+        .returning();
+      bookableItemId = genericItem.id;
     }
 
     // Create universal booking first
@@ -648,7 +678,7 @@ router.get("/restaurants/:businessId/staff", verifyRestaurantOwnership, async (r
 });
 
 // Create staff member
-router.post("/restaurants/:businessId/staff", verifyRestaurantOwnership, async (req, res) => {
+router.post("/restaurants/:businessId/staff", verifyRestaurantOwnership, checkStaffLimitMiddleware, async (req, res) => {
   try {
     const businessId = parseInt(req.params.businessId);
     const {

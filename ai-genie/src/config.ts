@@ -4,7 +4,13 @@ import { AIConfig } from './types.js';
 export const defaultAIConfig: AIConfig = {
   enabled: process.env.AI_ENABLED === 'true' || false,
   openaiApiKey: process.env.OPENAI_API_KEY,
-  provider: process.env.AI_PROVIDER as 'openai' | 'mock' | 'disabled' || 'disabled',
+  provider: (process.env.AI_PROVIDER as AIConfig['provider']) || 'disabled',
+  providerConfig: {
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11435',
+    model: process.env.AI_MODEL || 'llama3.2:3b',
+    temperature: 0.7,
+    maxTokens: 1000,
+  },
   features: {
     smartSearch: process.env.AI_SMART_SEARCH === 'true' || false,
     bookingAssistant: process.env.AI_BOOKING_ASSISTANT === 'true' || false,

@@ -55,8 +55,12 @@ export function SidebarAd({ position, maxAds = 3 }: SidebarAdProps) {
 
   const { data: ads } = useQuery<AdCampaign[]>({
     queryKey: [`/api/advertising/targeted-ads`, adType],
-    enabled: false, // Disabled until server API is working
+    queryFn: () =>
+      fetch(`/api/advertising/targeted-ads?adType=${adType}`)
+        .then(r => r.json()),
+    enabled: true,
     refetchInterval: 60000, // Refresh every minute
+    staleTime: 60000,
   });
 
   // Mock ads for development when no real ads exist

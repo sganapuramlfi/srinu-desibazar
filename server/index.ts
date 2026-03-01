@@ -10,6 +10,9 @@ import simplifiedAuthRoutes from "./routes/simplified-auth.js";
 import adminEmailRoutes from "./routes/admin-email.js";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import cron from "node-cron";
+import { checkTrialExpirations } from "./jobs/trialManagement.js";
+import { aggregateDailyAnalytics } from "./jobs/aggregateAnalytics.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,15 +69,30 @@ const apiLimiter = rateLimit({
   },
 });
 
+// AI rate limiter - Strict limits for AI/LLM endpoints (expensive operations)
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 AI queries per window
+  message: {
+    error: 'Too many AI requests from this IP, please try again after 15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Apply rate limiters
 app.use('/api/simple/login', loginLimiter);
 app.use('/api/simple/register', loginLimiter);
 app.use('/api/admin/login', adminLimiter);
+app.use('/api/ai-abrakadabra', aiLimiter);       // Public + registered AI queries
+app.use('/api/ai-abrakadabra-fixed', aiLimiter); // Fixed AI endpoints
+app.use('/api/ai-genie', aiLimiter);             // ai-genie search/booking/insights
 app.use('/api', apiLimiter); // Apply to all API routes
 
 console.log('✅ Rate limiting enabled:');
 console.log('   - Login/Register: 5 attempts per 15 minutes');
 console.log('   - Admin login: 3 attempts per hour');
+console.log('   - AI endpoints: 20 requests per 15 minutes');
 console.log('   - API requests: 100 per 15 minutes');
 
 // ==================================================================================
@@ -192,4 +210,28 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`serving on port ${PORT}`);
   });
+
+  // Schedule trial management job to run daily at 2:00 AM
+  cron.schedule("0 2 * * *", async () => {
+    console.log("🕐 [Cron] Running daily trial management job...");
+    try {
+      const result = await checkTrialExpirations();
+      console.log("✅ [Cron] Trial management completed:", result);
+    } catch (error) {
+      console.error("❌ [Cron] Trial management failed:", error);
+    }
+  });
+  console.log("⏰ Trial management cron job scheduled (daily at 2:00 AM)");
+
+  // Schedule analytics aggregation to run daily at midnight
+  cron.schedule("0 0 * * *", async () => {
+    console.log("📊 [Cron] Running daily analytics aggregation...");
+    try {
+      await aggregateDailyAnalytics();
+      console.log("✅ [Cron] Analytics aggregation completed");
+    } catch (error) {
+      console.error("❌ [Cron] Analytics aggregation failed:", error);
+    }
+  });
+  console.log("📊 Analytics aggregation cron job scheduled (daily at midnight)");
 })();

@@ -16,6 +16,7 @@ import {
 } from '../../db/index.js';
 import { eq, desc, and } from 'drizzle-orm';
 import Stripe from 'stripe';
+import { getUsageStatistics } from '../middleware/subscriptionEnforcement.js';
 
 const router = Router();
 
@@ -275,6 +276,32 @@ router.get('/subscription', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get subscription error:', error);
     res.status(500).json({ error: 'Failed to get subscription' });
+  }
+});
+
+/**
+ * Get real usage statistics for the current business
+ * GET /api/billing/usage
+ */
+router.get('/usage', async (req: Request, res: Response) => {
+  try {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const businessId =
+      (req as any).businessContext?.businessId ||
+      (req.user as any)?.primaryBusiness?.businessId;
+
+    if (!businessId) {
+      return res.status(400).json({ error: 'No business associated with this account' });
+    }
+
+    const usage = await getUsageStatistics(businessId);
+    res.json(usage);
+  } catch (error) {
+    console.error('Get usage error:', error);
+    res.status(500).json({ error: 'Failed to get usage statistics' });
   }
 });
 

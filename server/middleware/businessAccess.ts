@@ -73,15 +73,16 @@ export function requireBusinessAccess(
       }
 
       // Check permission requirements
-      if (requiredPermissions && requiredPermissions.length > 0) {
+      // Owners implicitly have all permissions regardless of what's stored in the permissions field
+      if (requiredPermissions && requiredPermissions.length > 0 && userAccess.role !== "owner") {
         const userPermissions = userAccess.permissions || {};
         const hasRequiredPermissions = requiredPermissions.every(
           permission => userPermissions[permission] === true
         );
-        
+
         if (!hasRequiredPermissions) {
-          return res.status(403).json({ 
-            error: `Access denied - Missing required permissions: ${requiredPermissions.join(', ')}` 
+          return res.status(403).json({
+            error: `Access denied - Missing required permissions: ${requiredPermissions.join(', ')}`
           });
         }
       }

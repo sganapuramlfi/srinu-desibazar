@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { insertSalonServiceSchema, insertSalonStaffSchema } from "../../db/index.js";
 import { requireBusinessAccess } from "../middleware/businessAccess.js";
+import { checkStaffLimitMiddleware, SubscriptionLimitError } from "../middleware/subscriptionEnforcement.js";
 
 const router = Router();
 
@@ -42,8 +43,9 @@ router.get("/businesses/:businessId/staff",
   }
 );
 
-router.post("/businesses/:businessId/staff", 
+router.post("/businesses/:businessId/staff",
   requireBusinessAccess(["owner", "manager"], ["canManageStaff"]),
+  checkStaffLimitMiddleware,
   async (req, res) => {
     try {
       const businessId = req.businessContext!.businessId;

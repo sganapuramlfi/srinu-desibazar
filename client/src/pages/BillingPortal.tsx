@@ -65,14 +65,13 @@ export default function BillingPortal() {
       if (subRes.ok) {
         const subData = await subRes.json();
         setSubscription(subData);
+      }
 
-        // Mock usage data - replace with actual API call
-        setUsage({
-          staff: { current: 5, max: subData.plan.maxStaff, percentage: 33 },
-          bookings: { current: 120, max: subData.plan.maxBookingsPerMonth, percentage: 24, resetDate: subData.currentPeriodEnd },
-          storage: { current: 1.2, max: subData.plan.storageGb, percentage: 12 },
-          aiCredits: { current: 45, max: subData.plan.aiCreditsPerMonth, percentage: 9, resetDate: subData.currentPeriodEnd },
-        });
+      // Load real usage statistics
+      const usageRes = await fetch('/api/billing/usage');
+      if (usageRes.ok) {
+        const usageData = await usageRes.json();
+        setUsage(usageData);
       }
 
       if (plansRes.ok) {

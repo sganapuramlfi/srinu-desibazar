@@ -5,8 +5,9 @@
  */
 
 import { db } from '../../db/index.js';
-import { businessSubscriptions, subscriptionPlans, businessTenants } from '../../db/index.js';
+import { businessSubscriptions, subscriptionPlans, businessTenants, platformUsers, businessAccess } from '../../db/index.js';
 import { eq, and, lte, gte } from 'drizzle-orm';
+import { emailService } from '../services/emailService.js';
 
 interface TrialSubscription {
   subscription: typeof businessSubscriptions.$inferSelect;
@@ -15,54 +16,60 @@ interface TrialSubscription {
 }
 
 /**
+ * Get the billing email for a subscription (falls back to owner's platform email)
+ */
+async function getBillingEmail(subscription: TrialSubscription): Promise<string | null> {
+  if (subscription.subscription.billingEmail) {
+    return subscription.subscription.billingEmail;
+  }
+  // Fall back to business owner's email
+  const [ownerAccess] = await db
+    .select({ email: platformUsers.email })
+    .from(businessAccess)
+    .innerJoin(platformUsers, eq(platformUsers.id, businessAccess.userId))
+    .where(and(
+      eq(businessAccess.businessId, subscription.business.id),
+      eq(businessAccess.role, 'owner'),
+      eq(businessAccess.isActive, true)
+    ))
+    .limit(1);
+  return ownerAccess?.email || null;
+}
+
+/**
  * Send trial expiration warning email
- * TODO: Integrate with actual email service
  */
 async function sendTrialWarningEmail(
   subscription: TrialSubscription,
   daysRemaining: number
 ) {
-  console.log(`📧 Sending ${daysRemaining}-day trial warning email`);
-  console.log(`   Business: ${subscription.business.name}`);
-  console.log(`   Email: ${subscription.subscription.billingEmail}`);
-  console.log(`   Trial ends: ${subscription.subscription.trialEndsAt}`);
-
-  // TODO: Implement actual email sending
-  // Example:
-  // await emailService.send({
-  //   to: subscription.subscription.billingEmail,
-  //   subject: `Your trial ends in ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}`,
-  //   template: `trial_${daysRemaining}_day_warning`,
-  //   data: {
-  //     businessName: subscription.business.name,
-  //     planName: subscription.plan.name,
-  //     daysRemaining,
-  //     trialEndDate: subscription.subscription.trialEndsAt,
-  //     upgradeUrl: 'https://yourdomain.com/billing',
-  //   },
-  // });
+  console.log(`📧 Sending ${daysRemaining}-day trial warning email for: ${subscription.business.name}`);
+  const email = await getBillingEmail(subscription);
+  if (email) {
+    await emailService.sendTrialExpiryWarning(email, subscription.business.name, daysRemaining);
+  }
 }
 
 /**
  * Send trial expired email
  */
 async function sendTrialExpiredEmail(subscription: TrialSubscription) {
-  console.log(`📧 Sending trial expired email`);
-  console.log(`   Business: ${subscription.business.name}`);
-  console.log(`   Email: ${subscription.subscription.billingEmail}`);
-
-  // TODO: Implement actual email sending
+  console.log(`📧 Sending trial expired email for: ${subscription.business.name}`);
+  const email = await getBillingEmail(subscription);
+  if (email) {
+    await emailService.sendTrialExpired(email, subscription.business.name);
+  }
 }
 
 /**
  * Send trial converted email
  */
 async function sendTrialConvertedEmail(subscription: TrialSubscription) {
-  console.log(`📧 Sending trial converted email`);
-  console.log(`   Business: ${subscription.business.name}`);
-  console.log(`   Email: ${subscription.subscription.billingEmail}`);
-
-  // TODO: Implement actual email sending
+  console.log(`📧 Sending trial converted email for: ${subscription.business.name}`);
+  const email = await getBillingEmail(subscription);
+  if (email) {
+    await emailService.sendWelcomeEmail(email, subscription.business.name, subscription.business.industryType || 'business');
+  }
 }
 
 /**

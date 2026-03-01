@@ -2,7 +2,8 @@ import passport from "passport";
 import { IVerifyOptions, Strategy as LocalStrategy } from "passport-local";
 import { type Express } from "express";
 import session from "express-session";
-import createMemoryStore from "memorystore";
+import connectPgSimple from "connect-pg-simple";
+import { Pool } from "pg";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 // Import new business-centric schema
@@ -145,22 +146,29 @@ async function getUserWithBusinessAccess(userId: number): Promise<SanitizedUser 
 }
 
 export function setupAuth(app: Express) {
-  const MemoryStore = createMemoryStore(session);
+  const PgSession = connectPgSimple(session);
 
-  // Enhanced session settings with secure defaults
+  // Create a dedicated pool for session store
+  const sessionPool = new Pool({
+    connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:9100/desibazaar",
+  });
+
+  // Enhanced session settings with PostgreSQL-backed store
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || process.env.REPL_ID || "desibazaar-secret",
+    secret: process.env.SESSION_SECRET || process.env.REPL_ID || "desibazaar-secret-change-in-production",
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: app.get("env") === "production",
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (was 24h)
       sameSite: app.get("env") === "production" ? "strict" : "lax",
       path: "/",
     },
-    store: new MemoryStore({
-      checkPeriod: 86400000, // 24 hours
+    store: new PgSession({
+      pool: sessionPool,
+      tableName: "session",
+      createTableIfMissing: true, // Auto-create session table
     }),
     name: "desibazaar.sid",
   };

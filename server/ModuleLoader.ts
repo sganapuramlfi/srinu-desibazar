@@ -149,7 +149,7 @@ export class ModuleLoader {
 
   // Update module configuration
   private async updateModuleConfig(moduleId: string, updates: any): Promise<void> {
-    const configPath = path.join(__dirname, 'modules/config/modules.json');
+    const configPath = path.join(__dirname, '../modules/config/modules.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     
     if (config[moduleId]) {

@@ -19,7 +19,6 @@ import {
   businessSubscriptions
 } from "../db/index.js";
 import { eq, and, gte, lte, desc, sql, or, ilike } from "drizzle-orm";
-import { setupAuth } from "./auth";
 import salonRoutes from "./routes/salon";
 import restaurantRoutes from "./routes/restaurant";
 import reviewRoutes from "./routes/reviews";
@@ -89,8 +88,8 @@ export function registerRoutes(app: Express): Server {
   // Create the HTTP server first
   const httpServer = createServer(app);
 
-  // Setup authentication first
-  setupAuth(app);
+  // Note: setupAuth is called in index.ts before registerRoutes - do not call it again here
+  // to avoid creating a second session store that overwrites req.user on every request
 
   // API Routes prefix middleware
   app.use('/api', (req, res, next) => {
@@ -177,6 +176,36 @@ export function registerRoutes(app: Express): Server {
   app.use('/api/ai-public-data', aiPublicDataRoutes); // Alternative route for frontend compatibility
   app.use('/api', aiAbrakadabraEnhancedRoutes); // Enhanced two-tier AI system
   app.use('/api', aiAbrakadabraFixedRoutes); // Fixed two-tier AI system with surgical fixes
+
+  // AI health/status endpoint — check if Ollama is live
+  app.get('/api/ai/status', async (req, res) => {
+    const ollamaEndpoint = process.env.OLLAMA_ENDPOINT || 'http://localhost:11435';
+    try {
+      const response = await fetch(`${ollamaEndpoint}/api/tags`, {
+        signal: AbortSignal.timeout(3000)
+      });
+      if (response.ok) {
+        const data = await response.json() as { models?: Array<{ name: string }> };
+        return res.json({
+          ollama: 'online',
+          endpoint: ollamaEndpoint,
+          models: (data.models || []).map((m: { name: string }) => m.name),
+          provider: process.env.AI_PROVIDER || 'not-set',
+          enabled: process.env.AI_ENABLED === 'true'
+        });
+      }
+      throw new Error(`Ollama responded with ${response.status}`);
+    } catch (error: any) {
+      return res.json({
+        ollama: 'offline',
+        endpoint: ollamaEndpoint,
+        error: error.message,
+        provider: process.env.AI_PROVIDER || 'not-set',
+        enabled: process.env.AI_ENABLED === 'true',
+        fallback: 'mock'
+      });
+    }
+  });
   app.use('/api', vectorSearchTestRoutes); // Vector search testing
   app.use('/api', debugAbrakadabraRoutes); // Debug Abrakadabra service
   app.use('/api', testSurgicalFixRoutes); // Surgical fix test endpoint
@@ -257,10 +286,23 @@ export function registerRoutes(app: Express): Server {
   // Business Routes
   app.get("/api/businesses", async (req, res) => {
     try {
+      const { industry, limit = "50", page = "1" } = req.query;
+      const limitNum = Math.min(parseInt(limit as string) || 50, 100);
+      const pageNum = Math.max(parseInt(page as string) || 1, 1);
+      const offset = (pageNum - 1) * limitNum;
+
+      const conditions: any[] = [eq(businessTenants.status, "active")];
+      if (industry && typeof industry === 'string') {
+        conditions.push(eq(businessTenants.industryType, industry));
+      }
+
       const result = await db
         .select()
         .from(businessTenants)
-        .where(eq(businessTenants.status, "active"));
+        .where(and(...conditions))
+        .limit(limitNum)
+        .offset(offset);
+
       res.json(result);
     } catch (error) {
       console.error('Error fetching businesses:', error);
@@ -268,51 +310,64 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Business Search endpoint
-  app.get("/api/businesses/search", async (req, res) => {
+  // Featured businesses for landing page (top active with most bookings)
+  app.get("/api/businesses/featured", async (req, res) => {
     try {
-      const { q, industry, location, limit = 20 } = req.query;
-      console.log('Search params:', { q, industry, location, limit });
-      
-      // First, let's just return the same data as /api/businesses but with search format
-      const allBusinesses = await db
+      const featured = await db
         .select()
         .from(businessTenants)
-        .where(eq(businessTenants.status, "active"));
+        .where(eq(businessTenants.status, "active"))
+        .limit(6);
 
-      let filteredBusinesses = allBusinesses;
+      res.json(featured);
+    } catch (error) {
+      console.error('Error fetching featured businesses:', error);
+      res.status(500).json({ error: "Failed to fetch featured businesses" });
+    }
+  });
 
-      // Filter by search term if provided
-      if (q && typeof q === 'string') {
-        const searchTerm = q.toLowerCase();
-        filteredBusinesses = allBusinesses.filter(business => 
-          business.name?.toLowerCase().includes(searchTerm) ||
-          business.description?.toLowerCase().includes(searchTerm) ||
-          business.industryType?.toLowerCase().includes(searchTerm)
+  // Business Search endpoint with SQL filtering
+  app.get("/api/businesses/search", async (req, res) => {
+    try {
+      const { q, industry, city, limit = "20", page = "1" } = req.query;
+      const limitNum = Math.min(parseInt(limit as string) || 20, 100);
+      const pageNum = Math.max(parseInt(page as string) || 1, 1);
+      const offset = (pageNum - 1) * limitNum;
+
+      const conditions: any[] = [eq(businessTenants.status, "active")];
+
+      if (q && typeof q === 'string' && q.trim()) {
+        const term = `%${q.trim()}%`;
+        conditions.push(
+          or(
+            ilike(businessTenants.name, term),
+            ilike(businessTenants.description, term),
+            ilike(businessTenants.industryType, term)
+          )
         );
       }
 
-      // Filter by industry if provided
       if (industry && typeof industry === 'string') {
-        filteredBusinesses = filteredBusinesses.filter(business => 
-          business.industryType === industry
-        );
+        conditions.push(eq(businessTenants.industryType, industry));
       }
 
-      // Apply limit
-      const limitNum = parseInt(limit as string) || 20;
-      const results = filteredBusinesses.slice(0, Math.min(limitNum, 100));
+      const results = await db
+        .select()
+        .from(businessTenants)
+        .where(and(...conditions))
+        .orderBy(businessTenants.name)
+        .limit(limitNum)
+        .offset(offset);
 
-      console.log(`Found ${results.length} businesses from ${allBusinesses.length} total`);
-      
       res.json({
         businesses: results,
         total: results.length,
-        query: { q, industry, location, limit: limitNum }
+        page: pageNum,
+        limit: limitNum,
+        query: { q, industry, city }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching businesses:', error.message);
-      console.error('Stack trace:', error.stack);
       res.status(500).json({ error: "Failed to search businesses" });
     }
   });
@@ -608,90 +663,97 @@ export function registerRoutes(app: Express): Server {
   // Get smart targeted ads for sidebar
   app.get("/api/advertising/targeted-ads", async (req, res) => {
     try {
-      const { 
-        adType, 
-        category, 
-        module, 
-        interests, 
-        priorityBoost = "1" 
+      const {
+        adType,
+        category,
+        module,
+        interests,
+        priorityBoost = "1"
       } = req.query;
-      
+
       const now = new Date();
       const boostMultiplier = parseFloat(priorityBoost as string) || 1;
 
-      // Build smart targeting query
-      let query = db
+      // Map sidebar_left/sidebar_right positional params to "sidebar" DB type
+      const requestedPosition = (adType as string) || "sidebar_left";
+      const dbAdType = (requestedPosition === "sidebar_left" || requestedPosition === "sidebar_right")
+        ? "sidebar"
+        : requestedPosition;
+
+      // Query advertisements table (the actual DB table)
+      const rawAds = await db
         .select({
-          id: adCampaigns.id,
-          businessId: adCampaigns.businessId,
-          title: adCampaigns.title,
-          content: adCampaigns.content,
-          imageUrl: adCampaigns.imageUrl,
-          clickUrl: adCampaigns.clickUrl,
-          adType: adCampaigns.adType,
-          size: adCampaigns.size,
-          animationType: adCampaigns.animationType,
-          priority: adCampaigns.priority,
-          targetingRules: adCampaigns.targetingRules,
+          id: advertisements.id,
+          businessId: advertisements.advertiserId,
+          title: advertisements.title,
+          content: advertisements.description,
+          imageUrl: advertisements.imageUrl,
+          clickUrl: advertisements.ctaUrl,
+          adType: advertisements.adType,
+          impressions: advertisements.impressions,
+          clicks: advertisements.clicks,
           business: {
             name: businessTenants.name,
             industryType: businessTenants.industryType,
             contactInfo: businessTenants.contactInfo,
           }
         })
-        .from(adCampaigns)
-        .innerJoin(businessTenants, eq(businessTenants.id, adCampaigns.businessId))
+        .from(advertisements)
+        .innerJoin(businessTenants, eq(businessTenants.id, advertisements.advertiserId))
         .where(and(
-          eq(adCampaigns.status, "active"),
-          eq(adCampaigns.adType, adType as string),
-          lte(adCampaigns.startDate, now),
-          gte(adCampaigns.endDate, now)
+          eq(advertisements.status, "active"),
+          eq(advertisements.adType, dbAdType),
+          or(
+            sql`${advertisements.startDate} IS NULL`,
+            lte(advertisements.startDate, now)
+          ),
+          or(
+            sql`${advertisements.endDate} IS NULL`,
+            gte(advertisements.endDate, now)
+          )
         ));
 
-      let ads = await query;
+      // Normalise shape: add display defaults missing from advertisements schema
+      const ANIMATION_TYPES = ["static", "slide", "fade", "flash", "bounce"] as const;
+      let ads = rawAds.map((ad, idx) => ({
+        ...ad,
+        adType: requestedPosition as "sidebar_left" | "sidebar_right",
+        size: "medium" as const,
+        animationType: ANIMATION_TYPES[idx % ANIMATION_TYPES.length],
+        priority: 5,
+      }));
 
       // Smart targeting logic
       if (category || interests) {
         const interestList = interests ? (interests as string).split(',').filter(Boolean) : [];
-        
+
         ads = ads
           .map(ad => {
             let relevanceScore = ad.priority * boostMultiplier;
-            
-            // Category matching boost
+
             if (category && ad.business.industryType === category) {
-              relevanceScore += 5; // High boost for exact category match
+              relevanceScore += 5;
             }
-            
-            // Interest-based boost
+
             if (interestList.length > 0) {
-              const hasMatchingInterest = interestList.some(interest => 
-                ad.business.industryType.includes(interest) || 
+              const hasMatchingInterest = interestList.some(interest =>
+                ad.business.industryType.includes(interest) ||
                 ad.title.toLowerCase().includes(interest.toLowerCase()) ||
                 ad.content.toLowerCase().includes(interest.toLowerCase())
               );
-              if (hasMatchingInterest) {
-                relevanceScore += 2;
-              }
+              if (hasMatchingInterest) relevanceScore += 2;
             }
-            
-            // Module-specific boost
-            if (module === 'business' && ad.animationType === 'bounce') {
-              relevanceScore += 1; // Boost premium animations for business pages
-            }
-            
+
             return { ...ad, relevanceScore };
           })
-          .sort((a, b) => b.relevanceScore - a.relevanceScore);
+          .sort((a: any, b: any) => b.relevanceScore - a.relevanceScore);
       } else {
-        // Default sorting
-        ads = ads.sort((a, b) => (b.priority * boostMultiplier) - (a.priority * boostMultiplier));
+        ads = ads.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
       }
 
-      // Smart ad count based on context
       let maxAds = 10;
-      if (category) maxAds = 15; // Show more ads for category browsing
-      if (module === 'business') maxAds = 12; // Show more on business pages
+      if (category) maxAds = 15;
+      if (module === 'business') maxAds = 12;
 
       res.json(ads.slice(0, maxAds));
     } catch (error) {
@@ -703,47 +765,48 @@ export function registerRoutes(app: Express): Server {
   // Track ad analytics (impressions, clicks)
   app.post("/api/advertising/track", async (req, res) => {
     try {
-      const { campaignId, action, metadata } = req.body;
-      const userAgent = req.get('User-Agent');
-      const ipAddress = req.ip;
-      const referrer = req.get('Referer');
+      const { campaignId, action } = req.body;
 
-      // TODO: Insert analytics record (table not yet created)
-      // await db.insert(adAnalytics).values({
-      //   campaignId,
-      //   userId: req.user?.id || null,
-      //   sessionId: req.session?.id || null,
-      //   action,
-      //   userAgent,
-      //   ipAddress,
-      //   referrer,
-      //   metadata: metadata || {},
-      //   timestamp: new Date()
-      // });
+      if (!campaignId || !action) {
+        return res.json({ success: true }); // Silently ignore malformed requests
+      }
 
-      // TODO: Update campaign counters (adCampaigns table not yet created)
-      // if (action === 'click') {
-      //   await db
-      //     .update(adCampaigns)
-      //     .set({ 
-      //       clicks: sql`clicks + 1`,
-      //       spent: sql`spent + 0.50` // $0.50 per click
-      //     })
-      //     .where(eq(adCampaigns.id, campaignId));
-      // } else if (action === 'impression') {
-      //   await db
-      //     .update(adCampaigns)
-      //     .set({ 
-      //       impressions: sql`impressions + 1`,
-      //       spent: sql`spent + 0.01` // $0.01 per impression
-      //     })
-      //     .where(eq(adCampaigns.id, campaignId));
-      // }
+      if (action === 'click') {
+        await db
+          .update(advertisements)
+          .set({ clicks: sql`${advertisements.clicks} + 1` })
+          .where(eq(advertisements.id, parseInt(campaignId)));
+      } else if (action === 'impression') {
+        await db
+          .update(advertisements)
+          .set({ impressions: sql`${advertisements.impressions} + 1` })
+          .where(eq(advertisements.id, parseInt(campaignId)));
+      }
 
       res.json({ success: true });
     } catch (error) {
       console.error('Error tracking ad analytics:', error);
       res.status(500).json({ error: "Failed to track analytics" });
+    }
+  });
+
+  // Admin analytics endpoint
+  app.get("/api/admin/analytics", adminAuthMiddleware, async (req, res) => {
+    try {
+      const { level = "platform", dimension, startDate, endDate } = req.query;
+      const { getAnalytics } = await import("./jobs/aggregateAnalytics.js");
+      const end = endDate ? new Date(endDate as string) : new Date();
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const data = await getAnalytics({
+        level: level as any,
+        dimension: dimension as string | undefined,
+        startDate: start,
+        endDate: end,
+      });
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
     }
   });
 
@@ -816,34 +879,32 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Admin endpoint to get all campaigns
+  // Admin endpoint to get all campaigns (uses advertisements table)
   app.get("/api/admin/campaigns", adminAuthMiddleware, async (req, res) => {
     try {
       const campaigns = await db
         .select({
-          id: adCampaigns.id,
-          businessId: adCampaigns.businessId,
-          title: adCampaigns.title,
-          content: adCampaigns.content,
-          adType: adCampaigns.adType,
-          size: adCampaigns.size,
-          animationType: adCampaigns.animationType,
-          budget: adCampaigns.budget,
-          spent: adCampaigns.spent,
-          clicks: adCampaigns.clicks,
-          impressions: adCampaigns.impressions,
-          status: adCampaigns.status,
-          priority: adCampaigns.priority,
-          startDate: adCampaigns.startDate,
-          endDate: adCampaigns.endDate,
+          id: advertisements.id,
+          businessId: advertisements.advertiserId,
+          title: advertisements.title,
+          content: advertisements.description,
+          adType: advertisements.adType,
+          budgetTotal: advertisements.budgetTotal,
+          spentAmount: advertisements.spentAmount,
+          clicks: advertisements.clicks,
+          impressions: advertisements.impressions,
+          status: advertisements.status,
+          startDate: advertisements.startDate,
+          endDate: advertisements.endDate,
+          createdAt: advertisements.createdAt,
           business: {
             name: businessTenants.name,
             industryType: businessTenants.industryType,
           }
         })
-        .from(adCampaigns)
-        .innerJoin(businessTenants, eq(businessTenants.id, adCampaigns.businessId))
-        .orderBy(desc(adCampaigns.createdAt));
+        .from(advertisements)
+        .innerJoin(businessTenants, eq(businessTenants.id, advertisements.advertiserId))
+        .orderBy(desc(advertisements.createdAt));
 
       res.json(campaigns);
     } catch (error) {

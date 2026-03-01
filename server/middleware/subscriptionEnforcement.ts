@@ -93,7 +93,10 @@ async function getSubscriptionWithPlan(businessId: number) {
 export function requireFeature(featureName: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const businessId = req.user?.businessId || (req as any).businessId;
+      const businessId =
+        (req as any).businessContext?.businessId ||
+        (req.params.businessId ? parseInt(req.params.businessId) : null) ||
+        (req.user as any)?.primaryBusiness?.businessId;
 
       if (!businessId) {
         return res.status(401).json({ error: 'Not authenticated' });
@@ -130,7 +133,10 @@ export function requireFeature(featureName: string) {
 export function requireModule(moduleName: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const businessId = req.user?.businessId || (req as any).businessId;
+      const businessId =
+        (req as any).businessContext?.businessId ||
+        (req.params.businessId ? parseInt(req.params.businessId) : null) ||
+        (req.user as any)?.primaryBusiness?.businessId;
 
       if (!businessId) {
         return res.status(401).json({ error: 'Not authenticated' });
@@ -204,7 +210,11 @@ export const checkStaffLimitMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    const businessId = req.user?.businessId || (req as any).businessId;
+    const businessId =
+      (req as any).businessContext?.businessId ||
+      (req.params.businessId ? parseInt(req.params.businessId) : null) ||
+      (req.user as any)?.primaryBusiness?.businessId ||
+      (req.user as any)?.businessId;
 
     if (!businessId) {
       return res.status(401).json({ error: 'Not authenticated' });
@@ -214,10 +224,11 @@ export const checkStaffLimitMiddleware = async (
     next();
   } catch (error) {
     if (error instanceof SubscriptionLimitError) {
-      return res.status(403).json(error.toJSON());
+      return res.status(402).json({ ...error.toJSON(), upgradeRequired: true });
     }
-    console.error('Staff limit check error:', error);
-    res.status(500).json({ error: 'Failed to check staff limit' });
+    // If subscription not found, allow action (business may not have subscription yet)
+    console.warn('Staff limit check skipped:', error instanceof Error ? error.message : error);
+    next();
   }
 };
 
@@ -271,20 +282,26 @@ export const checkBookingLimitMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    const businessId = req.user?.businessId || (req as any).businessId;
+    const businessId =
+      (req as any).businessContext?.businessId ||
+      (req.params.businessId ? parseInt(req.params.businessId) : null) ||
+      (req.user as any)?.primaryBusiness?.businessId ||
+      (req.body?.businessId ? parseInt(req.body.businessId) : null);
 
     if (!businessId) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      // No businessId found — allow (public booking endpoint may resolve it later)
+      return next();
     }
 
     await checkBookingLimit(businessId);
     next();
   } catch (error) {
     if (error instanceof SubscriptionLimitError) {
-      return res.status(403).json(error.toJSON());
+      return res.status(402).json({ ...error.toJSON(), upgradeRequired: true });
     }
-    console.error('Booking limit check error:', error);
-    res.status(500).json({ error: 'Failed to check booking limit' });
+    // If subscription not found, allow action
+    console.warn('Booking limit check skipped:', error instanceof Error ? error.message : error);
+    next();
   }
 };
 
@@ -330,20 +347,23 @@ export const deductAICreditMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    const businessId = req.user?.businessId || (req as any).businessId;
+    const businessId =
+      (req as any).businessContext?.businessId ||
+      (req.params.businessId ? parseInt(req.params.businessId) : null) ||
+      (req.user as any)?.primaryBusiness?.businessId;
 
     if (!businessId) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return next(); // No business context — allow (public AI endpoint)
     }
 
     await deductAICredit(businessId);
     next();
   } catch (error) {
     if (error instanceof SubscriptionLimitError) {
-      return res.status(403).json(error.toJSON());
+      return res.status(402).json({ ...error.toJSON(), upgradeRequired: true });
     }
-    console.error('AI credit check error:', error);
-    res.status(500).json({ error: 'Failed to check AI credits' });
+    console.warn('AI credit check skipped:', error instanceof Error ? error.message : error);
+    next();
   }
 };
 

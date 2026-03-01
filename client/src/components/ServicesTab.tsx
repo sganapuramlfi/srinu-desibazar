@@ -79,11 +79,13 @@ export const ServicesTab = ({ businessId }: ServicesTabProps) => {
   // Add service mutation
   const addServiceMutation = useMutation({
     mutationFn: async (data: typeof serviceFormSchema._type) => {
+      // Map client field 'duration' to DB column name 'durationMinutes'
+      const { duration, ...rest } = data;
       const response = await fetch(`/api/businesses/${businessId}/services`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...rest, durationMinutes: duration }),
       });
 
       if (!response.ok) {
@@ -145,11 +147,13 @@ export const ServicesTab = ({ businessId }: ServicesTabProps) => {
   // Edit service mutation
   const editServiceMutation = useMutation({
     mutationFn: async (data: typeof serviceFormSchema._type & { id: number }) => {
-      const response = await fetch(`/api/businesses/${businessId}/services/${data.id}`, {
+      // Map client field 'duration' to DB column name 'durationMinutes'
+      const { duration, id, ...rest } = data;
+      const response = await fetch(`/api/businesses/${businessId}/services/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...rest, durationMinutes: duration }),
       });
 
       if (!response.ok) {
@@ -182,7 +186,8 @@ export const ServicesTab = ({ businessId }: ServicesTabProps) => {
       serviceForm.reset({
         name: isEditingService.name,
         description: isEditingService.description || "",
-        duration: isEditingService.duration,
+        // Server returns 'durationMinutes'; map back to form field 'duration'
+        duration: (isEditingService as any).durationMinutes ?? isEditingService.duration ?? 30,
         price: isEditingService.price,
         category: isEditingService.category,
         isActive: isEditingService.isActive,
@@ -239,7 +244,7 @@ export const ServicesTab = ({ businessId }: ServicesTabProps) => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span>Duration:</span>
-                  <span>{service.duration} mins</span>
+                  <span>{(service as any).durationMinutes ?? service.duration} mins</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Price:</span>

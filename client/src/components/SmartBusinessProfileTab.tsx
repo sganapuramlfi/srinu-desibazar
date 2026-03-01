@@ -73,7 +73,8 @@ const businessProfileSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   contactInfo: z.object({
     phone: z.string().min(10, "Please enter a valid phone number"),
-    email: z.string().email("Please enter a valid email"),
+    // Email is in the collapsed "Optional" section — allow empty string, only validate format when filled
+    email: z.union([z.string().email("Please enter a valid email address"), z.literal("")]),
     address: z.string().min(5, "Please enter a complete address"),
   }),
   operatingHours: z.record(z.object({
@@ -286,16 +287,31 @@ export function SmartBusinessProfileTab({ businessId }: SmartBusinessProfileTabP
   // Load existing business data
   useEffect(() => {
     if (business) {
+      const ci = (business.contactInfo as any) || {};
+      const sm = (business.socialMedia as any) || {};
+      const oh = business.operatingHours && Object.keys(business.operatingHours).length > 0
+        ? business.operatingHours
+        : OPERATING_HOURS_PRESETS["Standard Business"];
+
       form.reset({
         name: business.name || "",
         description: business.description || "",
-        contactInfo: business.contactInfo || { phone: "", email: "", address: "" },
-        operatingHours: business.operatingHours || OPERATING_HOURS_PRESETS["Standard Business"],
-        amenities: business.amenities || [],
-        socialMedia: business.socialMedia || { website: "", facebook: "", instagram: "" },
+        // Always provide string defaults — never undefined — so RHF keeps inputs controlled
+        contactInfo: {
+          phone: ci.phone || "",
+          email: ci.email || "",
+          address: ci.address || "",
+        },
+        operatingHours: oh,
+        amenities: Array.isArray(business.amenities) ? business.amenities : [],
+        socialMedia: {
+          website: sm.website || "",
+          facebook: sm.facebook || "",
+          instagram: sm.instagram || "",
+        },
         holidayPolicy: business.holidayPolicy || HOLIDAY_POLICIES[1],
       });
-      setSelectedAmenities(business.amenities || []);
+      setSelectedAmenities(Array.isArray(business.amenities) ? business.amenities : []);
     }
   }, [business, form]);
 
@@ -516,7 +532,24 @@ export function SmartBusinessProfileTab({ businessId }: SmartBusinessProfileTabP
       </Card>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, (errors) => {
+            // Show a toast so the user knows validation failed
+            const firstError = Object.values(errors)[0];
+            const message =
+              (firstError as any)?.message ||
+              (firstError as any)?.phone?.message ||
+              (firstError as any)?.email?.message ||
+              (firstError as any)?.address?.message ||
+              "Please fill in all required fields before saving.";
+            toast({
+              variant: "destructive",
+              title: "Cannot save profile",
+              description: String(message),
+            });
+          })}
+          className="space-y-6"
+        >
           
           {/* Essential Business Info */}
           <Card>

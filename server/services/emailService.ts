@@ -160,8 +160,135 @@ export class EmailService {
   async sendPasswordResetEmail(to: string, resetToken: string) {
     const subject = 'Reset your DesiBazaar password';
     const html = this.generatePasswordResetTemplate(resetToken);
-    
+
     return this.sendEmail(to, subject, html, 'password_reset');
+  }
+
+  // Send trial expiry warning email
+  async sendTrialExpiryWarning(to: string, businessName: string, daysRemaining: number) {
+    const subject = `Your DesiBazaar trial ends in ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}`;
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><title>Trial Expiring Soon</title></head>
+    <body style="font-family:Arial,sans-serif;color:#333;">
+      <div style="max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:#F59E0B;color:white;padding:20px;text-align:center;">
+          <h1>⚠️ Trial Ending Soon</h1>
+          <p>${businessName}</p>
+        </div>
+        <div style="padding:30px;background:#f9f9f9;">
+          <h2>Your trial expires in ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'}</h2>
+          <p>To keep using all DesiBazaar features, please upgrade to a paid plan before your trial ends.</p>
+          <p><a href="${process.env.APP_URL || 'http://localhost:5173'}/billing"
+             style="display:inline-block;background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;">
+             Upgrade Now
+          </a></p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+    return this.sendEmail(to, subject, html, 'trial_expiry_warning');
+  }
+
+  // Send trial expired email
+  async sendTrialExpired(to: string, businessName: string) {
+    const subject = `Your DesiBazaar trial has ended — ${businessName}`;
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><title>Trial Expired</title></head>
+    <body style="font-family:Arial,sans-serif;color:#333;">
+      <div style="max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:#EF4444;color:white;padding:20px;text-align:center;">
+          <h1>Trial Expired</h1>
+          <p>${businessName}</p>
+        </div>
+        <div style="padding:30px;background:#f9f9f9;">
+          <h2>Your free trial has ended</h2>
+          <p>Your account has been downgraded to the free tier. Upgrade to restore full access.</p>
+          <p><a href="${process.env.APP_URL || 'http://localhost:5173'}/billing"
+             style="display:inline-block;background:#4F46E5;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;">
+             View Plans
+          </a></p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+    return this.sendEmail(to, subject, html, 'trial_expired');
+  }
+
+  // Send booking confirmation email
+  async sendBookingConfirmation(to: string, options: {
+    customerName: string;
+    businessName: string;
+    serviceName: string;
+    scheduledAt: Date;
+    bookingId: number;
+  }) {
+    const subject = `Booking confirmed — ${options.businessName}`;
+    const dateStr = options.scheduledAt.toLocaleString('en-AU', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><title>Booking Confirmed</title></head>
+    <body style="font-family:Arial,sans-serif;color:#333;">
+      <div style="max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:#10B981;color:white;padding:20px;text-align:center;">
+          <h1>✅ Booking Confirmed!</h1>
+        </div>
+        <div style="padding:30px;background:#f9f9f9;">
+          <p>Hi ${options.customerName},</p>
+          <p>Your booking has been confirmed:</p>
+          <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+            <tr><td style="padding:8px;font-weight:bold;">Business</td><td style="padding:8px;">${options.businessName}</td></tr>
+            <tr style="background:#eee;"><td style="padding:8px;font-weight:bold;">Service</td><td style="padding:8px;">${options.serviceName}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Date & Time</td><td style="padding:8px;">${dateStr}</td></tr>
+            <tr style="background:#eee;"><td style="padding:8px;font-weight:bold;">Booking #</td><td style="padding:8px;">${options.bookingId}</td></tr>
+          </table>
+          <p>Need to make changes? Contact the business or visit your dashboard.</p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+    return this.sendEmail(to, subject, html, 'booking_confirmation');
+  }
+
+  // Send review request email (sent after appointment)
+  async sendReviewRequest(to: string, options: {
+    customerName: string;
+    businessName: string;
+    businessSlug: string;
+  }) {
+    const subject = `How was your visit to ${options.businessName}?`;
+    const reviewUrl = `${process.env.APP_URL || 'http://localhost:5173'}/business/${options.businessSlug}#reviews`;
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><title>Leave a Review</title></head>
+    <body style="font-family:Arial,sans-serif;color:#333;">
+      <div style="max-width:600px;margin:0 auto;padding:20px;">
+        <div style="background:#4F46E5;color:white;padding:20px;text-align:center;">
+          <h1>⭐ How Was Your Visit?</h1>
+        </div>
+        <div style="padding:30px;background:#f9f9f9;">
+          <p>Hi ${options.customerName},</p>
+          <p>We hope you enjoyed your visit to <strong>${options.businessName}</strong>! Share your experience to help others.</p>
+          <p style="text-align:center;">
+            <a href="${reviewUrl}"
+               style="display:inline-block;background:#F59E0B;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;">
+               Leave a Review
+            </a>
+          </p>
+          <p style="font-size:12px;color:#666;">This email was sent because you recently had an appointment at ${options.businessName}.</p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+    return this.sendEmail(to, subject, html, 'review_request');
   }
 
   // Generic send email method

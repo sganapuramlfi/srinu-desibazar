@@ -231,49 +231,61 @@ export function ServiceBookingDialog({
         <p className="text-gray-600">What would you like to book today?</p>
       </div>
 
-      <div className="space-y-3 max-h-80 overflow-y-auto">
-        {Object.entries(servicesByCategory).map(([category, categoryServices]: [string, any]) => (
-          <div key={category}>
-            <h4 className="font-medium text-sm text-gray-800 mb-2 uppercase tracking-wide">
-              {category}
-            </h4>
-            <div className="space-y-2">
-              {categoryServices.map((service: Service) => (
-                <Card 
-                  key={service.id} 
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => handleServiceSelect(service)}
-                >
-                  <CardContent className="p-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h5 className="font-medium">{service.name}</h5>
-                        {service.description && (
-                          <p className="text-sm text-gray-600 mt-1">{service.description}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="secondary" className="text-xs">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {service.durationMinutes}min
-                          </Badge>
-                          {service.requiresConsultation && (
-                            <Badge variant="outline" className="text-xs">
-                              Consultation Required
-                            </Badge>
+      {servicesLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+        </div>
+      ) : Object.keys(servicesByCategory).length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <Scissors className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+          <p className="font-medium">No services available yet</p>
+          <p className="text-sm mt-1">This business hasn't added services. Contact them directly to book.</p>
+        </div>
+      ) : (
+        <div className="space-y-3 max-h-80 overflow-y-auto">
+          {Object.entries(servicesByCategory).map(([category, categoryServices]: [string, any]) => (
+            <div key={category}>
+              <h4 className="font-medium text-sm text-gray-800 mb-2 uppercase tracking-wide">
+                {category}
+              </h4>
+              <div className="space-y-2">
+                {categoryServices.map((service: Service) => (
+                  <Card
+                    key={service.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => handleServiceSelect(service)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h5 className="font-medium">{service.name}</h5>
+                          {service.description && (
+                            <p className="text-sm text-gray-600 mt-1">{service.description}</p>
                           )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant="secondary" className="text-xs">
+                              <Clock className="w-3 h-3 mr-1" />
+                              {service.durationMinutes}min
+                            </Badge>
+                            {service.requiresConsultation && (
+                              <Badge variant="outline" className="text-xs">
+                                Consultation Required
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold text-lg">${service.price}</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-lg">${service.price}</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -352,26 +364,32 @@ export function ServiceBookingDialog({
 
       {slotsLoading ? (
         <div className="flex justify-center py-4">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
         </div>
       ) : (
         <div>
           <h4 className="font-medium mb-3">Available Times</h4>
-          <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto">
-            {timeSlots
-              .filter((slot: TimeSlot) => slot.available)
-              .map((slot: TimeSlot) => (
-                <Button
-                  key={slot.time}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleTimeSelect(slot.time)}
-                  className="text-center"
-                >
-                  {slot.time}
-                </Button>
-              ))}
-          </div>
+          {timeSlots.filter((slot: TimeSlot) => slot.available).length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-3">
+              No available times on this date. Try a different day.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto">
+              {timeSlots
+                .filter((slot: TimeSlot) => slot.available)
+                .map((slot: TimeSlot) => (
+                  <Button
+                    key={slot.time}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTimeSelect(slot.time)}
+                    className="text-center"
+                  >
+                    {slot.time}
+                  </Button>
+                ))}
+            </div>
+          )}
         </div>
       )}
 

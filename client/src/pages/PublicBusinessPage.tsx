@@ -80,6 +80,7 @@ interface PublicBusinessPageProps {
 interface Business {
   id: number;
   name: string;
+  slug: string;
   description?: string;
   industryType: string;
   status: string;
@@ -194,28 +195,16 @@ export default function PublicBusinessPage({ businessId, slug }: PublicBusinessP
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
 
-  // Check for action parameter in URL to auto-trigger booking
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const action = urlParams.get('action');
-    
-    if (action === 'book' && user && business) {
-      // Auto-trigger booking if user is logged in and business is loaded
-      setTimeout(() => {
-        handleBooking();
-      }, 500); // Small delay to ensure component is fully mounted
-    }
-  }, [user, business]); // Re-run when user or business changes
-
   // Determine which identifier to use
   const actualBusinessId = businessId;
   const actualSlug = slug;
 
-  // Always call slug resolution hook, but enable conditionally  
-  const { data: slugResolution } = useQuery({
+  // Always call slug resolution hook, but enable conditionally
+  const { data: slugResolution, isLoading: slugLoading, isError: slugError } = useQuery({
     queryKey: [`/api/public/businesses/slug/${actualSlug || 'placeholder'}`],
     enabled: !!actualSlug && !actualBusinessId,
-    select: (data: any) => data
+    select: (data: any) => data,
+    retry: false,
   });
 
   const finalBusinessId = actualBusinessId || slugResolution?.businessId;
@@ -244,6 +233,17 @@ export default function PublicBusinessPage({ businessId, slug }: PublicBusinessP
     }
   }, [business?.id, business?.name, cartState.businessId]);
 
+  // Auto-trigger booking when ?action=book is in the URL (MUST be after business is declared)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get('action');
+    if (action === 'book' && user && business) {
+      setTimeout(() => {
+        setIsBookingDialogOpen(true);
+      }, 300);
+    }
+  }, [user, business]);
+
   // Fetch dynamic content based on published sections
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
     queryKey: [`/api/public/businesses/${finalBusinessId}/content/menu`],
@@ -266,7 +266,10 @@ export default function PublicBusinessPage({ businessId, slug }: PublicBusinessP
     enabled: !!finalBusinessId,
   });
 
-  if (businessLoading) {
+  // Show spinner while slug is resolving OR while business profile is loading
+  const isLoading = slugLoading || businessLoading;
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
         <div className="text-center">
@@ -277,7 +280,7 @@ export default function PublicBusinessPage({ businessId, slug }: PublicBusinessP
     );
   }
 
-  if (!business) {
+  if (slugError || !business) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
         <div className="text-center">

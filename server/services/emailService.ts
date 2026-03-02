@@ -47,7 +47,7 @@ export class EmailService {
       await this.loadConfigFromDatabase();
       
       // Create transporter
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         host: this.config.smtpHost,
         port: this.config.smtpPort,
         secure: this.config.secure,

@@ -8,7 +8,7 @@ import {
   salonServices,
   salonStaff
 } from "../../db/index.js";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
@@ -213,6 +213,108 @@ router.get("/public/businesses/:businessId/content/:section", async (req, res) =
   } catch (error) {
     console.error('Error fetching business content:', error);
     res.status(500).json({ error: "Failed to fetch content" });
+  }
+});
+
+// Get public services for a business (no auth required - for booking dialog)
+router.get("/public/businesses/:businessId/services", async (req, res) => {
+  try {
+    const businessId = parseInt(req.params.businessId);
+
+    const services = await db
+      .select()
+      .from(salonServices)
+      .where(and(
+        eq(salonServices.businessId, businessId),
+        eq(salonServices.isActive, true)
+      ));
+
+    res.json(services);
+  } catch (error) {
+    console.error('Error fetching public services:', error);
+    res.status(500).json({ error: "Failed to fetch services" });
+  }
+});
+
+// Get public staff for a business (no auth required - for booking dialog)
+router.get("/public/businesses/:businessId/staff", async (req, res) => {
+  try {
+    const businessId = parseInt(req.params.businessId);
+
+    const staff = await db
+      .select()
+      .from(salonStaff)
+      .where(eq(salonStaff.businessId, businessId));
+
+    res.json(staff);
+  } catch (error) {
+    console.error('Error fetching public staff:', error);
+    res.status(500).json({ error: "Failed to fetch staff" });
+  }
+});
+
+// Get available time slots for a business/service/staff (no auth required)
+// Generates slots based on operating hours or defaults to 9am-6pm in 30-min intervals
+router.get("/public/businesses/:businessId/availability", async (req, res) => {
+  try {
+    const businessId = parseInt(req.params.businessId);
+    const { date, serviceId, staffId } = req.query;
+
+    // Fetch business operating hours
+    const [business] = await db
+      .select({ operatingHours: businessTenants.operatingHours })
+      .from(businessTenants)
+      .where(eq(businessTenants.id, businessId))
+      .limit(1);
+
+    // Determine day of week from requested date
+    const requestedDate = date ? new Date(date as string) : new Date();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = dayNames[requestedDate.getDay()];
+
+    // Get operating hours for that day (or default 9am-6pm)
+    let openHour = 9;
+    let closeHour = 18;
+
+    const hours = (business?.operatingHours as any)?.[dayName];
+    if (hours?.isOpen && hours.open && hours.close) {
+      const [openH] = hours.open.split(':').map(Number);
+      const [closeH] = hours.close.split(':').map(Number);
+      openHour = openH;
+      closeHour = closeH;
+    } else if (hours?.isOpen === false) {
+      // Business is closed this day
+      return res.json([]);
+    }
+
+    // Determine if the requested date is today (compare date strings in local time)
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const requestedStr = date as string || todayStr;
+    const isToday = requestedStr === todayStr;
+
+    // Current time in hours + minutes (add 30 min buffer so you can't book a slot that's already starting)
+    const currentTotalMinutes = isToday ? now.getHours() * 60 + now.getMinutes() + 30 : 0;
+
+    // Generate 30-minute slots between open and close
+    const slots = [];
+    for (let h = openHour; h < closeHour; h++) {
+      for (const m of [0, 30]) {
+        if (h === closeHour - 1 && m === 30) break; // don't go past close
+        const slotTotalMinutes = h * 60 + m;
+        // Skip past slots when booking for today
+        if (isToday && slotTotalMinutes < currentTotalMinutes) continue;
+        const hour12 = h % 12 || 12;
+        const ampm = h < 12 ? 'AM' : 'PM';
+        const timeStr = `${hour12}:${m === 0 ? '00' : '30'} ${ampm}`;
+        slots.push({ time: timeStr, available: true });
+      }
+    }
+
+    res.json(slots);
+  } catch (error) {
+    console.error('Error fetching availability:', error);
+    res.status(500).json({ error: "Failed to fetch availability" });
   }
 });
 

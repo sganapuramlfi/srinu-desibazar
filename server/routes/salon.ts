@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../../db/index.js";
-import { salonStaff, salonServices, salonStaffServices } from "../../db/index.js";
+import { salonStaff, salonServices, salonStaffServices, salonAppointments, bookableItems, bookings } from "../../db/index.js";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { insertSalonServiceSchema, insertSalonStaffSchema } from "../../db/index.js";
@@ -541,6 +541,112 @@ router.post("/businesses/:businessId/staff/:staffId/schedules", async (req, res)
       message: "Failed to create schedule",
       error: error.message
     });
+  }
+});
+
+// Create a salon appointment (customer booking)
+router.post("/businesses/:businessId/salon/appointments", async (req, res) => {
+  try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized - please sign in to book" });
+    }
+
+    const businessId = parseInt(req.params.businessId);
+    const user = req.user as any;
+
+    const schema = z.object({
+      serviceId: z.number(),
+      staffId: z.number(),
+      startTime: z.string(),
+      endTime: z.string(),
+      notes: z.string().optional(),
+      colorFormula: z.string().optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid input", errors: parsed.error.issues });
+    }
+
+    const { serviceId, staffId, startTime, endTime, notes, colorFormula } = parsed.data;
+
+    // Fetch service details
+    const [service] = await db.select()
+      .from(salonServices)
+      .where(and(eq(salonServices.id, serviceId), eq(salonServices.businessId, businessId)))
+      .limit(1);
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    // Find or create a bookableItem for this salon service
+    let [bookableItem] = await db.select()
+      .from(bookableItems)
+      .where(and(
+        eq(bookableItems.businessId, businessId),
+        eq(bookableItems.itemType, 'salon_service'),
+        eq(bookableItems.itemId, serviceId)
+      ))
+      .limit(1);
+
+    if (!bookableItem) {
+      [bookableItem] = await db.insert(bookableItems).values({
+        businessId,
+        itemType: 'salon_service',
+        itemId: serviceId,
+        name: service.name,
+        description: service.description || '',
+        durationMinutes: service.durationMinutes,
+        price: service.price,
+        isActive: true,
+      }).returning();
+    }
+
+    // Generate confirmation code
+    const confirmationCode = `SAL-${Date.now().toString(36).toUpperCase()}`;
+
+    // Create universal booking record
+    const start = new Date(startTime);
+    const bookingDate = start.toISOString().split('T')[0];
+
+    const [booking] = await db.insert(bookings).values({
+      businessId,
+      bookableItemId: bookableItem.id,
+      customerId: user.id,
+      customerName: user.fullName || user.email || 'Customer',
+      customerPhone: user.phone || null,
+      customerEmail: user.email || null,
+      bookingDate,
+      startTime: start,
+      endTime: new Date(endTime),
+      status: 'confirmed',
+      specialRequests: notes || null,
+      basePrice: service.price,
+      totalPrice: service.price,
+      confirmationCode,
+    }).returning();
+
+    // Create salon-specific appointment record
+    const [appointment] = await db.insert(salonAppointments).values({
+      businessId,
+      bookingId: booking.id,
+      serviceId,
+      staffId,
+      colorFormula: colorFormula || null,
+    }).returning();
+
+    res.status(201).json({
+      success: true,
+      bookingId: booking.id,
+      appointmentId: appointment.id,
+      confirmationCode,
+      message: `${service.name} appointment confirmed`,
+    });
+
+  } catch (error: any) {
+    console.error('Error creating salon appointment:', error);
+    res.status(500).json({ message: "Failed to create appointment", error: error.message });
   }
 });
 

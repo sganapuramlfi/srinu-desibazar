@@ -26,7 +26,22 @@ interface BookingResponse {
 }
 
 class BookingService {
-  
+
+  /**
+   * Convert 12-hour time string (e.g. "9:30 AM", "1:00 PM") to 24-hour "HH:MM"
+   */
+  private to24Hour(time12: string): string {
+    const [timePart, period] = time12.trim().split(' ');
+    const [h, m] = timePart.split(':').map(Number);
+    let hours = h;
+    if (period?.toUpperCase() === 'AM') {
+      if (hours === 12) hours = 0;
+    } else if (period?.toUpperCase() === 'PM') {
+      if (hours !== 12) hours += 12;
+    }
+    return `${String(hours).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
   /**
    * Main booking router - directs to industry-specific handlers
    */
@@ -54,16 +69,17 @@ class BookingService {
    */
   private async createRestaurantBooking(request: BookingRequest): Promise<BookingResponse> {
     const { businessId, customerId, bookingData } = request;
-    
+    const time24 = this.to24Hour(bookingData.time);
+
     // Restaurant-specific data transformation
     const reservationData = {
       businessId,
       customerId,
-      
+
       // Universal booking fields
       serviceType: 'table_reservation',
-      startTime: new Date(`${bookingData.date}T${bookingData.time}`).toISOString(),
-      endTime: this.calculateEndTime(`${bookingData.date}T${bookingData.time}`, 120), // 2 hour default
+      startTime: new Date(`${bookingData.date}T${time24}`).toISOString(),
+      endTime: this.calculateEndTime(`${bookingData.date}T${time24}`, 120), // 2 hour default
       partySize: bookingData.partySize,
       notes: bookingData.specialRequests,
       
@@ -105,16 +121,17 @@ class BookingService {
    */
   private async createSalonBooking(request: BookingRequest): Promise<BookingResponse> {
     const { businessId, customerId, bookingData } = request;
-    
-    // Salon-specific data transformation  
+    const time24 = this.to24Hour(bookingData.time);
+
+    // Salon-specific data transformation
     const appointmentData = {
       businessId,
       customerId,
-      
+
       // Universal booking fields
       serviceId: bookingData.serviceId,
-      startTime: new Date(`${bookingData.date}T${bookingData.time}`).toISOString(),
-      endTime: this.calculateEndTime(`${bookingData.date}T${bookingData.time}`, bookingData.durationMinutes),
+      startTime: new Date(`${bookingData.date}T${time24}`).toISOString(),
+      endTime: this.calculateEndTime(`${bookingData.date}T${time24}`, bookingData.durationMinutes),
       notes: bookingData.notes,
       
       // Salon-specific fields
@@ -157,16 +174,17 @@ class BookingService {
    */
   private async createServiceBooking(request: BookingRequest): Promise<BookingResponse> {
     const { businessId, customerId, bookingData, industryType } = request;
-    
+    const time24 = this.to24Hour(bookingData.time);
+
     const serviceBookingData = {
       businessId,
       customerId,
       industryType,
-      
+
       // Universal booking fields
       serviceId: bookingData.serviceId,
-      startTime: new Date(`${bookingData.date}T${bookingData.time}`).toISOString(),
-      endTime: this.calculateEndTime(`${bookingData.date}T${bookingData.time}`, bookingData.durationMinutes),
+      startTime: new Date(`${bookingData.date}T${time24}`).toISOString(),
+      endTime: this.calculateEndTime(`${bookingData.date}T${time24}`, bookingData.durationMinutes),
       notes: bookingData.notes,
       
       // Service-specific fields
@@ -216,18 +234,8 @@ class BookingService {
     if (params.serviceId) queryParams.append('serviceId', params.serviceId.toString());
     if (params.staffId) queryParams.append('staffId', params.staffId.toString());
 
-    // Route to industry-specific availability endpoint
-    let endpoint: string;
-    switch (params.industryType) {
-      case 'restaurant':
-        endpoint = `/api/businesses/${params.businessId}/restaurant/availability?${queryParams}`;
-        break;
-      case 'salon':
-        endpoint = `/api/businesses/${params.businessId}/salon/availability?${queryParams}`;
-        break;
-      default:
-        endpoint = `/api/businesses/${params.businessId}/services/availability?${queryParams}`;
-    }
+    // Use public availability endpoint (no auth required for browsing slots)
+    const endpoint = `/api/public/businesses/${params.businessId}/availability?${queryParams}`;
 
     const response = await fetch(endpoint);
     if (!response.ok) {
@@ -241,24 +249,14 @@ class BookingService {
    * Get services for a business with industry-specific formatting
    */
   async getBusinessServices(businessId: number, industryType: string) {
-    let endpoint: string;
-    
-    switch (industryType) {
-      case 'restaurant':
-        endpoint = `/api/businesses/${businessId}/restaurant/tables`;
-        break;
-      case 'salon':
-        endpoint = `/api/businesses/${businessId}/salon/services`;
-        break;
-      default:
-        endpoint = `/api/businesses/${businessId}/services`;
-    }
+    // Use public endpoint - no auth required to browse services
+    const endpoint = `/api/public/businesses/${businessId}/services`;
 
     const response = await fetch(endpoint);
     if (!response.ok) {
       throw new Error('Failed to fetch business services');
     }
-    
+
     return response.json();
   }
 
@@ -266,7 +264,8 @@ class BookingService {
    * Get staff members for a business
    */
   async getBusinessStaff(businessId: number, industryType: string, serviceId?: number) {
-    let endpoint = `/api/businesses/${businessId}/${industryType}/staff`;
+    // Use public endpoint - no auth required to browse staff
+    let endpoint = `/api/public/businesses/${businessId}/staff`;
     if (serviceId) {
       endpoint += `?serviceId=${serviceId}`;
     }
@@ -275,7 +274,7 @@ class BookingService {
     if (!response.ok) {
       throw new Error('Failed to fetch business staff');
     }
-    
+
     return response.json();
   }
 

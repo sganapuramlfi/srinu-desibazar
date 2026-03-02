@@ -39,10 +39,9 @@ const cancelBookingSchema = z.object({
 });
 
 const rescheduleBookingSchema = z.object({
-  newStartTime: z.string(),
-  newEndTime: z.string(),
+  newDate: z.string(), // "yyyy-MM-dd"
+  newTime: z.string(), // "9:30 AM" or "14:00"
   reason: z.string().optional(),
-  requestedBy: z.enum(['customer', 'staff', 'system']).default('customer')
 });
 
 const updateBookingStatusSchema = z.object({
@@ -168,9 +167,13 @@ router.post("/businesses/:businessId/bookings/:bookingId/cancel", async (req, re
 // Reschedule a booking
 router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req, res) => {
   try {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const businessId = parseInt(req.params.businessId);
     const bookingId = parseInt(req.params.bookingId);
-    
+
     const validationResult = rescheduleBookingSchema.safeParse(req.body);
     if (!validationResult.success) {
       return res.status(400).json({
@@ -179,7 +182,7 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req
       });
     }
 
-    const { newStartTime, newEndTime, reason, requestedBy } = validationResult.data;
+    const { newDate, newTime } = validationResult.data;
 
     // Verify booking exists and belongs to business
     const [booking] = await db
@@ -196,37 +199,48 @@ router.post("/businesses/:businessId/bookings/:bookingId/reschedule", async (req
     }
 
     if (['cancelled', 'completed', 'no_show'].includes(booking.status)) {
-      return res.status(400).json({ 
-        error: `Cannot reschedule a ${booking.status} booking` 
-      });
-    }
-
-    // Process reschedule through constraint validator
-    const rescheduleResult = await constraintValidator.processReschedule(
-      bookingId,
-      new Date(newStartTime),
-      new Date(newEndTime),
-      reason || 'Customer requested reschedule',
-      req.user?.id,
-      requestedBy
-    );
-
-    if (!rescheduleResult.isValid && rescheduleResult.violations.some(v => v.isMandatory)) {
       return res.status(400).json({
-        error: "Reschedule not allowed",
-        violations: rescheduleResult.violations,
-        warnings: rescheduleResult.warnings
+        error: `Cannot reschedule a ${booking.status} booking`
       });
     }
+
+    // Convert 12-hour time to 24-hour if needed (e.g. "9:30 AM" -> "09:30")
+    const to24Hour = (t: string) => {
+      const parts = t.trim().split(' ');
+      if (parts.length === 1) return t; // already 24-hour
+      const [timePart, period] = parts;
+      const [h, m] = timePart.split(':').map(Number);
+      let hours = h;
+      if (period.toUpperCase() === 'AM') { if (hours === 12) hours = 0; }
+      else if (period.toUpperCase() === 'PM') { if (hours !== 12) hours += 12; }
+      return `${String(hours).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const time24 = to24Hour(newTime);
+    const newStartTime = new Date(`${newDate}T${time24}`);
+
+    // Calculate new end time based on original booking duration
+    const originalDuration = booking.endTime && booking.startTime
+      ? new Date(booking.endTime).getTime() - new Date(booking.startTime).getTime()
+      : 60 * 60 * 1000; // default 1 hour
+    const newEndTime = new Date(newStartTime.getTime() + originalDuration);
+
+    // Update the booking record
+    await db.update(bookings)
+      .set({
+        startTime: newStartTime,
+        endTime: newEndTime,
+        bookingDate: newDate,
+        status: 'confirmed',
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, bookingId));
 
     res.json({
       message: "Booking rescheduled successfully",
       bookingId,
-      newStartTime,
-      newEndTime,
-      violations: rescheduleResult.violations,
-      warnings: rescheduleResult.warnings,
-      financialImpact: rescheduleResult.violations.find(v => v.financialImpact)?.financialImpact
+      newStartTime: newStartTime.toISOString(),
+      newEndTime: newEndTime.toISOString(),
     });
 
   } catch (error) {

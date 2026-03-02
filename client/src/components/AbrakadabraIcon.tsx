@@ -163,10 +163,10 @@ export function AbrakadabraIcon({ context = 'directory' }: AbrakadabraIconProps)
   );
 
   const ChatPopup = () => (
-    <div className="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg h-[85vh] sm:h-[700px] flex flex-col animate-slideUp shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg h-[85vh] max-h-[700px] flex flex-col animate-slideUp shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg flex items-center justify-between">
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-lg flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="bg-white/20 p-2 rounded-full">
               <Sparkles className="w-5 h-5" />
@@ -187,10 +187,10 @@ export function AbrakadabraIcon({ context = 'directory' }: AbrakadabraIconProps)
         </div>
 
         {/* Chat Area */}
-        <CardContent className="flex-1 flex flex-col p-0">
-          <div 
+        <CardContent className="flex-1 flex flex-col p-0 min-h-0 overflow-hidden">
+          <div
             ref={chatContainerRef}
-            className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[500px] scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-100"
+            className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-100"
             style={{ scrollBehavior: 'smooth' }}
           >
             {/* Welcome message */}
@@ -335,7 +335,7 @@ export function AbrakadabraIcon({ context = 'directory' }: AbrakadabraIconProps)
           </div>
 
           {/* Input Area */}
-          <div className="border-t p-4">
+          <div className="border-t p-4 flex-shrink-0">
             <div className="flex gap-2">
               <Input
                 value={query}

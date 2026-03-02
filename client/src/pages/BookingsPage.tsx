@@ -22,18 +22,11 @@ import {
   AlertCircle,
   RotateCcw,
 } from "lucide-react";
-import { format, parseISO, endOfDay } from "date-fns";
+import { format, parseISO, startOfDay } from "date-fns";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Customer {
   id: number;
@@ -78,10 +71,6 @@ interface BookingResponse {
   staff: Staff;
 }
 
-interface AvailableSlot extends ServiceSlot {
-  service: Service;
-  staff: Staff;
-}
 
 export default function BookingsPage({ businessId }: { businessId?: string }) {
   const { user } = useUser();
@@ -98,29 +87,24 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     enabled: !!user,
   });
 
-  // Update the availableSlots query - handle both salon and restaurant bookings
-  const { data: availableSlots = [], isLoading: isLoadingSlots } = useQuery<AvailableSlot[]>({
-    queryKey: [
-      selectedBooking?.service?.staff?.businessId 
-        ? `/api/businesses/${selectedBooking.service.staff.businessId}/slots/available`
-        : selectedBooking?.businessId
-          ? `/api/restaurants/${selectedBooking.businessId}/tables/available`
-          : null,
-      {
-        date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined,
-        time: selectedDate ? '19:00' : undefined, // Default time for restaurant bookings
-        partySize: selectedBooking?.partySize || 2,
-        serviceId: selectedBooking?.service?.id,
-        staffId: selectedBooking?.staff?.id,
+  // Generate time slots client-side for reschedule (same logic as availability endpoint)
+  const rescheduleTimeSlots = useMemo(() => {
+    if (!selectedDate) return [];
+    const now = new Date();
+    const isToday = format(selectedDate, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd');
+    const currentTotalMinutes = isToday ? now.getHours() * 60 + now.getMinutes() + 30 : 0;
+    const slots: string[] = [];
+    for (let h = 9; h < 18; h++) {
+      for (const m of [0, 30]) {
+        if (h === 17 && m === 30) break;
+        if (isToday && h * 60 + m < currentTotalMinutes) continue;
+        const hour12 = h % 12 || 12;
+        const ampm = h < 12 ? 'AM' : 'PM';
+        slots.push(`${hour12}:${m === 0 ? '00' : '30'} ${ampm}`);
       }
-    ],
-    enabled: !!selectedDate && !!selectedBooking && (
-      // Salon booking conditions
-      (!!selectedBooking?.service?.id && !!selectedBooking?.staff?.id) ||
-      // Restaurant booking conditions  
-      !!selectedBooking?.businessId
-    ),
-  });
+    }
+    return slots;
+  }, [selectedDate]);
 
   // Cancel booking mutation
   const cancelBookingMutation = useMutation({
@@ -156,28 +140,23 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
     },
   });
 
-  // Update the rescheduleBookingMutation
   const rescheduleBookingMutation = useMutation({
     mutationFn: async ({
       bookingId,
-      slotId,
-      date,
+      businessId,
+      newDate,
+      newTime,
     }: {
       bookingId: number;
-      slotId: number;
-      date: string;
+      businessId: number;
+      newDate: string;
+      newTime: string;
     }) => {
-      if (!selectedBooking?.service?.staff?.businessId) {
-        throw new Error('Missing business ID');
-      }
-
-      const response = await fetch(`/api/businesses/${selectedBooking.service.staff.businessId}/bookings/${bookingId}/reschedule`, {
+      const response = await fetch(`/api/businesses/${businessId}/bookings/${bookingId}/reschedule`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ slotId, date }),
+        body: JSON.stringify({ newDate, newTime }),
       });
 
       if (!response.ok) {
@@ -191,7 +170,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
       toast({
         title: "Booking Rescheduled",
-        description: "Your appointment has been successfully rescheduled. You will receive an updated confirmation email shortly.",
+        description: "Your appointment has been successfully rescheduled.",
       });
       setSelectedBooking(null);
       setSelectedDate(undefined);
@@ -201,7 +180,7 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       toast({
         variant: "destructive",
         title: "Rescheduling Failed",
-        description: error.message || "Failed to reschedule booking. Please try again or contact support.",
+        description: error.message || "Failed to reschedule. Please try again.",
       });
     },
   });
@@ -239,15 +218,19 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
       return;
     }
 
+    const businessId = (selectedBooking as any).businessId;
+    if (!businessId) {
+      toast({ variant: "destructive", title: "Error", description: "Cannot identify the business for this booking." });
+      return;
+    }
+
     try {
       await rescheduleBookingMutation.mutateAsync({
         bookingId: selectedBooking.id,
-        slotId: parseInt(selectedTimeSlot),
-        date: format(selectedDate, 'yyyy-MM-dd'),
+        businessId,
+        newDate: format(selectedDate, 'yyyy-MM-dd'),
+        newTime: selectedTimeSlot,
       });
-      setSelectedBooking(null);
-      setSelectedDate(undefined);
-      setSelectedTimeSlot(undefined);
     } catch (error) {
       console.error('Failed to reschedule booking:', error);
     }
@@ -461,37 +444,29 @@ export default function BookingsPage({ businessId }: { businessId?: string }) {
                                       selected={selectedDate}
                                       onSelect={setSelectedDate}
                                       className="rounded-md border"
-                                      disabled={(date) => date < new Date()}
+                                      disabled={(date) => date < startOfDay(new Date())}
                                     />
                                   </div>
                                   {selectedDate && (
                                     <div className="space-y-2">
                                       <label className="text-sm font-medium">Select Time</label>
-                                      <Select
-                                        value={selectedTimeSlot}
-                                        onValueChange={setSelectedTimeSlot}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Choose a time slot" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {isLoadingSlots ? (
-                                            <div className="flex justify-center p-2">
-                                              <Loader2 className="h-4 w-4 animate-spin" />
-                                            </div>
-                                          ) : availableSlots.length === 0 ? (
-                                            <div className="text-center p-2 text-sm text-muted-foreground">
-                                              No slots available for this date
-                                            </div>
-                                          ) : (
-                                            availableSlots.map((slot) => (
-                                              <SelectItem key={slot.id} value={slot.id.toString()}>
-                                                {format(parseISO(slot.startTime), 'h:mm a')}
-                                              </SelectItem>
-                                            ))
-                                          )}
-                                        </SelectContent>
-                                      </Select>
+                                      {rescheduleTimeSlots.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground py-2">No available times for this date. Try another day.</p>
+                                      ) : (
+                                        <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                                          {rescheduleTimeSlots.map((time) => (
+                                            <Button
+                                              key={time}
+                                              variant={selectedTimeSlot === time ? "default" : "outline"}
+                                              size="sm"
+                                              onClick={() => setSelectedTimeSlot(time)}
+                                              className="text-xs"
+                                            >
+                                              {time}
+                                            </Button>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                   <div className="flex justify-end gap-2 mt-4">
